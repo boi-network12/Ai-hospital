@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
 import React from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { heightPercentageToDP as hp } from "react-native-responsive-screen"
@@ -7,6 +7,8 @@ import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
 import NotIcon from "@/assets/Svgs/bell.svg";
 import MiddleDisplay from '@/components/HomeComponents/MiddleDisplay';
 import { _MiddleDisplayContent } from '@/constants/ResolveDisplay';
+import HomeWidget from '@/components/HomeComponents/HomeWidget';
+import { StatusBar } from 'expo-status-bar';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
@@ -15,33 +17,41 @@ const _middleDisplayContent = _MiddleDisplayContent;
 export default function HomePage() {
   return (
     <SafeAreaView style={styles.container}>
-      {/* for header display */}
-      <View style={styles.topViewHeader}>
-        <View>
-          <Image
-            source={require('@/assets/images/avatar.png')}
-            style={styles.headerImage}
-            transition={1000}
-            placeholder={{ blurhash }}
-            contentFit='contain'
-          />
-          <Text style={styles.headerText}>Hello, Jane</Text>
+      <StatusBar style='auto' />
+      <ScrollView bounces 
+          showsVerticalScrollIndicator={false}
+        >
+        {/* for header display */}
+        <View style={styles.topViewHeader}>
+          <View>
+            <Image
+              source={require('@/assets/images/avatar.png')}
+              style={styles.headerImage}
+              transition={1000}
+              placeholder={{ blurhash }}
+              contentFit='contain'
+            />
+            <Text style={styles.headerText}>Hello, Jane</Text>
+          </View>
+
+          <TouchableOpacity>
+            <NotIcon width={hp(2.5)} height={hp(3)} />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity>
-          <NotIcon width={hp(3)} height={hp(3)} />
-        </TouchableOpacity>
-      </View>
+        {/* for the middle View */}
+        <View style={styles.middleView}>
+          <Text style={styles.middleHeaderText}> your resolves</Text>
 
-      {/* for the middle View */}
-      <View style={styles.middleView}>
-        <Text style={styles.middleHeaderText}> your resolves</Text>
+          {/*  */}
+          <MiddleDisplay 
+            data={_middleDisplayContent}
+          />
+        </View>
 
-        {/*  */}
-        <MiddleDisplay 
-          data={_middleDisplayContent}
-        />
-      </View>
+        {/* widget for step, weather, hydration, time to bed */}
+        <HomeWidget />
+      </ScrollView>
     </SafeAreaView>
   )
 }

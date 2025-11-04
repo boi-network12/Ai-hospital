@@ -23,7 +23,7 @@ export default function GetStartedPage() {
           style={styles.pillsImgDisplay}
         />
       </View>
-      <Text style={styles.getStartedText}>welcome to doc ai</Text>
+      <Text style={styles.getStartedText}>welcome to Neuromed</Text>
       <View style={styles.handPillImgContainer}>
         <Image
           source={require('../assets/images/handWithPill.png')}
