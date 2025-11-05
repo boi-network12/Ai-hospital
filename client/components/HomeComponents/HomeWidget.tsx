@@ -55,11 +55,12 @@ export default function HomeWidget() {
 const styles = StyleSheet.create({
   HomeWidgetContainer: {
     marginTop: hp(3),
+    marginBottom: hp(2),
     width: "100%",
     flexWrap: "wrap",
     alignContent: 'center',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     gap: hp(2),
     flexDirection: "row"
   },

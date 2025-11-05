@@ -9,6 +9,7 @@ import MiddleDisplay from '@/components/HomeComponents/MiddleDisplay';
 import { _MiddleDisplayContent } from '@/constants/ResolveDisplay';
 import HomeWidget from '@/components/HomeComponents/HomeWidget';
 import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
@@ -34,14 +35,14 @@ export default function HomePage() {
             <Text style={styles.headerText}>Hello, Jane</Text>
           </View>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/notifications")}>
             <NotIcon width={hp(2.5)} height={hp(3)} />
           </TouchableOpacity>
         </View>
 
         {/* for the middle View */}
         <View style={styles.middleView}>
-          <Text style={styles.middleHeaderText}> your resolves</Text>
+          <Text style={styles.middleHeaderText}> Your resolves</Text>
 
           {/*  */}
           <MiddleDisplay 
@@ -72,8 +73,8 @@ const styles = StyleSheet.create({
     marginBottom: hp(4),
   },
   headerImage: {
-    width: hp(6),
-    height: hp(6),
+    width: hp(5),
+    height: hp(5),
     borderRadius: hp(1.5),
     marginBottom: hp(2),
     borderWidth: 1,

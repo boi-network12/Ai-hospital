@@ -28,7 +28,7 @@ export default function RootLayout(): JSX.Element | null {
     const prepare = async () => {
       try {
         // TODO: Replace with real auth check
-        const userAuthenticated = false;
+        const userAuthenticated = true;
 
         // Wait for auth check
         setAuthState({ isAuth: userAuthenticated, isReady: true });
