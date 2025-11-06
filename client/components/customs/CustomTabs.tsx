@@ -7,7 +7,7 @@ import HomeIcon from '../../assets/Svgs/HomeIcon.svg';
 import CalendarIcon from '../../assets/Svgs/calendar.svg';
 import ProfileIcon from '../../assets/Svgs/user.svg';
 import ChatIcon from '../../assets/Svgs/message-square.svg';
-import SearchIcon from '../../assets/Svgs/search.svg';
+import DiscoveryIcon from '../../assets/Svgs/binoculars.svg';
 
 // 👇 Add proper typing for props
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -24,7 +24,7 @@ const CustomTabs: React.FC<BottomTabBarProps> = (props) => {
     { name: 'home', icon: HomeIcon },
     { name: 'calendar', icon: CalendarIcon },
     { name: 'chat', icon: ChatIcon },
-    { name: 'search', icon: SearchIcon },
+    { name: 'discovery', icon: DiscoveryIcon },
     { name: 'profile', icon: ProfileIcon },
   ];
 

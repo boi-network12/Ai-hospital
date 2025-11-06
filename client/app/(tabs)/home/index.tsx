@@ -10,6 +10,7 @@ import { _MiddleDisplayContent } from '@/constants/ResolveDisplay';
 import HomeWidget from '@/components/HomeComponents/HomeWidget';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import NetworkLatencyDisplay from '@/config/NetworkLatencyDisplay';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
@@ -42,7 +43,17 @@ export default function HomePage() {
 
         {/* for the middle View */}
         <View style={styles.middleView}>
-          <Text style={styles.middleHeaderText}> Your resolves</Text>
+          <Text style={styles.middleHeaderText}> Your resolves 
+            <Text 
+              style={{ 
+                fontWeight: "300", 
+                fontFamily: "Roboto-regular", 
+                fontSize: hp(1), 
+                marginLeft: hp(1.7)
+              }}>
+              <NetworkLatencyDisplay />
+            </Text>
+          </Text>
 
           {/*  */}
           <MiddleDisplay 

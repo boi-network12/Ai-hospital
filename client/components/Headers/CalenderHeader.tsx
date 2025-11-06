@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: 'Roboto-Bold',
-    fontSize: hp(2.2),
-    color: '#222',
+    fontSize: hp(2),
+    color: '#555',
   },
 })

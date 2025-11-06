@@ -15,7 +15,15 @@ export default function TabLayout() {
         options={{ headerShown: false }}
       />
       <Tabs.Screen
+        name="calendar/index"
+        options={{ headerShown: false }}
+      />
+      <Tabs.Screen
         name="chat/index"
+        options={{ headerShown: false }}
+      />
+      <Tabs.Screen
+        name="discovery/index"
         options={{ headerShown: false }}
       />
       <Tabs.Screen

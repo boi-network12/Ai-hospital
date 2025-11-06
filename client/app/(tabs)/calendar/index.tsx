@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import React, { useMemo, useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     marginBottom: hp(3),
   },
   arrow: { fontSize: hp(3), color: '#8089ff' },
-  monthTitle: { fontFamily: 'Roboto-Bold', fontSize: hp(2.2), color: '#222' },
+  monthTitle: { fontFamily: 'Roboto-Bold', fontSize: hp(2), color: '#8089ff' },
 
   weekRow: {
     flexDirection: 'row',
