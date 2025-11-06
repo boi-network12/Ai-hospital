@@ -56,9 +56,11 @@ export default function DetailsView() {
         return (
             <View key={sectionIndex} style={styles.content}>
                 <View style={styles.HeaderTitle}>
+                  <View style={styles.iconBox}>
                     {Icon && (
                         <Icon width={hp(2)} height={hp(2)} color="#8089ff" />
                     )}
+                   </View>
                     <Text style={styles.headerTitleText}>{section.title}</Text>
                 </View>
 
@@ -77,7 +79,9 @@ export default function DetailsView() {
       <View style={[styles.content, { marginTop: hp(3) }]}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View style={styles.HeaderTitle}>
-                <StethoscopeIcon width={hp(2)} height={hp(2)} color="#8089ff" />
+                <View style={styles.iconBox}>
+                  <StethoscopeIcon width={hp(2.2)} height={hp(2.2)}  color="#8089ff" />
+                </View>
                 <Text style={styles.headerTitleText}>Passed Appointments</Text>
             </View>
 
@@ -204,5 +208,13 @@ const styles = StyleSheet.create({
     fontSize:  hp(1.5),
     fontWeight: "500",
     color: "#999"
+  },
+  iconBox: {
+    backgroundColor: "rgba(128, 137, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: hp(0.4),
+    width: hp(3.2),
+    aspectRatio: 1
   },
 })
