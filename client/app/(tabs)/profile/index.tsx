@@ -10,6 +10,7 @@ import FemaleIcon from '@/assets/Svgs/venus.svg';
 import DropIcon from '@/assets/Svgs/droplet.svg';
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
 import { Image } from 'expo-image';
+import ViewDetailsReports from '@/components/ProfileComponents/ViewDetailsReports';
 
 const blurhash = BLUR_HASH_PLACEHOLDER;
 
@@ -82,6 +83,9 @@ export default function ProfilePage() {
           contentContainerStyle={styles.ScrollViewUi}
         >
           {TopHeader()}
+
+        <ViewDetailsReports 
+        />
       </ScrollView>
     </SafeAreaView>
   )
@@ -94,6 +98,7 @@ const styles = StyleSheet.create({
   },
   TopHeaderContainer: {
     paddingHorizontal: hp(2),
+    paddingBottom: hp(1.5),
     alignItems: "center",
     justifyContent: 'center',
     flexDirection: 'column',
