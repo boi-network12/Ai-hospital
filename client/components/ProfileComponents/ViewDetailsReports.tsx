@@ -69,7 +69,7 @@ export default function ViewDetailsReports() {
 const styles = StyleSheet.create({
     container: {
         flex: 1, 
-        backgroundColor: "#F8F8F8FF",
+        backgroundColor: "#FCFCFCFF",
         width: "100%"
     },
     tabSelectContainer: {

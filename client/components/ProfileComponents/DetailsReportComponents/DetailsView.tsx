@@ -3,7 +3,14 @@ import React from 'react'
 import GemIcon from "@/assets/Svgs/gem.svg"
 import EmergencyIcon from "@/assets/Svgs/cross.svg"
 import StethoscopeIcon from "@/assets/Svgs/stethoscope.svg"
+import CalenderIcon from "@/assets/Svgs/calendar-days.svg"
+import ClockIcon from "@/assets/Svgs/clock.svg";
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen'
+import { Image } from 'expo-image'
+import AvatarImg from "@/assets/images/avatar.png";
+import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash'
+
+const blurhash = BLUR_HASH_PLACEHOLDER
 
 export default function DetailsView() {
 
@@ -26,6 +33,17 @@ export default function DetailsView() {
         { label: "Relationship", value: "Sister" },
         { label: "Phone no", value: "+234 8012345678" },
       ],
+    },
+  ]
+
+  const subBoxContentDisplay = [
+    {
+        icon: CalenderIcon,
+        text: "sunday, 2nd March 2026"
+    },
+    {
+        icon: ClockIcon,
+        text: "08.00"
     },
   ]
 
@@ -69,7 +87,32 @@ export default function DetailsView() {
           </View>
           {/*  */}
           <View style={styles.boxContent}>
-            
+            {/*  */}
+            <View style={styles.boxDetailsDisplay}>
+                <Image
+                   placeholder={blurhash}
+                   source={AvatarImg}
+                   style={styles.avatarImg}
+                />
+                <View style={{}}>
+                    <Text style={styles.nameText}>Dr. Inara Isani</Text>
+                    <Text style={styles.problemSolve}>heart Surgeon, Delhi</Text>
+                </View>
+            </View>
+            {/*  */}
+            <View style={styles.subBoxContent}>
+                {subBoxContentDisplay.map((item, index) => {
+                    const Icon = item.icon;
+                    return (
+                        <View key={index} style={styles.subBoxDisplay}>
+                            {Icon && (
+                                <Icon width={hp(2)} height={hp(2)} color="#8089ff" />
+                            )}
+                            <Text style={styles.subBoxDisplayText}>{item.text}</Text>
+                        </View>
+                    )
+                })}
+            </View>
           </View>
       </View>
     </View>
@@ -113,5 +156,53 @@ const styles = StyleSheet.create({
     fontSize: hp(1.6),
     color: "rgba(128, 137, 255, 0.8)",
     fontWeight: "600",
+  },
+  boxContent: {
+    marginTop: hp(2),
+    width: "100%",
+    backgroundColor: "#fff",
+    padding: hp(1),
+    borderRadius: hp(1)
+  },
+  subBoxContent: {
+    flexDirection: "row",
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: hp(1)
+  },
+  subBoxDisplay: {
+    flexDirection: "row",
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hp(0.4),
+    backgroundColor: "rgba(128, 137, 255, 0.1)",
+    padding: hp(0.5),
+    borderRadius: hp(0.4)
+  },
+  subBoxDisplayText: {
+    color: "#8089ff",
+    fontSize: hp(1.5),
+  },
+  boxDetailsDisplay: {
+    flexDirection: "row",
+    marginBottom: hp(1),
+    gap: hp(1.5),
+    alignItems: "flex-start",
+    justifyContent: "flex-start"
+  },
+  avatarImg: {
+    width: hp(6),
+    aspectRatio: 1,
+    borderRadius: hp(1.1)
+  },
+  nameText: {
+    fontSize:  hp(2),
+    fontWeight: "600",
+    color: "#444"
+  },
+  problemSolve: {
+    fontSize:  hp(1.5),
+    fontWeight: "500",
+    color: "#999"
   },
 })
