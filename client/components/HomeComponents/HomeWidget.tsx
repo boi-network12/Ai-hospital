@@ -17,6 +17,7 @@ import CloudSun  from '@/assets/Svgs/cloud-sun.svg'
 import Water from '@/assets/Svgs/glass-water.svg'
 import Bed from '@/assets/Svgs/bed.svg'
 
+
 const Weather_Key = '3f4dd97dd74e4e11a49222554231905'
 const CITY = 'Lagos'
 const GOAL = 2.5
