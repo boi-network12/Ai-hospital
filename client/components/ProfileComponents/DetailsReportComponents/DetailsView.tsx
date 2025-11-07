@@ -125,7 +125,9 @@ export default function DetailsView() {
 
 // ✅ Step 3: Keep your styles
 const styles = StyleSheet.create({
-  container: {},
+  container: {
+    padding: hp(2)
+  },
   content: {
     width: "100%",
     paddingTop: hp(2),

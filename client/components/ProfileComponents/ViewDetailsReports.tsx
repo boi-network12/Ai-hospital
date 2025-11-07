@@ -1,75 +1,74 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import React, { useState } from 'react'
-import { heightPercentageToDP as hp  } from 'react-native-responsive-screen'
-import { PanGestureHandler } from 'react-native-gesture-handler'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native'
+import React, { useState, useRef } from 'react'
+import { heightPercentageToDP as hp } from 'react-native-responsive-screen'
 import DetailsView from './DetailsReportComponents/DetailsView';
 import UserReports from './DetailsReportComponents/UserReports';
 
-
+const { width } = Dimensions.get('window');
 
 export default function ViewDetailsReports() {
     const [activeTab, setActiveTab] = useState("view-details");
+    const scrollRef = useRef<ScrollView>(null);
 
     const _tabSelectItem = [
-        {
-            title: "view Details",
-            active: true,
-            key: "view-details" 
-        },
-        {
-            title: "reports",
-            active: false,
-            key: "reports"
-        }
-    ]
+        { title: "view Details", key: "view-details" },
+        { title: "reports", key: "reports" }
+    ];
 
-    const handleSwipe = (event: any) => {
-        const { translationX } = event.nativeEvent
-        // swipe left → go to reports
-        if (translationX < -50 && activeTab === "view-details") {
-           setActiveTab("reports")
-        }
-        // swipe right → go to details
-        if (translationX > 50 && activeTab === "reports") {
-           setActiveTab("view-details")
-        }
+    const handleTabPress = (key: string, index: number) => {
+        setActiveTab(key);
+        scrollRef.current?.scrollTo({ x: index * width, animated: true });
     }
 
-  return (
-    <View style={styles.container}>
-      {/* Tabs */}
-      <View style={styles.tabSelectContainer}>
-        {_tabSelectItem.map((item) => {
-          const isActive = activeTab === item.key
-          return (
-            <TouchableOpacity
-              key={item.key}
-              onPress={() => setActiveTab(item.key)}
-              style={[styles.tabSelectBox, isActive && styles.activeTabSelect]}
-            >
-              <Text style={[styles.tabSelectText, isActive && styles.activeTextSelectTabs]}>
-                {item.title}
-              </Text>
-            </TouchableOpacity>
-          )
-        })}
-      </View>
+    const handleScrollEnd = (e: any) => {
+        const pageIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+        setActiveTab(pageIndex === 0 ? "view-details" : "reports");
+    }
 
-      {/* Swipeable content */}
-      <PanGestureHandler onGestureEvent={handleSwipe}>
-        <View style={{ padding: hp(1.5), flex: 1 }}>
-          {activeTab === "view-details" && <DetailsView />}
-          {activeTab === "reports" && <UserReports />}
+    return (
+        <View style={styles.container}>
+            {/* Tabs */}
+            <View style={styles.tabSelectContainer}>
+                {_tabSelectItem.map((item, index) => {
+                    const isActive = activeTab === item.key;
+                    return (
+                        <TouchableOpacity
+                            key={item.key}
+                            onPress={() => handleTabPress(item.key, index)}
+                            style={[styles.tabSelectBox, isActive && styles.activeTabSelect]}
+                        >
+                            <Text style={[styles.tabSelectText, isActive && styles.activeTextSelectTabs]}>
+                                {item.title}
+                            </Text>
+                        </TouchableOpacity>
+                    )
+                })}
+            </View>
+
+            {/* Swipeable content */}
+            <ScrollView
+                ref={scrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleScrollEnd}
+                style={{ flex: 1 }}
+            >
+                <View style={{ width }}>
+                    <DetailsView />
+                </View>
+                <View style={{ width }}>
+                    <UserReports />
+                </View>
+            </ScrollView>
         </View>
-      </PanGestureHandler>
-    </View>
-  )
+    )
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1, 
-        backgroundColor: "#FCFCFCFF",
+        flex: 1,
+        backgroundColor: "#FCFCFC",
         width: "100%"
     },
     tabSelectContainer: {
@@ -81,7 +80,6 @@ const styles = StyleSheet.create({
         borderBottomColor: "#eee"
     },
     tabSelectBox: {
-        // backgroundColor: "#000",
         width: "50%",
         height: "100%",
         justifyContent: 'center',
@@ -100,4 +98,4 @@ const styles = StyleSheet.create({
     activeTextSelectTabs: {
         color: "#8089ff"
     }
-})
+});

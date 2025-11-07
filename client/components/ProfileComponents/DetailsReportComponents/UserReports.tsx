@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
   UserReportsContainer: {
     flexDirection: 'column',
     gap: hp(3),
+    padding: hp(2)
   },
   UserReportContent: {
     width: "100%",

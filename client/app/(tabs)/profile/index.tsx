@@ -80,7 +80,7 @@ export default function ProfilePage() {
       <ProfileHeader />
       <ScrollView bounces 
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.ScrollViewUi}
+          // contentContainerStyle={styles.ScrollViewUi}
         >
           {TopHeader()}
 
