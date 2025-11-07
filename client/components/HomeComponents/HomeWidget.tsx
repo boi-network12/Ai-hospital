@@ -4,6 +4,7 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-nat
 import { Accelerometer } from 'expo-sensors'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
+ import Constants from 'expo-constants';
 import { fetchWithCache } from '@/Utils/api'
 
 import Accessibility from '@/assets/Svgs/accessibility.svg'
@@ -18,9 +19,12 @@ import Water from '@/assets/Svgs/glass-water.svg'
 import Bed from '@/assets/Svgs/bed.svg'
 
 
-const Weather_Key = '3f4dd97dd74e4e11a49222554231905'
-const CITY = 'Lagos'
-const GOAL = 2.5
+// const Weather_Key = '3f4dd97dd74e4e11a49222554231905'
+// const Weather_Key = process.env.WEATHER_API_KEY;
+const Weather_Key = Constants.expoConfig?.extra?.WEATHER_API_KEY;
+const CITY = Constants.expoConfig?.extra?.CITY;
+const GOAL = Constants.expoConfig?.extra?.GOAL;
+
 
 // ✅ Reusable widget component
 const Widget = ({ icon: Icon, title, value, subtitle }: any) => (
