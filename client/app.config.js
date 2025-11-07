@@ -16,6 +16,9 @@ export default {
       CITY: process.env.CITY || "Lagos",
       GOAL: process.env.GOAL ? parseFloat(process.env.GOAL) : 2.5,
       Google_Api: process.env.Google_Api,
+      eas: {
+        projectId: "5d6ec21d-85ab-4479-b217-11b455ee7df0"
+      }
     },
     ios: {
       supportsTablet: true,
@@ -81,7 +84,7 @@ export default {
           backgroundColor: "#E6F4FE",
           dark: {
             backgroundColor: "#0A1D37",
-            image: "./assets/images/splash-icon-dark.png"
+            image: "./assets/images/dark-icon.png"
           }
         }
       ],
@@ -101,7 +104,16 @@ export default {
       typedRoutes: true,
       reactCompiler: true
     },
-    assetBundlePatterns: ["**/*"]
+    assetBundlePatterns: ["**/*"],
+    doctor: {
+      reactNativeDirectoryCheck: {
+        exclude: [
+          "react-native-google-fit",
+          "react-native-network-info",
+          "react-native-health"
+        ]
+      }
+    }
   }
 };
 // app.config.js
