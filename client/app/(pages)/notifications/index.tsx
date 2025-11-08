@@ -29,7 +29,7 @@ export default function Notifications() {
             </TouchableOpacity>
             <Text style={styles.HeaderText}>Notifications (0)</Text>
             <TouchableOpacity
-               onPress={() => router.push("/settings")}
+               onPress={() => router.push("/settings/notification")}
             >
                 <SettingsIcon width={hp(3)} height={hp(3)} color="#333" />
             </TouchableOpacity>

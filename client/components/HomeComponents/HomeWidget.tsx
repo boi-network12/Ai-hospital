@@ -209,7 +209,7 @@ export default function HomeWidget() {
         icon={getWeatherIcon(desc)}
         title="Weather"
         value={temp}
-        subtitle={desc}
+        subtitle={`${desc} (${CITY})`}
       />
 
       <Widget
