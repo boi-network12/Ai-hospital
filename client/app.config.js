@@ -64,7 +64,6 @@ export default {
             "./assets/fonts/Roboto-Medium.ttf",
             "./assets/fonts/Roboto-Bold.ttf",
             "./assets/fonts/Roboto-Light.ttf",
-            "./assets/fonts/Roboto-SemiBold.ttf"
           ]
         }
       ],
