@@ -106,7 +106,6 @@ __pycache__/
 *.pyc
 
 # --- AI / model files (if local models used) ---
-models/
 ai_models/
 checkpoints/
 *.pt
