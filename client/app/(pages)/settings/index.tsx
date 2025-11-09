@@ -13,6 +13,7 @@ import ChevronRight from "@/assets/Svgs/chevron-right.svg";
 import ShareIcon from "@/assets/Svgs/square-arrow-out-up-right.svg";
 import ContactIcon from "@/assets/Svgs/message-square.svg";
 import EmailIcon from "@/assets/Svgs/mail.svg";
+import LaptopIcon from "@/assets/Svgs/laptop.svg";
 
 // Define your settings sections and items
 const SETTINGS_DATA = [
@@ -21,6 +22,12 @@ const SETTINGS_DATA = [
     items: [
       { label: 'Profile Details', icon: UserIcon, router: "/settings/profile-details" },
       { label: 'Change Email', icon: EmailIcon, router: "/settings/email-change" },
+    ],
+  },
+  {
+    title: 'Security',
+    items: [
+      { label: 'Devices', icon: LaptopIcon, router: "/settings/devices" },
       { label: 'Change Password', icon: LockIcon, router: "/settings/change-password" },
     ],
   },

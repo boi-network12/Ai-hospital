@@ -28,7 +28,7 @@ export default function NotFound() {
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </Text>
 
-        <TouchableOpacity style={styles.button} onPress={() => router.push('/')}>
+        <TouchableOpacity style={styles.button} onPress={() => router.back()}>
           <Text style={styles.buttonText}>Go Home</Text>
         </TouchableOpacity>
       </View>
