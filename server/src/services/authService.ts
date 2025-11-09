@@ -1,6 +1,6 @@
 // src/services/authService.ts
 import bcrypt from 'bcrypt';
-import User from '../models/userModel';
+import User from '../models/UserModel';
 import { generateOTP, requestOtp } from './otpService';
 const { ADMINSEMAIL } = process.env || '';
 

@@ -1,6 +1,7 @@
 // src/services/userService.ts
-import User from '../models/userModel';
+import User from '../models/UserModel';
 import { Types } from 'mongoose';
+import { ISession } from '../types/usersDetails';
 
 export const getUserById = async (id: string) => {
   return await User.findById(id).select('-password -sessions.token');
@@ -40,7 +41,7 @@ export const updateProfile = async (userId: string, updates: any) => {
 
 export const listDevices = async (userId: string) => {
   const user = await User.findById(userId).select('sessions');
-  return user?.sessions?.map(s => ({
+  return user?.sessions?.map((s: ISession) => ({
     device: s.device,
     ipAddress: s.ipAddress,
     lastActive: s.lastActive,

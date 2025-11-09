@@ -2,7 +2,7 @@
 import { Request, Response } from 'express';
 import * as authService from '../services/authService';
 import * as otpService from '../services/otpService';
-import User from '../models/userModel';
+import User from '../models/UserModel';
 import { signAccess, signRefresh } from '../utils/jwt';
 import jwt from 'jsonwebtoken';
 

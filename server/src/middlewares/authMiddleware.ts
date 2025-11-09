@@ -1,7 +1,7 @@
 // src/middlewares/authMiddleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { verifyAccess } from '../utils/jwt';
-import User from '../models/userModel';
+import User from '../models/UserModel';
 
 export interface AuthRequest extends Request {
   user?: any;
