@@ -1,0 +1,148 @@
+# =====================================================
+# Node / Express / TypeScript backend .gitignore
+# For: AI Medical App (Express + MongoDB + Redis + Socket.IO)
+# =====================================================
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-store/
+.tmp/
+.cache/
+
+# --- Environment variables ---
+.env
+.env.*
+!.env.example
+
+# --- TypeScript build ---
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# --- Logs ---
+logs/
+*.log
+*.log.*
+logfile
+error.log
+debug.log
+info.log
+
+# --- System files ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+
+# --- Coverage / testing ---
+coverage/
+.nyc_output/
+jest-report/
+test-results.xml
+
+# --- Temporary files ---
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.old
+
+# --- OS & Editor-specific ---
+*.sublime-workspace
+*.sublime-project
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# --- Docker / container ---
+.docker/
+docker-compose.override.yml
+docker-data/
+docker-volumes/
+*.pid
+*.seed
+
+# --- Redis / MongoDB data (if local volumes) ---
+data/
+mongo-data/
+redis-data/
+dump.rdb
+appendonly.aof
+
+# --- SSL / Security ---
+certs/
+*.pem
+*.key
+*.crt
+*.csr
+
+# --- Cache / temporary storage ---
+.cache/
+coverage/
+tmp/
+sessions/
+uploads/
+uploads/tmp/
+uploads/cache/
+storage/
+public/uploads/
+__pycache__/
+*.pyc
+
+# --- AI / model files (if local models used) ---
+models/
+ai_models/
+checkpoints/
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# --- Build artifacts (for docker / pm2 / etc) ---
+pm2.log
+pids/
+*.pid
+ecosystem.config.js
+ecosystem.config.cjs
+
+# --- VSCode workspace history ---
+.history/
+project.code-workspace
+
+# --- Mac / Linux system files ---
+.DS_Store
+.Trash-*
+.Spotlight-V100
+.AppleDouble
+.LSOverride
+
+# --- Windows system files ---
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# --- Misc ---
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+.env.staging
+*.env.backup
+*.bak
+*.old
