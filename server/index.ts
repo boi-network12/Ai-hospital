@@ -3,8 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import connectDB from './config/db';
-import errorHandler from './middlewares/errorHandler';
+import connectDB from './src/config/db';
+import errorHandler from './src/middlewares/errorHandler';
+import apiRouter from './src/routes';
 
 dotenv.config();
 
@@ -16,6 +17,9 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
+
+// router
+app.use('/api', apiRouter);
 
 app.use(errorHandler);
 
