@@ -1,4 +1,3 @@
-// app.config.js
 import 'dotenv/config'
 
 export default {
@@ -11,6 +10,12 @@ export default {
     scheme: "neuromed",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    description: "A wellness and health insights app powered by NeuroMed.",
+    owner: "neuromed", // optional but helpful if using EAS
+    runtimeVersion: {
+      policy: "appVersion" // recommended for OTA updates
+    },
+
     extra: {
       WEATHER_API_KEY: process.env.WEATHER_API_KEY,
       CITY: process.env.CITY || "Lagos",
@@ -20,19 +25,26 @@ export default {
         projectId: "5d6ec21d-85ab-4479-b217-11b455ee7df0"
       }
     },
+
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.neuromed.app",
+      buildNumber: "3", // ✅ Added (increment per release)
+      icon: "./assets/images/icon.png", 
       config: {
         usesNonExemptEncryption: false
       },
       infoPlist: {
-        NSHealthShareUsageDescription: "NeuroMed uses your Health data to show daily step counts and wellness insights.",
-        NSHealthUpdateUsageDescription: "NeuroMed writes your health data to personalize your experience."
+        NSHealthShareUsageDescription:
+          "NeuroMed uses your Health data to show daily step counts and wellness insights.",
+        NSHealthUpdateUsageDescription:
+          "NeuroMed writes your health data to personalize your experience."
       }
     },
+
     android: {
       package: "com.neuromed.app",
+      versionCode: 3, // ✅ Added (increment per release)
       adaptiveIcon: {
         foregroundImage: "./assets/images/android-icon-foreground.png",
         backgroundColor: "#fff",
@@ -51,10 +63,16 @@ export default {
         }
       }
     },
+
     web: {
       output: "static",
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/favicon.png",
+      meta: {
+        themeColor: "#ffffff",
+        description: "Track your wellness and health metrics with NeuroMed."
+      }
     },
+
     plugins: [
       [
         "expo-font",
@@ -63,7 +81,7 @@ export default {
             "./assets/fonts/Roboto-Regular.ttf",
             "./assets/fonts/Roboto-Medium.ttf",
             "./assets/fonts/Roboto-Bold.ttf",
-            "./assets/fonts/Roboto-Light.ttf",
+            "./assets/fonts/Roboto-Light.ttf"
           ]
         }
       ],
@@ -71,7 +89,8 @@ export default {
         "expo-secure-store",
         {
           configureAndroidBackup: true,
-          faceIDPermission: "Allow NeuroMed to access your Face ID biometric data."
+          faceIDPermission:
+            "Allow NeuroMed to access your Face ID biometric data."
         }
       ],
       [
@@ -99,11 +118,14 @@ export default {
         }
       ]
     ],
+
     experiments: {
       typedRoutes: true,
       reactCompiler: true
     },
+
     assetBundlePatterns: ["**/*"],
+
     doctor: {
       reactNativeDirectoryCheck: {
         exclude: [
@@ -115,4 +137,3 @@ export default {
     }
   }
 };
-// app.config.js

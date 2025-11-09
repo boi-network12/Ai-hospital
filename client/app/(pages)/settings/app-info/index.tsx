@@ -11,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import GeneralSettingsHeader from '@/components/Headers/GeneralSettingsHeader';
 import { useRouter } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import Constants from "expo-constants";
+
 
 export default function AppInfo() {
   const router = useRouter();
@@ -20,9 +22,12 @@ export default function AppInfo() {
   };
 
   // Update these values to the correct version/build
-  const appName = "Neuromed";
-  const version = "1.0.0";        // replace with actual version
-  const build = "2025.11.09";     // replace with actual build
+  const appName = Constants.expoConfig?.name ?? "Neuromed";
+  const version = Constants.expoConfig?.version ?? "1.0.0";   
+  const build =
+    Constants.expoConfig?.android?.versionCode?.toString() ??
+    Constants.expoConfig?.ios?.buildNumber ??
+    "N/A";   
 
   return (
     <SafeAreaView style={styles.container}>

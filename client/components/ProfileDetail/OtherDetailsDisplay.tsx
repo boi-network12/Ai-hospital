@@ -12,6 +12,8 @@ export default function OtherDetailsDisplay() {
         { label: "Address", value: "29, mbaUkwu street" },
         { label: "Blood Group", value: "B+" },
         { label: "Genotype", value: "AB+" },
+        { label: "Height", value: "12" },
+        { label: "Weight", value: "105" },
       ],
     },
     {
