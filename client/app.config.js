@@ -5,9 +5,9 @@ export default {
   expo: {
     name: process.env.APP_NAME || "NeuroMed",
     slug: "neuromed",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/light-mode-icon.png",
     scheme: "neuromed",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -35,7 +35,7 @@ export default {
       package: "com.neuromed.app",
       adaptiveIcon: {
         foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
+        backgroundColor: "#fff",
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       edgeToEdgeEnabled: true,
@@ -77,13 +77,13 @@ export default {
       [
         "expo-splash-screen",
         {
-          image: "./assets/images/splash-icon.png",
+          image: "./assets/images/light-mode-icon.png",
           imageWidth: 220,
           resizeMode: "contain",
           backgroundColor: "#E6F4FE",
           dark: {
             backgroundColor: "#0A1D37",
-            image: "./assets/images/dark-icon.png"
+            image: "./assets/images/dark-mode-icon.png"
           }
         }
       ],
