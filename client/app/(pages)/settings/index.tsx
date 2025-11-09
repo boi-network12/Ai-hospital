@@ -84,6 +84,16 @@ export default function SettingsPages() {
             </View>
           </View>
         ))}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={() => {
+            // Handle logout logic here
+            console.log("Logout pressed");
+            // Example: router.replace("/login");
+          }}
+        >
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -132,5 +142,19 @@ const styles = StyleSheet.create({
     fontSize: hp(2),
     color: "#666",
     textTransform: "capitalize",
+  },
+  logoutButton: {
+    marginTop: hp(4),
+    marginBottom: hp(4),
+    backgroundColor: "#FF4D4F",
+    paddingVertical: hp(1.5),
+    borderRadius: hp(10),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: hp(2),
+    fontWeight: "500",
   },
 });
