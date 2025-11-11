@@ -1,87 +1,64 @@
-
-import React, { JSX, useEffect, useState } from 'react'
-import { useFonts } from "expo-font";
+// src/app/_layout.tsx
+import React, { useEffect } from 'react';
+import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
-import * as SplashScreen from "expo-splash-screen";
-import { AuthState } from '@/types/auth';
-import { Host } from "react-native-portalize";
+import * as SplashScreen from 'expo-splash-screen';
+import { Host } from 'react-native-portalize';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import SplashScreenComponent from '@/components/customs/SplashScreen';
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { AuthProvider } from '@/context/AuthContext';
+import { useAuth } from '@/Hooks/authHook.d';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout(): JSX.Element | null {
+function RootLayoutContent() {
+  const { auth } = useAuth();
   const [loaded] = useFonts({
-    Roboto: require("../assets/fonts/Roboto-Regular.ttf"),
-    "Roboto-Medium": require("../assets/fonts/Roboto-Medium.ttf"),
-    "Roboto-Bold": require("../assets/fonts/Roboto-Bold.ttf"),
+    Roboto: require('../assets/fonts/Roboto-Regular.ttf'),
+    'Roboto-Medium': require('../assets/fonts/Roboto-Medium.ttf'),
+    'Roboto-Bold': require('../assets/fonts/Roboto-Bold.ttf'),
   });
 
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuth: false,
-    isReady: false,
-  });
-
-  const [splashDone, setSplashDone] = useState(false); // Track custom splash completion
-
-  useEffect(() => {
-    const prepare = async () => {
-      try {
-        // TODO: Replace with real auth check
-        const userAuthenticated = true;
-
-        // Wait for auth check
-        setAuthState({ isAuth: userAuthenticated, isReady: true });
-      } catch (e) {
-        console.warn(e);
-        setAuthState({ isAuth: false, isReady: true });
-      }
-    };
-
-    prepare();
-  }, []);
-
-  // Handle custom splash completion
-  const handleSplashComplete = () => {
-    setSplashDone(true);
-  };
+  const [splashDone, setSplashDone] = React.useState(false);
 
   // Hide native splash when everything is ready
   useEffect(() => {
-    if (loaded && authState.isReady && splashDone) {
+    if (loaded && auth.isReady && splashDone) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, authState.isReady, splashDone]);
+  }, [loaded, auth.isReady, splashDone]);
 
-  // Navigate only when ready
+  // Navigate based on auth state
   useEffect(() => {
-    if (loaded && authState.isReady && splashDone) {
-      if (authState.isAuth) {
+    if (loaded && auth.isReady && splashDone) {
+      if (auth.isAuth) {
         router.replace('/home');
       } else {
         router.replace('/get-started');
       }
     }
-  }, [authState, loaded, splashDone]);
+  }, [auth.isAuth, auth.isReady, loaded, splashDone]);
 
-  // Wait for fonts & splash
-  if (!loaded || !authState.isReady || !splashDone) {
-    return <SplashScreenComponent onAnimationComplete={handleSplashComplete} />;
-  }
-
-  const AppContent = () => {
-    return (
-      <Host>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name='get-started' options={{ headerShown: false }} />
-        </Stack>
-      </Host>
-    )
+  // Show custom splash until ready
+  if (!loaded || !auth.isReady || !splashDone) {
+    return <SplashScreenComponent onAnimationComplete={() => setSplashDone(true)} />;
   }
 
   return (
+    <Host>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="get-started" />
+      </Stack>
+    </Host>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppContent />
+      <AuthProvider>
+        <RootLayoutContent />
+      </AuthProvider>
     </GestureHandlerRootView>
-  )
+  );
 }
