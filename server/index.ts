@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,7 +9,7 @@ import connectDB from './src/config/db';
 import errorHandler from './src/middlewares/errorHandler';
 import apiRouter from './src/routes';
 
-dotenv.config();
+
 
 const app = express();
 

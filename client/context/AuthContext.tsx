@@ -15,6 +15,7 @@ import type {
   OtpPayload,
   VerifyOtpPayload,
 } from '@/types/auth';
+import { useAlert } from '@/Hooks/alertHook.d';
 
 type Action =
   | { type: 'RESTORE'; payload: Partial<AuthState> }
@@ -71,9 +72,17 @@ export const AuthContext = createContext<AuthContextProps | undefined>(undefined
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
      const [auth, dispatch] = useReducer(authReducer, initialState);
+     const { showAlert } = useAlert();
 
+  // 
   // ------------------------------------------------------------------ //
   // 1. Restore tokens on app start
+      const handleError = (title: string, err: any) => {
+        const msg = err?.message || 'something went wrong';
+        showAlert({ title, message: msg, type: 'error' })
+        throw err;
+      }
+  // 
   // ------------------------------------------------------------------ //
    useEffect(() => {
     (async () => {
@@ -103,20 +112,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ]);
   };
 
+  
+
   // ------------------------------------------------------------------ //
   // 3. Core actions
   // ------------------------------------------------------------------ //
 
    const login = async (payload: LoginPayload) => {
-    const data = await apiFetch<{ accessToken: string; user: User; refreshToken?: string }>('/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const data = await apiFetch<{ accessToken: string; user: User; refreshToken?: string }>('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    const refreshToken = data.refreshToken ?? '';
-    await persist(data.user, data.accessToken, refreshToken);
-    dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
+      const refreshToken = data.refreshToken ?? '';
+      await persist(data.user, data.accessToken, refreshToken);
+      dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
+
+      // Success feedback (optional)
+      showAlert({ title: 'Welcome!', message: `Hi ${data.user.name || data.user.email}`, type: 'success' });
+    } catch (err: any) {
+      
+      handleError('Login failed', err);
+    }
   };
 
    const register = async (payload: RegisterPayload) => {
@@ -128,68 +147,98 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const requestOtp = async (payload: OtpPayload) => {
-    await apiFetch('/auth/register/otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      await apiFetch('/auth/register/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      showAlert({ title: 'OTP sent', message: `Check your inbox at ${payload.email}`, type: 'success' });
+    } catch (err: any) {
+      handleError('Could not send OTP', err);
+    }
   };
 
-  const verifyOtpAndFinishRegister = async (
-    payload: VerifyOtpPayload & { password: string } & Partial<Omit<RegisterPayload, 'email' | 'password'>>
-  ) => {
-    const { email, otp, password, ...rest } = payload;
-    const data = await apiFetch<{ accessToken: string; user: User; refreshToken?: string }>('/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp, password, ...rest }),
-    });
+  const verifyOtpAndFinishRegister = async (payload: VerifyOtpPayload & { password: string }) => {
+    try {
+      const { email, otp, password, ...rest } = payload;
+      const data = await apiFetch<{ accessToken: string; user: User; refreshToken?: string }>('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, password, ...rest }),
+      });
 
-    const refreshToken = data.refreshToken ?? '';
-    await persist(data.user, data.accessToken, refreshToken);
-    dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
+      const refreshToken = data.refreshToken ?? '';
+      await persist(data.user, data.accessToken, refreshToken);
+      dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
+
+      showAlert({ title: 'Account created!', type: 'success' });
+    } catch (err: any) {
+      handleError('Registration failed', err);
+    }
   };
 
   const requestResetOtp = async (payload: OtpPayload) => {
-    await apiFetch('/auth/forgot/otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    try {
+      await apiFetch('/auth/forgot/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      showAlert({ title: 'OTP sent', message: `Check ${payload.email}`, type: 'success' });
+    } catch (err: any) {
+      handleError('Could not send reset OTP', err);
+    }
   };
 
   const resetPassword = async ({ email, otp, newPassword }: VerifyOtpPayload & { newPassword: string }) => {
-    await apiFetch('/auth/forgot/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp, newPassword }),
-    });
+    try {
+      await apiFetch('/auth/forgot/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword }),
+      });
+      showAlert({ title: 'Password updated', type: 'success' });
+    } catch (err: any) {
+      handleError('Password reset failed', err);
+    }
   };
 
   const logout = async () => {
-    await apiFetch('/auth/logout', { method: 'POST' }).catch(() => {});
-    await Promise.all([
-      SecureStore.deleteItemAsync('accessToken'),
-      SecureStore.deleteItemAsync('refreshToken'),
-      SecureStore.deleteItemAsync('user'),
-    ]);
-    dispatch({ type: 'LOGOUT' });
+    try {
+      const refresh = await SecureStore.getItemAsync('refreshToken');
+      await apiFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: refresh }) }).catch(() => {});
+      await Promise.all([
+        SecureStore.deleteItemAsync('accessToken'),
+        SecureStore.deleteItemAsync('refreshToken'),
+        SecureStore.deleteItemAsync('user'),
+      ]);
+      dispatch({ type: 'LOGOUT' });
+      showAlert({ title: 'Logged out', type: 'info' });
+    } catch (err: any) {
+      handleError('Logout error', err);
+    }
   };
 
-  const refreshAccessToken = async () => {
-    const refresh = await SecureStore.getItemAsync('refreshToken');
-    if (!refresh) throw new Error('No refresh token');
+ const refreshAccessToken = async () => {
+    try {
+      const refresh = await SecureStore.getItemAsync('refreshToken');
+      if (!refresh) throw new Error('No refresh token');
 
-    const data = await apiFetch<{ accessToken: string }>('/auth/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: refresh }),
-    });
+      const data = await apiFetch<{ accessToken: string }>('/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refresh }),
+      });
 
-    await SecureStore.setItemAsync('accessToken', data.accessToken);
-    dispatch({ type: 'REFRESH', payload: data });
+      await SecureStore.setItemAsync('accessToken', data.accessToken);
+      dispatch({ type: 'REFRESH', payload: data });
+    } catch (err: any) {
+      // Refresh failures usually mean the session is dead → auto-logout
+      await logout();
+      handleError('Session expired', err);
+    }
   };
-
   // ------------------------------------------------------------------ //
   // 4. Auto-refresh interceptor (optional – can be added in apiFetch)
   // ------------------------------------------------------------------ //

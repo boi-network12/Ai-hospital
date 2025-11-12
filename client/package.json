@@ -13,7 +13,9 @@
   "dependencies": {
     "@expo/fingerprint": "^0.15.3",
     "@expo/vector-icons": "^15.0.3",
+    "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "^8.5.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "^54.0.23",
@@ -39,11 +41,14 @@
     "lucide-react-native": "^0.552.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hook-form": "^7.66.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-google-fit": "^0.22.1",
     "react-native-health": "^1.19.0",
+    "react-native-modal": "^14.0.0-rc.1",
+    "react-native-modal-datetime-picker": "^18.0.0",
     "react-native-modalize": "^2.1.1",
     "react-native-network-info": "^5.2.2",
     "react-native-pager-view": "6.9.1",
@@ -55,7 +60,8 @@
     "react-native-shadow-2": "^7.1.2",
     "react-native-svg": "15.12.1",
     "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.5.1"
+    "react-native-worklets": "0.5.1",
+    "yup": "^1.7.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

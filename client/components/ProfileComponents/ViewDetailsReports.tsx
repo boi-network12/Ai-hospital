@@ -13,10 +13,15 @@ import {
 import { heightPercentageToDP as hp } from "react-native-responsive-screen";
 import DetailsView from "./DetailsReportComponents/DetailsView";
 import UserReports from "./DetailsReportComponents/UserReports";
+import { User } from "@/types/auth";
 
 const { width } = Dimensions.get("window");
 
-export default function ViewDetailsReports() {
+interface ViewDetailsReportsProps {
+  user: User | null;
+}
+
+export default function ViewDetailsReports({ user }: ViewDetailsReportsProps) {
   const [activeTab, setActiveTab] = useState("view-details");
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
@@ -91,7 +96,9 @@ export default function ViewDetailsReports() {
         style={{ flex: 1 }}
       >
         <View style={{ width }}>
-          <DetailsView />
+          <DetailsView 
+             user={user}
+          />
         </View>
         <View style={{ width }}>
           <UserReports />

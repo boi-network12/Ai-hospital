@@ -9,10 +9,16 @@ import { heightPercentageToDP as hp } from 'react-native-responsive-screen'
 import { Image } from 'expo-image'
 import AvatarImg from "@/assets/images/avatar.png";
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash'
+import { User } from '@/types/auth'
 
 const blurhash = BLUR_HASH_PLACEHOLDER
 
-export default function DetailsView() {
+interface DetailsViewProps {
+  user: User | null;
+}
+
+export default function DetailsView({ user }: DetailsViewProps) {
+  const addressDetail = `${user?.profile?.location?.city}, ${user?.profile?.location?.state}, ${user?.profile?.location?.country}`
 
   // ✅ Step 1: Define the data structure
   const sections = [
@@ -20,9 +26,9 @@ export default function DetailsView() {
       title: "personal information",
       icon: GemIcon,
       data: [
-        { label: "Address", value: "29, mbaUkwu street" },
-        { label: "Blood Group", value: "B+" },
-        { label: "Phone no", value: "+234 9075134655" },
+        { label: "Address", value: user?.profile?.location ? addressDetail : null },
+        { label: "Blood Group", value: user?.profile?.bloodGroup ? user?.profile?.bloodGroup : null },
+        { label: "Phone no", value: user?.phoneNumber ? user?.phoneNumber : "+--------" },
       ],
     },
     {

@@ -11,12 +11,17 @@ import HomeWidget from '@/components/HomeComponents/HomeWidget';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import NetworkLatencyDisplay from '@/config/NetworkLatencyDisplay';
+import { useUser } from '@/Hooks/userHooks.d';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
 const _middleDisplayContent = _MiddleDisplayContent;
 
 export default function HomePage() {
+  const { user } = useUser();
+
+  if (!user) return;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style='auto' />
@@ -27,13 +32,15 @@ export default function HomePage() {
         <View style={styles.topViewHeader}>
           <View>
             <Image
-              source={require('@/assets/images/avatar.png')}
+              source={user?.profile?.avatar || require('@/assets/images/avatar.png')}
               style={styles.headerImage}
               transition={1000}
               placeholder={{ blurhash }}
               contentFit='contain'
             />
-            <Text style={styles.headerText}>Hello, Jane</Text>
+            <Text style={styles.headerText}>
+              Hello, {user?.name?.split(' ')[0] || 'user'}
+            </Text>
           </View>
 
           <TouchableOpacity onPress={() => router.push("/notifications")}>
@@ -62,7 +69,9 @@ export default function HomePage() {
         </View>
 
         {/* widget for step, weather, hydration, time to bed */}
-        <HomeWidget />
+        <HomeWidget 
+           user={user}
+        />
       </ScrollView>
     </SafeAreaView>
   )

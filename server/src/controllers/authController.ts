@@ -57,7 +57,11 @@ export const register = async (req: Request, res: Response) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
-  res.json({ accessToken, user: { id: user._id, email: user.email, role: user.role } });
+  res.json({
+    accessToken,
+    refreshToken,
+    user: { id: user._id, email: user.email, role: user.role },
+  });
 };
 
 /* ---------- 3. Login ---------- */
@@ -87,23 +91,31 @@ export const login = async (req: Request, res: Response) => {
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
-  res.json({ accessToken, user: { id: user._id, email: user.email, role: user.role } });
+  res.json({
+    accessToken,
+    refreshToken,
+    user: { id: user._id, email: user.email, role: user.role },
+  });
 };
 
 /* ---------- 4. Refresh token ---------- */
 export const refresh = async (req: Request, res: Response) => {
-  const old = req.cookies.refreshToken;
-  if (!old) return res.status(401).json({ message: 'No refresh token' });
+  const { refreshToken } = req.body; // Accept from body
+  if (!refreshToken) return res.status(401).json({ message: 'No refresh token' });
 
   let payload;
   try {
-    payload = jwt.verify(old, process.env.JWT_REFRESH_SECRET!) as jwt.JwtPayload;
+    payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as jwt.JwtPayload;
   } catch {
     return res.status(401).json({ message: 'Invalid refresh token' });
   }
 
   const user = await User.findById(payload.sub);
   if (!user) return res.status(401).json({ message: 'User not found' });
+
+  // Optional: Validate token exists in user's sessions
+  const session = user.sessions?.find(s => s.token === refreshToken && s.active);
+  if (!session) return res.status(401).json({ message: 'Invalid session' });
 
   const newAccess = signAccess({ sub: user._id, role: user.role });
   res.json({ accessToken: newAccess });
@@ -135,13 +147,13 @@ export const resetPassword = async (req: Request, res: Response) => {
 
 /* ---------- 7. Logout (invalidate refresh token) ---------- */
 export const logout = async (req: AuthReq, res: Response) => {
-  const token = req.cookies.refreshToken;
-  if (token && req.user?._id) {
+  const { refreshToken } = req.body;
+  if (refreshToken && req.user?._id) {
     await User.updateOne(
-      { _id: req.user._id, 'sessions.token': token },
+      { _id: req.user._id, 'sessions.token': refreshToken },
       { $set: { 'sessions.$.active': false } }
     );
   }
-  res.clearCookie('refreshToken');
+  res.clearCookie('refreshToken'); // optional, harmless
   res.json({ message: 'Logged out' });
 };

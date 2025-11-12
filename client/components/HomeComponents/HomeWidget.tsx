@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen'
 import { Accelerometer } from 'expo-sensors'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { router } from 'expo-router'
+import {  } from 'expo-router'
  import Constants from 'expo-constants';
 import { fetchWithCache } from '@/Utils/api'
 
@@ -17,12 +17,12 @@ import CloudFog from '@/assets/Svgs/cloud-fog.svg'
 import CloudSun  from '@/assets/Svgs/cloud-sun.svg'
 import Water from '@/assets/Svgs/glass-water.svg'
 import Bed from '@/assets/Svgs/bed.svg'
+import { User } from '@/types/auth'
 
 
 // const Weather_Key = '3f4dd97dd74e4e11a49222554231905'
 // const Weather_Key = process.env.WEATHER_API_KEY;
 const Weather_Key = Constants.expoConfig?.extra?.WEATHER_API_KEY;
-const CITY = Constants.expoConfig?.extra?.CITY;
 const GOAL = Constants.expoConfig?.extra?.GOAL;
 
 
@@ -52,8 +52,11 @@ const getWeatherIcon = (desc: string) => {
   return Sun // default
 }
 
+interface HomeWidgetProps {
+  user: User | null;
+}
 
-export default function HomeWidget() {
+export default function HomeWidget({ user }: HomeWidgetProps) {
   const [steps, setSteps] = useState(0)
   const [temp, setTemp] = useState('—')
   const [desc, setDesc] = useState('Loading…')
@@ -136,9 +139,18 @@ export default function HomeWidget() {
    * WEATHER FETCH
    * ---------------------------- */
   useEffect(() => {
+    const userCity = user?.profile?.location?.city?.trim();
+
+    // If no city → show placeholder text, do NOT call the API
+    if (!userCity) {
+      setTemp('—');
+      setDesc('Please update your city');
+      return;
+    }
+
     (async () => {
       try {
-        const url = `https://api.weatherapi.com/v1/current.json?key=${Weather_Key}&q=${CITY}&aqi=no`
+        const url = `https://api.weatherapi.com/v1/current.json?key=${Weather_Key}&q=${encodeURIComponent(userCity)}&aqi=no`
         const data = await fetchWithCache<any>('weather', url)
 
         if (!data?.current) {
@@ -155,7 +167,7 @@ export default function HomeWidget() {
         setDesc('Error')
       }
     })()
-  }, [])
+  }, [user])
 
   /** ----------------------------
    * HYDRATION TRACKER
@@ -169,15 +181,15 @@ export default function HomeWidget() {
     }
   }, [])
 
-  const addGlass = async () => {
-    const newVal = Math.min(liters + 0.25, GOAL)
-    const payload = JSON.stringify({
-      value: newVal,
-      date: new Date().toISOString().slice(0, 10),
-    })
-    await AsyncStorage.setItem('hydration_today', payload)
-    setLiters(newVal)
-  }
+  // const addGlass = async () => {
+  //   const newVal = Math.min(liters + 0.25, GOAL)
+  //   const payload = JSON.stringify({
+  //     value: newVal,
+  //     date: new Date().toISOString().slice(0, 10),
+  //   })
+  //   await AsyncStorage.setItem('hydration_today', payload)
+  //   setLiters(newVal)
+  // }
 
   useEffect(() => { loadHydration() }, [loadHydration])
 
@@ -191,7 +203,7 @@ export default function HomeWidget() {
     })()
   }, [])
 
-  const openPicker = () => router.push('/set-bedtime')
+  // const openPicker = () => router.push('/set-bedtime')
 
   /** ----------------------------
    * RENDER UI
@@ -205,12 +217,14 @@ export default function HomeWidget() {
         subtitle="Daily Movement"
       />
 
-      <Widget
-        icon={getWeatherIcon(desc)}
-        title="Weather"
-        value={temp}
-        subtitle={`${desc} (${CITY})`}
-      />
+      {user?.profile?.location?.city ? (
+        <Widget
+          icon={getWeatherIcon(desc)}
+          title="Weather"
+          value={temp}
+          subtitle={`${desc} (${user?.profile?.location?.city})`}
+        />
+      ) : null}
 
       <Widget
         icon={Water}

@@ -3,14 +3,20 @@ import React from 'react'
 import { heightPercentageToDP as hp } from "react-native-responsive-screen";
 import SettingsIcon from '@/assets/Svgs/settings-2.svg';
 import { router } from 'expo-router';
+import { User } from '@/types/auth';
 
+interface ProfileHeaderProps {
+    user: User | null;
+}
 
-export default function ProfileHeader() {
+export default function ProfileHeader({ user }: ProfileHeaderProps) {
+    const firstName = user?.name?.split(' ')[0] || 'User';
+
   return (
     <View
         style={styles.HeaderContainer}
     >
-        <Text style={styles.HeaderText}>Jane (0)</Text>
+        <Text style={styles.HeaderText}>{firstName} </Text>
         <TouchableOpacity
             onPress={() => router.push("/settings")}
         >
