@@ -7,7 +7,7 @@ function NetworkLatencyDisplay() {
   const measureLatency = async () => {
     const start = Date.now();
     try {
-      await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-store' });
+      await fetch('https://neuromed-ai-backend.vercel.app/api/v1/health', { method: 'GET', cache: 'no-store' });
       const end = Date.now();
       setLatency(end - start);
     } catch (error: any) {
