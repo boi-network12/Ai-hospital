@@ -6,10 +6,15 @@ import GeneralSettingsHeader from '@/components/Headers/GeneralSettingsHeader';
 import { useRouter } from 'expo-router';
 import HeaderSection from '@/components/ProfileDetail/HeaderSection';
 import OtherDetailsDisplay from '@/components/ProfileDetail/OtherDetailsDisplay';
+import { useUser } from '@/Hooks/userHooks.d';
+import { useAuth } from '@/Hooks/authHook.d';
 
 export default function ProfileDetails() {
   const router = useRouter();
+  const { user } = useUser();
+  const { deleteAccount } = useAuth();
 
+  if (!user) return;
 
   return (
     <SafeAreaView style={styles.ProfileDetailsContainer}>
@@ -21,9 +26,14 @@ export default function ProfileDetails() {
          contentContainerStyle={styles.ScrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        <HeaderSection />
+        <HeaderSection 
+          user={user}
+        />
         {/*  */}
-        <OtherDetailsDisplay />
+        <OtherDetailsDisplay 
+           user={user}
+           deleteAccount={deleteAccount}
+        />
       </ScrollView>
     </SafeAreaView>
   )

@@ -1,30 +1,65 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import React, { useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
+import { User } from "@/types/auth.d";
 
-export default function OtherDetailsDisplay() {
+interface OtherDetailsDisplayProps {
+  user: User | null
+  deleteAccount: () => void;
+}
+
+export default function OtherDetailsDisplay({
+  user,
+  deleteAccount
+}: OtherDetailsDisplayProps) {
+  const [deleting, setDeleting] = useState(false);
+  const addressDetail = `${user?.profile?.location?.city}, ${user?.profile?.location?.state}, ${user?.profile?.location?.country}`
+
   const sections = [
     {
       title: "personal information",
       data: [
-        { label: "Phone no", value: "+234 9075134655" },
-        { label: "Address", value: "29, mbaUkwu street" },
-        { label: "Blood Group", value: "B+" },
-        { label: "Genotype", value: "AB+" },
-        { label: "Height", value: "12" },
-        { label: "Weight", value: "105" },
+        { label: "Address", value: user?.profile?.location ? addressDetail : null },
+        { label: "Blood Group", value: user?.profile?.bloodGroup ? user?.profile?.bloodGroup : null },
+        { label: "Phone no", value: user?.phoneNumber ? user?.phoneNumber : "+--------" },
+        { label: "Genotype", value: user?.profile?.genotype ? user?.profile?.genotype : null },
+        { label: "Height", value: user?.profile?.height ? user?.profile?.height : null },
+        { label: "Weight", value: user?.profile?.height ? user?.profile?.height : null },
       ],
     },
     {
       title: "emergency contact",
       data: [
-        { label: "Name", value: "Amara Okolo" },
-        { label: "Relationship", value: "Sister" },
-        { label: "Phone no", value: "+234 8012345678" },
+        { label: "Name", value: user?.emergencyContact?.name ? user?.emergencyContact?.name : "!" },
+        { label: "Relationship", value: user?.emergencyContact?.relationship ? user?.emergencyContact?.relationship : "!" },
+        { label: "Phone no", value: user?.emergencyContact?.phoneNumber ? user?.emergencyContact?.phoneNumber : "!" },
       ],
     },
-  ];
+  ]
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete Account",
+      "This action is irreversible. All your data will be permanently removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteAccount();
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -65,7 +100,10 @@ export default function OtherDetailsDisplay() {
       </LinearGradient>
 
       {/* 🧨 Delete Account Button */}
-      <TouchableOpacity style={styles.deleteBtn}>
+      <TouchableOpacity style={[styles.deleteBtn, deleting && styles.deleteBtnDisabled]} 
+         onPress={confirmDelete}
+         disabled={deleting}
+      >
         <Text style={styles.btnText}>Delete Account</Text>
       </TouchableOpacity>
     </View>
@@ -124,6 +162,9 @@ const styles = StyleSheet.create({
     fontSize: hp(1.7),
     color: "#8089FF",
     fontWeight: "600",
+  },
+  deleteBtnDisabled: {
+    opacity: 0.6,
   },
 
   // 🔥 Subscribe Banner Styles

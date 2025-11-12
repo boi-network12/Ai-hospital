@@ -8,8 +8,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import SplashScreenComponent from '@/components/customs/SplashScreen';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/Hooks/authHook.d';
-import { AlertProvider } from '@/context/AlertContext';
 import { UserProvider } from '@/context/UserContext';
+import { ToastProvider } from '@/context/ToastContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -58,13 +58,13 @@ function RootLayoutContent() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AlertProvider>
+      <ToastProvider>
         <AuthProvider>
           <UserProvider>
             <RootLayoutContent />
           </UserProvider>
         </AuthProvider>
-      </AlertProvider>
+      </ToastProvider>
     </GestureHandlerRootView>
   );
 }

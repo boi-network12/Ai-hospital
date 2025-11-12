@@ -118,6 +118,10 @@ export default function RegisterPage() {
   const onRegisterSubmit = async (data: RegisterForm) => {
     setIsLoading(true);
     try {
+      const isoDate = data.dateOfBirth 
+        ? new Date(data.dateOfBirth).toISOString()  // "2025-01-01T00:00:00.000Z"
+        : undefined;
+
       await verifyOtpAndFinishRegister({
         email,
         otp: otpForm.getValues().otp,
@@ -125,7 +129,7 @@ export default function RegisterPage() {
         name: data.name,
         phoneNumber: data.phoneNumber,
         gender: data.gender,
-        dateOfBirth: data.dateOfBirth,
+        dateOfBirth: isoDate,
       });
       // Auth context handles login + redirect
     } catch (e: any) {
@@ -186,7 +190,7 @@ export default function RegisterPage() {
             <Text style={styles.label}>6-digit OTP</Text>
             <TextInput
               style={[styles.input, styles.otpInput, fieldState.invalid && styles.inputError]}
-              placeholder="000000"
+              placeholder="------"
               keyboardType="default"
               maxLength={6}
               value={field.value}
@@ -284,7 +288,7 @@ export default function RegisterPage() {
           <>
             <Text style={styles.label}>Gender</Text>
             <View style={styles.genderRow}>
-              {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => (
+              {['Male', 'Female', 'Prefer not to say'].map((g) => (
                 <TouchableOpacity
                   key={g}
                   style={[styles.genderBtn, field.value === g && styles.genderBtnActive]}
@@ -408,20 +412,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#222', // Dark neutral
     borderRadius: hp(1.2),
     paddingVertical: hp(1.8),
+    justifyContent: "center",
     alignItems: 'center',
     marginTop: hp(1),
+    flex: 1
   },
-  primaryBtnText: { color: '#fff', fontSize: hp(2.1), fontWeight: '600' },
+  primaryBtnText: { color: '#fff', fontSize: hp(2), fontWeight: '600' },
 
   secondaryBtn: {
     backgroundColor: '#eee',
     borderRadius: hp(1.2),
-    paddingVertical: hp(1.8),
+    paddingVertical: hp(1),
+    justifyContent: "center",
     alignItems: 'center',
-    flex: 1,
+    width: hp(10),
     marginRight: hp(1),
   },
-  secondaryBtnText: { color: '#555', fontSize: hp(2), fontWeight: '600' },
+  secondaryBtnText: { color: '#555', fontSize: hp(1.8), fontWeight: '500' },
 
   btnRow: { flexDirection: 'row', marginTop: hp(2) },
 

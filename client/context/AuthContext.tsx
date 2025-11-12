@@ -15,14 +15,16 @@ import type {
   OtpPayload,
   VerifyOtpPayload,
 } from '@/types/auth';
-import { useAlert } from '@/Hooks/alertHook.d';
+import { useToast } from '@/Hooks/useToast.d';
+
 
 type Action =
   | { type: 'RESTORE'; payload: Partial<AuthState> }
   | { type: 'LOGIN'; payload: { user: User; accessToken: string; refreshToken: string } }
   | { type: 'LOGOUT' }
   | { type: 'REFRESH'; payload: { accessToken: string } }
-  | { type: 'READY' };
+  | { type: 'READY' }
+  | { type: 'DELETE_ACCOUNT' };
 
   const initialState: AuthState = {
   isReady: false,
@@ -51,6 +53,8 @@ function authReducer(state: AuthState, action: Action): AuthState {
       return { ...state, accessToken: action.payload.accessToken };
     case 'READY':
       return { ...state, isReady: true };
+    case 'DELETE_ACCOUNT':
+      return { ...initialState, isReady: true };
     default:
       return state;
   }
@@ -66,22 +70,23 @@ type AuthContextProps = {
   resetPassword: (p: VerifyOtpPayload & { newPassword: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
      const [auth, dispatch] = useReducer(authReducer, initialState);
-     const { showAlert } = useAlert();
+     const { showAlert } = useToast();
 
   // 
   // ------------------------------------------------------------------ //
   // 1. Restore tokens on app start
       const handleError = (title: string, err: any) => {
-        const msg = err?.message || 'something went wrong';
-        showAlert({ title, message: msg, type: 'error' })
+        const msg = err?.message || 'Something went wrong';
+        showAlert({ message: `${title}: ${msg}`, type: 'error' });
         throw err;
-      }
+      };
   // 
   // ------------------------------------------------------------------ //
    useEffect(() => {
@@ -131,7 +136,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
 
       // Success feedback (optional)
-      showAlert({ title: 'Welcome!', message: `Hi ${data.user.name || data.user.email}`, type: 'success' });
+      showAlert({ 
+         message: `Welcome! Hi ${data.user.name || data.user.email}`, 
+         type: 'success'
+       });
     } catch (err: any) {
       
       handleError('Login failed', err);
@@ -153,7 +161,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      showAlert({ title: 'OTP sent', message: `Check your inbox at ${payload.email}`, type: 'success' });
+      showAlert({ 
+        message: `OTP sent! Check your inbox at ${payload.email}`, 
+        type: 'success' 
+      });
     } catch (err: any) {
       handleError('Could not send OTP', err);
     }
@@ -172,7 +183,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await persist(data.user, data.accessToken, refreshToken);
       dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
 
-      showAlert({ title: 'Account created!', type: 'success' });
+      showAlert({ message: 'Account created successfully!', type: 'success' });
     } catch (err: any) {
       handleError('Registration failed', err);
     }
@@ -185,7 +196,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      showAlert({ title: 'OTP sent', message: `Check ${payload.email}`, type: 'success' });
+      showAlert({ 
+        message: `OTP sent! Check ${payload.email}`, 
+        type: 'success' 
+      });
     } catch (err: any) {
       handleError('Could not send reset OTP', err);
     }
@@ -198,7 +212,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword }),
       });
-      showAlert({ title: 'Password updated', type: 'success' });
+      showAlert({ message: 'Password updated successfully!', type: 'success' });
     } catch (err: any) {
       handleError('Password reset failed', err);
     }
@@ -214,7 +228,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         SecureStore.deleteItemAsync('user'),
       ]);
       dispatch({ type: 'LOGOUT' });
-      showAlert({ title: 'Logged out', type: 'info' });
+      showAlert({ message: 'Logged out successfully', type: 'info' });
     } catch (err: any) {
       handleError('Logout error', err);
     }
@@ -239,6 +253,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       handleError('Session expired', err);
     }
   };
+
+  // Inside AuthProvider
+const deleteAccount = async () => {
+  try {
+    await apiFetch('/auth/me', { method: 'DELETE' });
+
+    // wipe everything locally
+    await Promise.all([
+      SecureStore.deleteItemAsync('accessToken'),
+      SecureStore.deleteItemAsync('refreshToken'),
+      SecureStore.deleteItemAsync('user'),
+    ]);
+
+    dispatch({ type: 'DELETE_ACCOUNT' });
+    showAlert({ message: 'Your account has been deleted.', type: 'info' });
+  } catch (err: any) {
+    handleError('Delete account failed', err);
+  }
+};
   // ------------------------------------------------------------------ //
   // 4. Auto-refresh interceptor (optional – can be added in apiFetch)
   // ------------------------------------------------------------------ //
@@ -256,6 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         resetPassword,
         logout,
         refreshAccessToken,
+        deleteAccount
       }}
     >
       {children}

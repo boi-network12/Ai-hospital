@@ -169,6 +169,7 @@ const styles = StyleSheet.create({
     fontSize: hp(2),
     backgroundColor: '#fafafa',
     marginBottom: hp(2.5),
+    color: "#333"
   },
 
   forgotLink: {

@@ -1,22 +1,41 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen'
 import { Image } from 'expo-image'
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
 import ProfileAvatar from "@/assets/images/avatar.png";
+import { User } from '@/types/auth.d';
+import { calculateAge } from '@/helper/AgeCalculation';
+import { getZodiacSign } from '@/helper/Zodiac';
+import { router } from 'expo-router';
 
 const blurhash = BLUR_HASH_PLACEHOLDER;
 
-export default function HeaderSection() {
+interface HeaderSectionProps {
+    user: User | null;
+}
 
-    const _AuxDetails = ["19 yrs", "Aquarius", "Male"]
+export default function HeaderSection({ user }: HeaderSectionProps) {
+    const _AuxDetails = useMemo(() => {
+        const age = calculateAge(user?.profile?.dateOfBirth);
+        const zodiac = getZodiacSign(user?.profile?.dateOfBirth);
+        const gender = user?.profile?.gender;
+
+        const details: string[] = [];
+
+        if (age) details.push(`${age} yrs`);
+        if (zodiac) details.push(zodiac);
+        if (gender) details.push(gender);
+
+        return details;
+    },[user])
 
   return (
     <View style={styles.container}>
       <View style={styles.topSideSection}>
         <View style={styles.imageContainer}>
             <Image
-                source={ProfileAvatar}
+                source={user?.profile?.avatar || ProfileAvatar}
                 placeholder={blurhash}
                 style={{
                     width: "100%",
@@ -27,8 +46,8 @@ export default function HeaderSection() {
             />
         </View>
         <View style={{ marginTop: hp(1.5) }}>
-            <Text style={styles.textDetails}>jane</Text>
-            <Text style={styles.textDetails}>Kamdilichukwu2020@gmail.com</Text>
+            <Text style={styles.textDetails}>{user?.name || "user"}</Text>
+            <Text style={styles.textDetails}>{user?.email || "Not authorized"}</Text>
             <View style={{
                 flexDirection: "row",
                 gap: hp(1),
@@ -41,7 +60,7 @@ export default function HeaderSection() {
         </View>
       </View>
       {/*  */}
-      <TouchableOpacity style={styles.BtnContainer}>
+      <TouchableOpacity style={styles.BtnContainer} onPress={() => router.push("/edit-profile")}>
         <Text style={styles.btnText}>edit profile</Text>
       </TouchableOpacity>
     </View>

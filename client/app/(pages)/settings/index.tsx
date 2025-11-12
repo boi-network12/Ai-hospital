@@ -14,6 +14,8 @@ import ShareIcon from "@/assets/Svgs/square-arrow-out-up-right.svg";
 import ContactIcon from "@/assets/Svgs/message-square.svg";
 import EmailIcon from "@/assets/Svgs/mail.svg";
 import LaptopIcon from "@/assets/Svgs/laptop.svg";
+import { useUser } from '@/Hooks/userHooks.d';
+import { useAuth } from '@/Hooks/authHook.d';
 
 // Define your settings sections and items
 const SETTINGS_DATA = [
@@ -57,6 +59,10 @@ const SETTINGS_DATA = [
 
 export default function SettingsPages() {
   const router = useRouter();
+  const { user } = useUser()
+  const { logout } = useAuth()
+
+  if (!user) return
 
   return (
     <SafeAreaView style={{ backgroundColor: "#fff", flex: 1 }}>
@@ -93,11 +99,7 @@ export default function SettingsPages() {
         ))}
         <TouchableOpacity
           style={styles.logoutButton}
-          onPress={() => {
-            // Handle logout logic here
-            console.log("Logout pressed");
-            // Example: router.replace("/login");
-          }}
+          onPress={() => logout()}
         >
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>

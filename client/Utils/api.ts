@@ -39,9 +39,16 @@ const processQueue = (error: any, token: string | null = null) => {
 /** Centralised fetch that adds authorization header automatically */
 export async function apiFetch<T = any>(endpoint: string, opts: RequestInit = {}): Promise<T> {
   const url = `${BACKEND_URI}/api/v1${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-  let token = await SecureStore.getItemAsync('accessToken');
-
+  // ----- NEW -----
+  let body = opts.body;
   const headers = new Headers(opts.headers ?? {});
+
+  if (body && typeof body === 'string' && body.trim().startsWith('{')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  // ----------------
+
+  let token = await SecureStore.getItemAsync('accessToken');
   if (token) headers.set('Authorization', `Bearer ${token}`);
   if (opts.body && typeof opts.body === 'object') {
     headers.set('Content-Type', 'application/json');

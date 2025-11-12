@@ -26,19 +26,27 @@ export const completeRegistration = async (data: {
   name: string;
   phoneNumber?: string;
   gender?: string;
-  dateOfBirth?: Date;
+  dateOfBirth?: string;
 }) => {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new Error('Email already registered');
 
   const role = isAdminEmail(data.email) ? 'admin' : 'user';
+
   const user = new User({
-    ...data,
+    email: data.email,
     password: await hashPassword(data.password),
+    name: data.name,
+    phoneNumber: data.phoneNumber || '',
     role,
-    isVerified: true, // email OTP already verified
+    isVerified: true,
     verificationMethod: 'email',
+    profile: {
+      gender: data.gender || 'Prefer not to say',
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+    },
   });
+
   await user.save();
   return user;
 };

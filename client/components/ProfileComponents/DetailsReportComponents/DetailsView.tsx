@@ -35,9 +35,9 @@ export default function DetailsView({ user }: DetailsViewProps) {
       title: "emergency contact",
       icon: EmergencyIcon,
       data: [
-        { label: "Name", value: "Amara Okolo" },
-        { label: "Relationship", value: "Sister" },
-        { label: "Phone no", value: "+234 8012345678" },
+        { label: "Name", value: user?.emergencyContact?.name ? user?.emergencyContact?.name : "!" },
+        { label: "Relationship", value: user?.emergencyContact?.relationship ? user?.emergencyContact?.relationship : "!" },
+        { label: "Phone no", value: user?.emergencyContact?.phoneNumber ? user?.emergencyContact?.phoneNumber : "!" },
       ],
     },
   ]

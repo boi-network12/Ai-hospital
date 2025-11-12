@@ -13,6 +13,21 @@ router.get('/:id', getUserProfile);
 router.use(verifyToken);
 router.get('/me/profile', userCtrl.getMyProfile);
 router.patch('/me/profile', userCtrl.updateMyProfile);
+router.patch('/me/avatar', userCtrl.updateAvatar);
+
+router.get('/me/devices', userCtrl.getMyDevices);
+router.post('/me/devices/revoke', userCtrl.revokeDevice);
+
+/* Email */
+router.patch('/me/email', userCtrl.updateEmail);
+
+/* Password */
+router.patch('/me/password', userCtrl.updatePassword);
+
+/* Notifications */
+router.patch('/me/notifications', userCtrl.updateNotifications);
+
+/* Devices */
 router.get('/me/devices', userCtrl.getMyDevices);
 router.post('/me/devices/revoke', userCtrl.revokeDevice);
 

@@ -11,7 +11,7 @@ export default {
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     description: "A wellness and health insights app powered by NeuroMed.",
-    owner: "neuromed", // optional but helpful if using EAS
+    owner: "hospital-ai",
     runtimeVersion: {
       policy: "appVersion" // recommended for OTA updates
     },

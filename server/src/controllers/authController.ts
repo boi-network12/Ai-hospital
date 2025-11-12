@@ -33,7 +33,7 @@ export const register = async (req: Request, res: Response) => {
     name,
     phoneNumber,
     gender,
-    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+    dateOfBirth
   });
 
   const payload = { sub: user._id, role: user.role };
@@ -156,4 +156,20 @@ export const logout = async (req: AuthReq, res: Response) => {
   }
   res.clearCookie('refreshToken'); // optional, harmless
   res.json({ message: 'Logged out' });
+};
+
+/* ---------- 8. Delete Account (soft-delete) ---------- */
+/* ---------- 8. Delete Account (HARD DELETE) ---------- */
+export const deleteAccount = async (req: AuthReq, res: Response) => {
+  const userId = req.user?._id;
+  if (!userId) return res.status(401).json({ message: 'Unauthenticated' });
+
+  // 1. Permanently delete the user
+  const deleted = await User.findByIdAndDelete(userId);
+  if (!deleted) return res.status(404).json({ message: 'User not found' });
+
+  // 2. (Optional) No need to revoke sessions — document is gone
+  // But if you have other collections referencing this user, clean them up
+
+  res.json({ message: 'Account permanently deleted' });
 };

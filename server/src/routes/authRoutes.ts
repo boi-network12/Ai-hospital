@@ -14,4 +14,6 @@ router.post('/logout', verifyToken, authCtrl.logout);
 router.post('/forgot/otp', authCtrl.requestResetOtp);
 router.post('/forgot/reset', authCtrl.resetPassword);
 
+router.delete('/me', verifyToken, authCtrl.deleteAccount);
+
 export default router;
