@@ -18,7 +18,14 @@ interface DetailsViewProps {
 }
 
 export default function DetailsView({ user }: DetailsViewProps) {
-  const addressDetail = `${user?.profile?.location?.city}, ${user?.profile?.location?.state}, ${user?.profile?.location?.country}`
+  const location = user?.profile?.location;
+
+  const addressDetail = location
+    ? [location.city, location.state, location.country]
+        .filter(Boolean)       // remove undefined / null / ""
+        .join(", ")
+    : null;
+
 
   // ✅ Step 1: Define the data structure
   const sections = [

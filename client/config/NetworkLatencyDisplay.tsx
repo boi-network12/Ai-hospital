@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
+import { apiFetch } from '@/Utils/api'; 
 
 function NetworkLatencyDisplay() {
   const [latency, setLatency] = useState<number | null>(null);
 
   const measureLatency = async () => {
     const start = Date.now();
+
     try {
-      await fetch('https://neuromed-ai-backend.vercel.app/api/v1/health', { method: 'GET', cache: 'no-store' });
+      // ✅ Use your centralized fetch function
+      await apiFetch('/health', { method: 'GET' });
       const end = Date.now();
       setLatency(end - start);
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Network latency check failed:', error);
       setLatency(null);
-      throw new Error("Error: ", error)
     }
   };
 
@@ -25,10 +28,14 @@ function NetworkLatencyDisplay() {
   if (latency === null) return <Text>Checking...</Text>;
 
   return (
-    <Text style={{ color: latency < 100 ? 'green' : latency < 200 ? 'orange' : 'red' }}>
+    <Text
+      style={{
+        color: latency < 100 ? 'green' : latency < 200 ? 'orange' : 'red',
+      }}
+    >
       {latency} ms
     </Text>
   );
 }
 
-export default NetworkLatencyDisplay
+export default NetworkLatencyDisplay;
