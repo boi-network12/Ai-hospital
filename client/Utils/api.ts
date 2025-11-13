@@ -1,7 +1,7 @@
 // utils/api.ts
 import * as SecureStore from 'expo-secure-store';
 
-export const BACKEND_URI = 'https://neuromed-ai.pxxl.click';
+export const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
 // For production: 'https://neuromed-ai.pxxl.click'
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
