@@ -10,7 +10,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-console.log(`Email: ${process.env.SMTP_USER}, pass: ${process.env.SMTP_PASS}`)
 
 export const sendOtpEmail = async (to: string, otp: string): Promise<void> => {
   const appName = process.env.APP_NAME || 'MyApp';

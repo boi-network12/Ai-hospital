@@ -64,10 +64,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // === 1. General Profile Update ===
   const updateProfile = async (data: Partial<User>) => {
+    
     try {
       await apiFetch('/user/me/profile', {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: data,
       });
       await refreshUser();
       showAlert({ message: 'Profile updated!', type: 'success' });
@@ -78,11 +79,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // === 2. Email Update ===
-  const updateEmail = async (email: string) => {
+  const updateEmail = async (newEmail: string) => {
+    console.log({"Email to pass":newEmail})
+
+    const payload = { email: newEmail };
+     console.log("Sending payload:", payload);
     try {
       await apiFetch('/user/me/email', {
         method: 'PATCH',
-        body: JSON.stringify({ email }),
+        body: payload as any,
       });
       await refreshUser();
       showAlert({ message: 'Email updated! Verification may be required.', type: 'success' });
@@ -97,8 +102,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       await apiFetch('/user/me/password', {
         method: 'PATCH',
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: { currentPassword, newPassword },
       });
+
       showAlert({ message: 'Password changed successfully', type: 'success' });
     } catch (err: any) {
       showAlert({ message: err.message || 'Password change failed', type: 'error' });
@@ -115,7 +121,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       await apiFetch('/user/me/notifications', {
         method: 'PATCH',
-        body: JSON.stringify(settings),
+        body: settings,
       });
       await refreshUser();
       showAlert({ message: 'Notification settings saved', type: 'success' });
@@ -151,17 +157,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const revokeDevice = async (token: string) => {
-    try {
-      await apiFetch('/user/me/devices/revoke', {
-        method: 'POST',
-        body: JSON.stringify({ token }),
-      });
-      showAlert({ message: 'Device revoked', type: 'success' });
-    } catch (err: any) {
-      showAlert({ message: 'Failed to revoke device', type: 'error' });
-      throw err;
-    }
-  };
+  try {
+    await apiFetch('/user/me/devices/revoke', {
+      method: 'DELETE',
+      body: { token },
+    });
+    showAlert({ message: 'Device revoked', type: 'success' });
+  } catch (err: any) {
+    showAlert({ message: 'Failed to revoke device', type: 'error' });
+    throw err;
+  }
+};
 
   return (
     <UserContext.Provider value={{

@@ -4,8 +4,16 @@ const ACCESS_SECRET: Secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_S
 const REFRESH_SECRET: Secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!;
 
 // Explicitly define token expirations
-const ACCESS_EXPIRES: jwt.SignOptions["expiresIn"] = (process.env.ACCESS_TOKEN_EXPIRES || "15m") as jwt.SignOptions["expiresIn"];
-const REFRESH_EXPIRES: jwt.SignOptions["expiresIn"] = (process.env.REFRESH_TOKEN_EXPIRES || "30d") as jwt.SignOptions["expiresIn"];
+// Allow "never" or very long expiry
+const ACCESS_EXPIRES: jwt.SignOptions["expiresIn"] = 
+  process.env.ACCESS_TOKEN_EXPIRES 
+    ? (process.env.ACCESS_TOKEN_EXPIRES as jwt.SignOptions["expiresIn"])
+    : "30d"; // fallback to 30 days
+
+const REFRESH_EXPIRES: jwt.SignOptions["expiresIn"] = 
+  process.env.REFRESH_TOKEN_EXPIRES 
+    ? (process.env.REFRESH_TOKEN_EXPIRES as jwt.SignOptions["expiresIn"])
+    : "365d";
 
 export const signAccess = (payload: object, options: SignOptions = {}): string => {
   return jwt.sign(payload, ACCESS_SECRET, {

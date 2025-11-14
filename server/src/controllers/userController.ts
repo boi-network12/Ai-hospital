@@ -13,8 +13,26 @@ export const getMyProfile = async (req: AuthReq, res: Response) => {
 
 /* ---------- General profile update (everything except email, password, notifications, avatar) ---------- */
 export const updateMyProfile = async (req: AuthReq, res: Response) => {
-  const updated = await userService.updateProfileGeneral(req.user._id, req.body);
-  res.json(updated);
+  const body = req.body;
+
+  // 1. Validate body exists and is object
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ message: 'Invalid request body: must be a JSON object' });
+  }
+
+  // 2. Allow empty object → no changes
+  if (Object.keys(body).length === 0) {
+    const user = await userService.getUserById(req.user._id);
+    return res.json(user);
+  }
+
+  try {
+    const updatedUser = await userService.updateProfileGeneral(req.user._id, body);
+    return res.json(updatedUser);
+  } catch (err: any) {
+    // Service throws meaningful errors
+    return res.status(400).json({ message: err.message });
+  }
 };
 
 /* ---------- Avatar (stub) ---------- */
@@ -25,23 +43,89 @@ export const updateAvatar = async (req: AuthReq, res: Response) => {
 
 /* ---------- Email update ---------- */
 export const updateEmail = async (req: AuthReq, res: Response) => {
-  const { email } = req.body;
-  const updated = await userService.updateEmail(req.user._id, email);
-  res.json(updated);
+  const body = req.body;
+
+  if (!body || typeof body !== 'object') {
+    return res.status(400).json({ message: 'Invalid request body' });
+  }
+
+  const { email: rawEmail } = body;
+
+  if (!rawEmail || typeof rawEmail !== 'string' || rawEmail.trim() === '') {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  const newEmail = rawEmail.trim().toLowerCase();
+
+  try {
+    const updatedUser = await userService.updateEmail(req.user._id, newEmail);
+    return res.json(updatedUser);
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
+  }
 };
 
 /* ---------- Change password ---------- */
 export const updatePassword = async (req: AuthReq, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
-  await userService.changePassword(req.user._id, currentPassword, newPassword);
-  res.json({ message: 'Password updated successfully' });
+  const body = req.body;
+
+  // -------------------------------------------------
+  // 1. Validate request body (exactly like updateEmail)
+  // -------------------------------------------------
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ message: 'Invalid request body: must be a JSON object' });
+  }
+
+  const { currentPassword, newPassword } = body;
+
+  // -------------------------------------------------
+  // 2. Validate required fields + types
+  // -------------------------------------------------
+  if (!currentPassword || typeof currentPassword !== 'string') {
+    return res.status(400).json({ message: 'Current password is required' });
+  }
+  if (!newPassword || typeof newPassword !== 'string') {
+    return res.status(400).json({ message: 'New password is required' });
+  }
+
+  // -------------------------------------------------
+  // 3. Optional: enforce minimum length / complexity
+  // -------------------------------------------------
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: 'New password must be at least 8 characters' });
+  }
+
+  // -------------------------------------------------
+  // 4. Call service – it throws on failure
+  // -------------------------------------------------
+  try {
+    await userService.changePassword(req.user._id, currentPassword, newPassword);
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err: any) {
+    // Service throws:
+    //   • "User not found"
+    //   • "Current password is incorrect"
+    //   • Validation errors from bcrypt / schema
+    return res.status(400).json({ message: err.message });
+  }
 };
 
 /* ---------- Notification settings ---------- */
 export const updateNotifications = async (req: AuthReq, res: Response) => {
-  const updated = await userService.updateNotificationSettings(req.user._id, req.body);
-  res.json(updated);
+  const body = req.body;
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ message: 'Invalid request body: must be a JSON object' });
+  }
+
+  try {
+    const updatedUser = await userService.updateNotificationSettings(req.user._id, body);
+    return res.json(updatedUser);
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
+  }
 };
+
 
 /* ---------- Devices ---------- */
 export const getMyDevices = async (req: AuthReq, res: Response) => {
@@ -49,10 +133,26 @@ export const getMyDevices = async (req: AuthReq, res: Response) => {
   res.json(devices);
 };
 
+// src/controllers/userController.ts
 export const revokeDevice = async (req: AuthReq, res: Response) => {
-  const { token } = req.body;
-  await userService.revokeDevice(req.user._id, token);
-  res.json({ message: 'Device revoked' });
+  const body = req.body;
+
+  if (!body || typeof body !== 'object') {
+    return res.status(400).json({ message: 'Invalid request body' });
+  }
+
+  const { token } = body;
+
+  if (!token || typeof token !== 'string') {
+    return res.status(400).json({ message: 'Token is required' });
+  }
+
+  try {
+    await userService.revokeDevice(req.user._id, token);
+    return res.json({ message: 'Device removed' });
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
+  }
 };
 
 /* ---------- Public profile ---------- */

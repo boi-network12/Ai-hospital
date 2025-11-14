@@ -2,7 +2,7 @@
 import User from '../models/UserModel';
 import { hashPassword, comparePassword } from './authService';
 import { Types } from 'mongoose';
-import { ISession } from '../types/usersDetails';
+import { INotificationSettings, ISession } from '../types/usersDetails';
 
 /* ---------- Helpers ---------- */
 const selectSafe = '-password -sessions.token';
@@ -23,8 +23,6 @@ const GENERAL_ALLOWED = [
   'profile.specialization',
   'profile.department',
   'profile.bio',
-  // Remove this: 'emergencyContact',
-  // Add these:
   'emergencyContact.name',
   'emergencyContact.relationship',
   'emergencyContact.phoneNumber',
@@ -38,13 +36,11 @@ export const getUserById = async (id: string) => {
 /* ---------- General profile update ---------- */
 // src/services/userService.ts
 export const updateProfileGeneral = async (userId: string, updates: any) => {
-  // console.log('Received updates:', updates);   // <-- keep this
-
   // 1. Guard – accept empty object as “no changes”
   if (!updates || (typeof updates === 'object' && Object.keys(updates).length === 0)) {
     const user = await User.findById(userId).select(selectSafe);
     if (!user) throw new Error('User not found');
-    return user;               // early return, no DB write
+    return user;
   }
 
   // 2. Reject anything that is NOT an object
@@ -93,15 +89,23 @@ export const updateProfileGeneral = async (userId: string, updates: any) => {
 
 /* ---------- Email update ---------- */
 export const updateEmail = async (userId: string, newEmail: string) => {
+  // Guard (defensive – controller already checks)
   if (!newEmail) throw new Error('Email is required');
-  const exists = await User.findOne({ email: newEmail });
+
+  // Normalise once here (controller already does it, but safe)
+  const normalised = newEmail.toLowerCase().trim();
+
+  const exists = await User.findOne({ email: normalised });
   if (exists) throw new Error('Email already in use');
 
-  return await User.findByIdAndUpdate(
+  const updatedUser = await User.findByIdAndUpdate(
     userId,
-    { $set: { email: newEmail.toLowerCase().trim(), updatedAt: new Date() } },
-    { new: true }
+    { $set: { email: normalised, updatedAt: new Date() } },
+    { new: true, runValidators: true }
   ).select(selectSafe);
+
+  if (!updatedUser) throw new Error('User not found');
+  return updatedUser;
 };
 
 /* ---------- Change password ---------- */
@@ -110,11 +114,15 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string
 ) => {
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select('+password'); // need password!
   if (!user) throw new Error('User not found');
 
   const match = await comparePassword(currentPassword, user.password);
   if (!match) throw new Error('Current password is incorrect');
+
+  // Prevent setting the same password again
+  const same = await comparePassword(newPassword, user.password);
+  if (same) throw new Error('New password must be different from the current one');
 
   const hashed = await hashPassword(newPassword);
   await User.updateOne(
@@ -124,40 +132,76 @@ export const changePassword = async (
 };
 
 /* ---------- Notification settings ---------- */
-export const updateNotificationSettings = async (userId: string, settings: any) => {
-  const allowed = [
-    'notificationSettings.emailNotifications',
-    'notificationSettings.pushNotifications',
-    'notificationSettings.smsNotifications',
-  ];
+export const updateNotificationSettings = async (
+  userId: string,
+  updates: Partial<INotificationSettings>
+) => {
+  if (!Types.ObjectId.isValid(userId)) throw new Error('Invalid user ID');
+
+  const user = await User.findById(userId).select('notificationSettings');
+  if (!user) throw new Error('User not found');
+
+  const current = user.notificationSettings || {
+    emailNotifications: true,
+    pushNotifications: true,
+    smsNotifications: true,
+  };
+
+  // Allow empty object → no changes
+  if (!updates || Object.keys(updates).length === 0) {
+    return await User.findById(userId).select(selectSafe);
+  }
+
   const toSet: any = { updatedAt: new Date() };
-  for (const key of Object.keys(settings)) {
-    if (allowed.includes(`notificationSettings.${key}`)) {
-      toSet[`notificationSettings.${key}`] = settings[key];
+  let hasChanges = false;
+
+  const allowed = ['emailNotifications', 'pushNotifications', 'smsNotifications'] as const;
+
+  for (const key of allowed) {
+    if (key in updates && updates[key] !== current[key]) {
+      toSet[`notificationSettings.${key}`] = updates[key];
+      hasChanges = true;
     }
   }
 
-  return await User.findByIdAndUpdate(userId, { $set: toSet }, { new: true }).select(
-    selectSafe
-  );
+  if (!hasChanges) {
+    return await User.findById(userId).select(selectSafe);
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: toSet },
+    { new: true, runValidators: true }
+  ).select(selectSafe);
+
+  if (!updatedUser) throw new Error('Failed to update settings');
+  return updatedUser;
 };
 
 /* ---------- Devices ---------- */
 export const listDevices = async (userId: string) => {
   const user = await User.findById(userId).select('sessions');
   return (
-    user?.sessions?.map((s: ISession) => ({
-      device: s.device,
-      ipAddress: s.ipAddress,
-      lastActive: s.lastActive,
-      active: s.active,
-    })) ?? []
+    user?.sessions
+      ?.filter((s: ISession) => s.active)      
+      .map((s: ISession) => ({
+        token: s.token,
+        device: s.device ?? 'Unknown device',
+        ipAddress: s.ipAddress ?? '',
+        lastActive: s.lastActive.toISOString(),
+        active: s.active,
+      })) ?? []
   );
 };
 
+/** Permanently delete a session */
 export const revokeDevice = async (userId: string, token: string) => {
-  await User.updateOne(
-    { _id: userId, 'sessions.token': token },
-    { $set: { 'sessions.$.active': false, 'sessions.$.lastActive': new Date() } }
+  const result = await User.updateOne(
+    { _id: userId },
+    { $pull: { sessions: { token } } }  
   );
+
+  if (result.modifiedCount === 0) {
+    throw new Error('Session not found or already removed');
+  }
 };

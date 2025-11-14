@@ -1,16 +1,47 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native'
 import React, { useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import GeneralSettingsHeader from '@/components/Headers/GeneralSettingsHeader'
 import { router } from 'expo-router'
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen'
 import { Ionicons } from '@expo/vector-icons'
+import { useUser } from '@/Hooks/userHooks.d'
 
 export default function ChangePassword() {
+  const { updatePassword } = useUser();
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false);
+
+
+  const handleSave = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      alert('All fields are required');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      alert('New password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await updatePassword(oldPassword, newPassword);
+      router.back();
+    } catch (err: any) {
+      throw new Error('Error', err)
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.ProfileDetailsContainer}>
@@ -91,8 +122,16 @@ export default function ChangePassword() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.saveBtn}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <TouchableOpacity
+            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

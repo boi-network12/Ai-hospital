@@ -1,13 +1,34 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import React, {  } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
 import EmailIcon from "@/assets/Svgs/mail.svg";
 
-export default function EmailChangeForm() {
-  const [currentEmail, setCurrentEmail] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [confirmEmail, setConfirmEmail] = useState("");
+/* ----------------------------------------------------------------- */
+/* Separate form component – keeps the screen file tidy                */
+/* ----------------------------------------------------------------- */
+interface FormProps  {
+  currentEmail: string;
+  newEmail: string;
+  setNewEmail: (v: string) => void;
+  confirmEmail: string;
+  setConfirmEmail: (v: string) => void;
+  onSubmit: () => void;
+  isSubmitting: boolean;
+  error: string | null;
+};
+
+export default function EmailChangeForm({
+  currentEmail,
+  newEmail,
+  setNewEmail,
+  confirmEmail,
+  setConfirmEmail,
+  onSubmit,
+  isSubmitting,
+  error,
+}: FormProps) {
+  
 
   return (
     <View style={styles.container}>
@@ -26,11 +47,9 @@ export default function EmailChangeForm() {
       <View style={styles.formCard}>
         <Text style={styles.label}>Current Email</Text>
         <TextInput
-          style={styles.input}
-          placeholder="Enter your current email"
-          placeholderTextColor="#aaa"
+          style={[styles.input, styles.readonly]}
           value={currentEmail}
-          onChangeText={setCurrentEmail}
+          editable={false}
         />
 
         <Text style={styles.label}>New Email</Text>
@@ -40,6 +59,8 @@ export default function EmailChangeForm() {
           placeholderTextColor="#aaa"
           value={newEmail}
           onChangeText={setNewEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
         />
 
         <Text style={styles.label}>Confirm New Email</Text>
@@ -49,19 +70,35 @@ export default function EmailChangeForm() {
           placeholderTextColor="#aaa"
           value={confirmEmail}
           onChangeText={setConfirmEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
         />
 
+        {/* Error message */}
+        {error && <Text style={styles.error}>{error}</Text>}
+
         {/* Save Button */}
-        <LinearGradient
-          colors={["#8089FF", "#A174FF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.saveBtn}
+        <TouchableOpacity
+          onPress={onSubmit}
+          disabled={isSubmitting}
+          style={{ borderRadius: hp(10), overflow: "hidden" }} // ensures gradient stays clipped
         >
-          <TouchableOpacity>
-            <Text style={styles.saveText}>Save Changes</Text>
-          </TouchableOpacity>
-        </LinearGradient>
+          <LinearGradient
+            colors={["#8089FF", "#A174FF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.saveBtn}
+          >
+            <View style={styles.btnInner}>
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveText}>Save Changes</Text>
+              )}
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
       </View>
 
       {/* Info Note */}
@@ -134,6 +171,17 @@ const styles = StyleSheet.create({
     color: "#333",
     fontSize: hp(1.8),
   },
+   readonly: {
+    backgroundColor: '#f5f5f5',
+    color: '#777',
+  },
+
+  error: {
+    marginTop: hp(1),
+    color: '#d32f2f',
+    fontSize: hp(1.6),
+    textAlign: 'center',
+  },
   saveBtn: {
     marginTop: hp(3),
     borderRadius: hp(10),
@@ -146,6 +194,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  btnInner: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   saveText: {
     fontSize: hp(2),
     color: "#fff",

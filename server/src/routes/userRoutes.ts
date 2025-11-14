@@ -29,6 +29,6 @@ router.patch('/me/notifications', userCtrl.updateNotifications);
 
 /* Devices */
 router.get('/me/devices', userCtrl.getMyDevices);
-router.post('/me/devices/revoke', userCtrl.revokeDevice);
+router.delete('/me/devices/revoke', userCtrl.revokeDevice);
 
 export default router;

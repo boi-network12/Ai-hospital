@@ -2,7 +2,11 @@
 import * as SecureStore from 'expo-secure-store';
 
 export const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
-// For production: 'https://neuromed-ai.pxxl.click'
+// For production: 'https://neuromed-ai-backend.vercel.app'
+
+interface ApiFetchOptions extends RequestInit {
+  body?: any; // Allow plain objects
+}
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -59,7 +63,7 @@ const processQueue = (error: any, token: string | null = null) => {
 // -------------------------------
 export async function apiFetch<T = any>(
   endpoint: string,
-  opts: RequestInit = {}
+  opts: ApiFetchOptions = {}
 ): Promise<T> {
   const url = `${BACKEND_URI}/api/v1${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   const headers = new Headers(opts.headers ?? {});
@@ -67,7 +71,9 @@ export async function apiFetch<T = any>(
   // Set Content-Type for JSON bodies
   if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
-    opts.body = JSON.stringify(opts.body);
+    if (typeof opts.body === 'object') {
+      opts.body = JSON.stringify(opts.body);
+    }
   }
 
   // Add Authorization header if token exists
