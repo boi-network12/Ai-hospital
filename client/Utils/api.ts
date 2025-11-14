@@ -5,7 +5,8 @@ export const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
 // For production: 'https://neuromed-ai-backend.vercel.app'
 
 interface ApiFetchOptions extends RequestInit {
-  body?: any; // Allow plain objects
+  body?: any; 
+  signal?: AbortSignal;
 }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -82,7 +83,7 @@ export async function apiFetch<T = any>(
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  let res = await fetch(url, { ...opts, headers });
+  let res = await fetch(url, { ...opts, headers, signal: opts.signal });
 
   // -------------------------------
   // Handle 401 → Try Refresh Token

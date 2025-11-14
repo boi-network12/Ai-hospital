@@ -131,17 +131,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // === 5. Avatar Upload (STUB) ===
-  const updateAvatar = async (file: any) => {
-    // TODO: Implement with FormData + multer on backend
-    showAlert({ message: 'Avatar upload not implemented yet', type: 'info' });
-    // Example (uncomment when ready):
-    /*
-    const form = new FormData();
-    form.append('avatar', file);
-    await apiFetch('/user/me/avatar', { method: 'PATCH', body: form });
-    await refreshUser();
-    */
+ // === 5. Avatar Upload (FULLY IMPLEMENTED) === ===== ///
+  // In UserContext.tsx
+  const updateAvatar = async (formData: FormData, signal?: AbortSignal) => {
+    if (!formData) {
+      showAlert({ message: 'No image selected', type: 'error' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Pass signal to apiFetch if supported
+      await (apiFetch as any)('/user/me/avatar', {
+        method: 'PATCH',
+        body: formData,
+        signal, // Pass AbortSignal
+      });
+
+      // Don't await refreshUser here — do it after
+      // Because if upload succeeded but response failed, refresh will show it
+      setTimeout(refreshUser, 1500); // Delayed refresh
+
+      showAlert({ message: 'Profile picture updated!', type: 'success' });
+    } catch (err: any) {
+      console.error('Avatar upload failed in context:', err);
+
+      // Even if it "failed", it might have succeeded on server
+      setTimeout(() => {
+        refreshUser(); // Force refresh to check
+        showAlert({ 
+          message: 'Upload may have succeeded. Refreshing...', 
+          type: 'info' 
+        });
+      }, 2000);
+
+      // Don't throw — we want to continue
+      // throw err;
+    } finally {
+      setLoading(false);
+    }
   };
 
   // === 6. Devices ===

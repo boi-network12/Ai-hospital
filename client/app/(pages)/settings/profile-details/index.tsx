@@ -11,7 +11,7 @@ import { useAuth } from '@/Hooks/authHook.d';
 
 export default function ProfileDetails() {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, updateAvatar } = useUser();
   const { deleteAccount } = useAuth();
 
   if (!user) return;
@@ -28,6 +28,7 @@ export default function ProfileDetails() {
       >
         <HeaderSection 
           user={user}
+          updateAvatar={updateAvatar}
         />
         {/*  */}
         <OtherDetailsDisplay 

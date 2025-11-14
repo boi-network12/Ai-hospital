@@ -3,6 +3,7 @@ import User from '../models/UserModel';
 import { hashPassword, comparePassword } from './authService';
 import { Types } from 'mongoose';
 import { INotificationSettings, ISession } from '../types/usersDetails';
+import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary';
 
 /* ---------- Helpers ---------- */
 const selectSafe = '-password -sessions.token';
@@ -203,5 +204,57 @@ export const revokeDevice = async (userId: string, token: string) => {
 
   if (result.modifiedCount === 0) {
     throw new Error('Session not found or already removed');
+  }
+};
+
+/* ---------- Update Avatar ---------- */
+export const updateAvatar = async (userId: string, fileBuffer: Buffer): Promise<string> => {
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw new Error('No file provided');
+  }
+
+  const user = await User.findById(userId).select('profile.avatar');
+  if (!user) throw new Error('User not found');
+
+  // Delete old avatar if exists and is from Cloudinary
+  if (user.profile?.avatar) {
+    const oldPublicId = extractPublicId(user.profile.avatar);
+    if (oldPublicId) {
+      try {
+        await deleteFromCloudinary(oldPublicId);
+      } catch (err) {
+        console.warn('Failed to delete old avatar:', err);
+        // Continue – don’t block user
+      }
+    }
+  }
+
+  // Upload new
+  const { secure_url, public_id } = await uploadToCloudinary(fileBuffer, 'avatars');
+
+  // Save URL only (public_id optional for future delete)
+  await User.updateOne(
+    { _id: userId },
+    {
+      $set: {
+        'profile.avatar': secure_url,
+        updatedAt: new Date(),
+      },
+    }
+  );
+
+  return secure_url;
+};
+
+// helper: extract public_id from cloudinary URL
+const extractPublicId = (url: string): string | null => {
+  try {
+    const parts = url.split('/');
+    const versionIndex = parts.findIndex((p) => p.startsWith('v'));
+    if (versionIndex === -1) return null;
+    const publicIdWithExt = parts.slice(versionIndex + 1).join('/');
+    return publicIdWithExt.split('.')[0]; // remove extension
+  } catch {
+    return null;
   }
 };

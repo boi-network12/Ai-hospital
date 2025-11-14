@@ -36,9 +36,18 @@ export const updateMyProfile = async (req: AuthReq, res: Response) => {
 };
 
 /* ---------- Avatar (stub) ---------- */
-export const updateAvatar = async (req: AuthReq, res: Response) => {
-  // TODO: implement file upload (multer / cloudinary / s3)
-  res.status(501).json({ message: 'Avatar upload not implemented yet' });
+export const updateAvatar = async (req: AuthRequest, res: Response) => {
+  if (!req.file?.buffer) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  try {
+    const avatarUrl = await userService.updateAvatar(req.user._id, req.file.buffer);
+    return res.json({ avatar: avatarUrl });
+  } catch (err: any) {
+    console.error('Avatar upload error:', err);
+    return res.status(400).json({ message: err.message || 'Failed to upload avatar' });
+  }
 };
 
 /* ---------- Email update ---------- */
