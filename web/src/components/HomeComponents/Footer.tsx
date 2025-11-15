@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Facebook, Twitter, Linkedin, Mail } from "lucide-react";
+import {  Twitter, Mail } from "lucide-react";
+import Link from "next/link";
 
 export default function Footer() {
   return (
@@ -32,10 +33,18 @@ export default function Footer() {
 
           {/* Social icons */}
           <div className="flex items-center gap-4 mt-5">
-            <FooterIcon icon={<Facebook size={20} />} />
-            <FooterIcon icon={<Twitter size={20} />} />
-            <FooterIcon icon={<Linkedin size={20} />} />
-            <FooterIcon icon={<Mail size={20} />} />
+            <Link
+               href="https://twitter.com/Neuro_medAi"
+               target="_blank"
+            >
+               <FooterIcon icon={<Twitter size={20} />} />
+            </Link>
+            <Link
+               href="mailto:neuromedication@gmail.com"
+               target="_blank"
+            >
+               <FooterIcon icon={<Mail size={20} />} />
+            </Link>
           </div>
         </div>
 
