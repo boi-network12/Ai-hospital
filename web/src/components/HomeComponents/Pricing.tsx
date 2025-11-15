@@ -5,20 +5,21 @@ import { motion } from "framer-motion";
 const tiers = [
   {
     name: "Basic",
-    price: "$29/mo",
+    price: "Coming Soon",
     features: ["Patient Management", "Basic Analytics", "Staff Tools"]
   },
   {
     name: "Professional",
-    price: "$79/mo",
+    price: "Coming Soon",
     features: ["All Basic Features", "Billing & Insurance", "Inventory & Pharmacy", "Advanced Analytics"]
   },
   {
     name: "Enterprise",
-    price: "Custom",
+    price: "Coming Soon",
     features: ["Unlimited Departments", "Dedicated Support", "Full Integration", "Custom Workflows"]
   },
 ];
+
 
 export default function Pricing() {
   return (
