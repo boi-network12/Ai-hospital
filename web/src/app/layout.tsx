@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, PT_Sans_Narrow  } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Script from "next/script";
 import "./globals.css";
@@ -13,6 +13,13 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+const ptSansNarrow = PT_Sans_Narrow({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-pt-sans-narrow",
+});
+
 
 export const metadata: Metadata = {
   title: "Neuromed – AI Medical Insights",
@@ -61,9 +68,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
-        suppressHydrationWarning
-      >
+          className={`${geistSans.variable} ${geistMono.variable} ${ptSansNarrow.variable} antialiased h-full`}
+          suppressHydrationWarning
+        >
         <ThemeProvider attribute="class">{children}</ThemeProvider>
 
         {/* Structured Data for SEO */}

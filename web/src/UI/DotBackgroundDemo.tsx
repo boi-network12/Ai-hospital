@@ -7,7 +7,7 @@ export function DotBackgroundDemo({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-white dark:bg-black">
+    <div className="relative flex min-h-full w-full items-center justify-center overflow-hidden bg-white dark:bg-black">
       {/* Dotted grid */}
       <div
         className={cn(

@@ -1,6 +1,22 @@
 @import "tailwindcss";
 
-
 body {
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.font-pt-sans {
+  font-family: var(--font-pt-sans-narrow);
+}
+
+/* Hide scrollbar globally */
+
+/* Chrome, Safari, Edge */
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: none;        /* Hide scrollbar */
+  -ms-overflow-style: none;     /* Hide scrollbar for IE/Edge Legacy */
 }
