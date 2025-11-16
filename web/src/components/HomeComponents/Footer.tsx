@@ -1,10 +1,28 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {  Twitter, Mail } from "lucide-react";
+import { Twitter, Mail } from "lucide-react";
 import Link from "next/link";
+import {  } from "next/navigation";
 
 export default function Footer() {
+  // const router = useRouter();
+
+  // Smart link handler: scroll to ID or navigate
+  const handleLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (href.startsWith("#")) {
+      e.preventDefault();
+      const element = document.querySelector(href);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+    // For external or page routes, let Next.js handle it
+  };
+
   return (
     <footer className="mt-32 w-full border-t border-gray-200 dark:border-gray-800 py-14 px-6">
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
@@ -33,17 +51,11 @@ export default function Footer() {
 
           {/* Social icons */}
           <div className="flex items-center gap-4 mt-5">
-            <Link
-               href="https://twitter.com/Neuro_medAi"
-               target="_blank"
-            >
-               <FooterIcon icon={<Twitter size={20} />} />
+            <Link href="https://twitter.com/Neuro_medAi" target="_blank" rel="noopener">
+              <FooterIcon icon={<Twitter size={20} />} />
             </Link>
-            <Link
-               href="mailto:neuromedication@gmail.com"
-               target="_blank"
-            >
-               <FooterIcon icon={<Mail size={20} />} />
+            <Link href="mailto:neuromedication@gmail.com">
+              <FooterIcon icon={<Mail size={20} />} />
             </Link>
           </div>
         </div>
@@ -51,19 +63,36 @@ export default function Footer() {
         {/* Product Links */}
         <FooterSection
           title="Product"
-          links={["Features", "Pricing", "Dashboard", "Demo"]}
+          links={[
+            { text: "Features", href: "#features" },
+            { text: "Pricing", href: "#pricing" },
+            { text: "Demo", href: "/demo" },
+          ]}
+          onClick={handleLinkClick}
         />
 
         {/* Company Links */}
         <FooterSection
           title="Company"
-          links={["About", "Contact", "Careers", "Blog"]}
+          links={[
+            { text: "About", href: "/about" },
+            { text: "Contact", href: "/contact" },
+            { text: "Careers", href: "/careers" },
+            { text: "Blog", href: "/blog" },
+          ]}
+          onClick={handleLinkClick}
         />
 
         {/* Support Links */}
         <FooterSection
           title="Support"
-          links={["Help Center", "Documentation", "Terms", "Privacy Policy"]}
+          links={[
+            { text: "Help Center", href: "#faqs" },
+            { text: "Documentation", href: "/docs" },
+            { text: "Terms", href: "/terms" },
+            { text: "Privacy Policy", href: "/privacy" },
+          ]}
+          onClick={handleLinkClick}
         />
 
       </div>
@@ -80,7 +109,20 @@ export default function Footer() {
 /*     Footer Reusable Components     */
 /* ---------------------------------- */
 
-function FooterSection({ title, links }: { title: string; links: string[] }) {
+interface FooterLink {
+  text: string;
+  href: string;
+}
+
+function FooterSection({
+  title,
+  links,
+  onClick,
+}: {
+  title: string;
+  links: FooterLink[];
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, href: string) => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -92,12 +134,18 @@ function FooterSection({ title, links }: { title: string; links: string[] }) {
 
       <ul className="space-y-2 text-gray-600 dark:text-gray-400">
         {links.map((link, i) => (
-          <li
+          <Link
             key={i}
-            className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+            href={link.href}
+            onClick={(e) => onClick(e, link.href)}
+            {...(link.href.startsWith("http") || link.href.startsWith("mailto:")
+              ? { target: "_blank", rel: "noopener" }
+              : {})}
           >
-            {link}
-          </li>
+            <li className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer capitalize">
+              {link.text}
+            </li>
+          </Link>
         ))}
       </ul>
     </motion.div>

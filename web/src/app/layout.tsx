@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, PT_Sans_Narrow  } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import Script from "next/script";
 import "./globals.css";
+import { Providers } from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -66,14 +67,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" suppressHydrationWarning>
       <body
-          className={`${geistSans.variable} ${geistMono.variable} ${ptSansNarrow.variable} antialiased h-full`}
-          suppressHydrationWarning
+        className={`${geistSans.variable} ${geistMono.variable} ${ptSansNarrow.variable} antialiased h-full`}
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
         >
-        <ThemeProvider attribute="class">{children}</ThemeProvider>
+          <Providers>
+             {children}
+          </Providers>
+        </ThemeProvider>
 
-        {/* Structured Data for SEO */}
         <Script id="structured-data" type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",

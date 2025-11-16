@@ -112,6 +112,10 @@ UserSchema.pre('save', function (next) {
   next();
 });
 
+UserSchema.index({ role: 1 });
+UserSchema.index({ 'roleStatus.approvedByAdmin': 1 });
+UserSchema.index({ isDeleted: 1 });
+
 // this is all
 
 export default mongoose.model<IUser>('User', UserSchema);

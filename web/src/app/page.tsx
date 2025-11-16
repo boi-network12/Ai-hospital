@@ -24,7 +24,7 @@ export default function Home() {
           <section id="/" className="mt-30 md:mt-50 w-full md:px-10">
             <HeroBg />
           </section>
-          <section id="#" className="mt-10 md:mt-20 w-full md:px-10">
+          <section id="features" className="mt-10 md:mt-20 w-full md:px-10">
             <Features />
           </section>
           <section id="#" className="mt-10 md:mt-20 w-full md:px-10">
@@ -36,10 +36,10 @@ export default function Home() {
           <section id="#" className="mt-10 md:mt-20 w-full md:px-10">
             <Testimonials />
           </section>
-          <section id="#" className="mt-10 md:mt-20 w-full md:px-10">
+          <section id="pricing" className="mt-10 md:mt-20 w-full md:px-10">
             <Pricing />
           </section>
-          <section id="#" className="mt-10 md:mt-20 w-full md:px-10">
+          <section id="faqs" className="mt-10 md:mt-20 w-full md:px-10">
             <Faq />
           </section>
           <section id="#" className="mt-10 md:mt-20 w-full md:px-10">

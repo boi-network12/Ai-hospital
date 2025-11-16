@@ -7,8 +7,9 @@ const HomeNav = () => {
 
   const _navs = [
     { title: "Home", link: "/" },
-    { title: "FAQs", link: "#faqs" },
+    { title: "Features", link: "#features" },
     { title: "Pricing", link: "#pricing" },
+    { title: "FAQs", link: "#faqs" },
   ];
 
   return (
