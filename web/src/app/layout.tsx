@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next"
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, PT_Sans_Narrow  } from "next/font/google";
 import { ThemeProvider } from "next-themes";
@@ -81,7 +82,7 @@ export default function RootLayout({
              {children}
           </Providers>
         </ThemeProvider>
-
+        <Analytics />
         <Script id="structured-data" type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",

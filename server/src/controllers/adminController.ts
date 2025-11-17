@@ -29,7 +29,6 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 export const updateUserRole = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
   const { role } = req.body;
-  console.log('Update role called:', { userId, role }); 
   if (!role) return res.status(400).json({ message: 'role required' });
   try {
     const user = await adminService.adminUpdateUserRole(userId, role as UserRole);
