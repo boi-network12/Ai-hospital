@@ -50,6 +50,7 @@ export interface IRoleStatus {
   verifiedLicense?: boolean;
   licenseNumber?: string;
   approvalDate?: string;
+  adminNote?: string; 
 }
 export interface User {
   id: string;

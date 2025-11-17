@@ -49,7 +49,22 @@ export interface IRoleStatus {
   approvedByAdmin?: boolean;
   verifiedLicense?: boolean;
   licenseNumber?: string;
-  approvalDate?: Date;
+  approvalDate?: Date | null;
+}
+
+export interface IUserLean {
+  _id: Types.ObjectId;
+  email: string;
+  name: string;
+  phoneNumber?: string;
+  role: UserRole;
+  roleStatus?: IRoleStatus;
+  profile?: IProfile;
+  isVerified: boolean;
+  verificationMethod: VerificationMethod;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IUser extends Document {

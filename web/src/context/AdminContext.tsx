@@ -25,7 +25,7 @@ export interface AdminAnalytics {
 }
 
 export interface AdminUserList {
-  users: User[];               // <-- array, not a single user
+  users: User[];
   total: number;
   page: number;
   limit: number;

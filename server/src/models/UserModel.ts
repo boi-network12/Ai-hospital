@@ -112,6 +112,26 @@ UserSchema.pre('save', function (next) {
   next();
 });
 
+UserSchema.pre('findOneAndUpdate', function (next) {
+  this.set({ updatedAt: new Date() });
+  next();
+});
+
+// Guarantee roleStatus exists for every user
+UserSchema.pre('save', function (next) {
+  if (!this.roleStatus) {
+    this.roleStatus = {
+      isActive: this.role === 'user' ? true : false,
+      approvedByAdmin: this.role === 'admin' ? true : false,
+      verifiedLicense: false,
+      licenseNumber: '',
+      approvalDate: null,
+    };
+  }
+  this.updatedAt = new Date();
+  next();
+});
+
 UserSchema.index({ role: 1 });
 UserSchema.index({ 'roleStatus.approvedByAdmin': 1 });
 UserSchema.index({ isDeleted: 1 });

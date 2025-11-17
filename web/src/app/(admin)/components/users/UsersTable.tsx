@@ -44,26 +44,19 @@ export const UsersTable = ({ onViewProfile }: Props) => {
 
   // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-
+  const handleClickOutside = (event: MouseEvent) => {
       if (!dropdownOpen) return;
-
+      
+      const target = event.target as Node;
       const openDropdown = dropdownRefs.current.get(dropdownOpen);
-      if (openDropdown && openDropdown.contains(target)) {
-        return; // Click inside open dropdown
+      
+      if (openDropdown && !openDropdown.contains(target)) {
+        setDropdownOpen(null);
       }
-
-      setDropdownOpen(null);
     };
 
-    if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
   // Fetch users
@@ -81,11 +74,18 @@ export const UsersTable = ({ onViewProfile }: Props) => {
   const totalPages = Math.ceil(total / limit);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+  // Add validation
+    if (!userId || userId === 'undefined') {
+      toast.error('Invalid user ID');
+      return;
+    }
+
     try {
       await updateUserRole(userId, newRole);
       toast.success('Role updated');
-    } catch {
-      toast.error('Failed to update role');
+    } catch (error: any) {
+      console.error('Role update error:', error);
+      toast.error(error.message || 'Failed to update role');
     }
   };
 
@@ -93,9 +93,10 @@ export const UsersTable = ({ onViewProfile }: Props) => {
     try {
       await toggleRestrict(userId, restrict);
       toast.success(restrict ? 'User restricted' : 'User unrestricted');
-    } catch {
-      toast.error('Failed to update restriction');
-    }
+    } catch (error: any) {
+        console.error('Restrict toggle error:', error);
+        toast.error(error.message || 'Failed to update restriction');
+      }
   };
 
   const handleDelete = async (userId: string) => {
@@ -103,25 +104,16 @@ export const UsersTable = ({ onViewProfile }: Props) => {
     try {
       await deleteUser(userId);
       toast.success('User deleted');
-    } catch {
-      toast.error('Failed to delete user');
-    }
+    } catch (error: any) {
+        console.error('Delete error:', error);
+        toast.error(error.message || 'Failed to delete user');
+      }
   };
 
-  const toggleDropdown = useCallback(
-    (userId: string) => (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setDropdownOpen((prev) => {
-        if (prev === userId) {
-          // Optional: cleanup ref when closing
-          dropdownRefs.current.delete(userId);
-          return null;
-        }
-        return userId;
-      });
-    },
-    []
-  );
+  const toggleDropdown = (userId: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDropdownOpen(prev => prev === userId ? null : userId);
+  };
 
   // Helper to set ref
   const setDropdownRef = useCallback(
@@ -134,6 +126,16 @@ export const UsersTable = ({ onViewProfile }: Props) => {
     },
     []
   );
+
+    useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!dropdownOpen) return;
+      const node = dropdownRefs.current.get(dropdownOpen);
+      if (node && !node.contains(e.target as Node)) setDropdownOpen(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
 
   return (
     <div className="space-y-6">
@@ -300,12 +302,9 @@ export const UsersTable = ({ onViewProfile }: Props) => {
                       >
                         <button
                           type="button"
-                          onClick={toggleDropdown(user.id)}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-                          aria-label={`More actions for ${user.name}`}
-                          aria-haspopup="true"
-                          aria-controls={`user-actions-${user.id}`}
-                          id={`user-actions-button-${user.id}`}
+                              onClick={toggleDropdown(user.id)}
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+                              aria-label={`More actions for ${user.name}`}
                         >
                           <MoreVertical className="w-5 h-5" />
                         </button>
@@ -313,17 +312,12 @@ export const UsersTable = ({ onViewProfile }: Props) => {
                         <AnimatePresence>
                           {dropdownOpen === user.id && (
                             <motion.div
-                              key={user.id}
                               initial={{ opacity: 0, scale: 0.95, y: -8 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               exit={{ opacity: 0, scale: 0.95, y: -8 }}
                               transition={{ duration: 0.12 }}
                               className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
                               onClick={(e) => e.stopPropagation()}
-                              id={`user-actions-${user.id}`}
-                              role="region"
-                              aria-labelledby={`user-actions-button-${user.id}`}
-                              ref={setDropdownRef(user.id)}
                             >
                               <ul className="py-1">
                                 <li>

@@ -20,9 +20,10 @@ export default function UsersPage() {
     try {
       const profile = await getUserProfile(userId);
       setSelectedUser(profile);
-    } catch {
-      toast.error('Failed to load profile');
-    }
+    } catch (error: any) {
+        console.error('View profile error:', error);
+        toast.error(error.message || 'Failed to load profile');
+      }
   };
 
   return (

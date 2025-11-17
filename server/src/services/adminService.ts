@@ -1,6 +1,6 @@
 import User, {  } from '../models/UserModel';
 import { hashPassword } from './authService';
-import { IAdminAnalytics, UserRole } from '../types/usersDetails';
+import { IAdminAnalytics, IUserLean, UserRole } from '../types/usersDetails';
 import { Types } from 'mongoose';
 import { sendMail } from '../utils/mailer';  
 
@@ -21,9 +21,9 @@ export const adminCreateUser = async (data: {
   if (exists) throw new Error('Email already registered');
 
   const user = new User({
-    email: data.email,
+    email: data.email.toLowerCase().trim(),
     password: await hashPassword(data.password),
-    name: data.name,
+    name: data.name.trim(),
     phoneNumber: data.phoneNumber ?? '',
     role: data.role,
     isVerified: true,
@@ -33,6 +33,7 @@ export const adminCreateUser = async (data: {
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
     },
   });
+
 
   await user.save();
   const savedUser = await User.findById(user._id).select(safeSelect);
@@ -44,18 +45,17 @@ export const adminCreateUser = async (data: {
 export const adminUpdateUserRole = async (
   userId: string,
   newRole: UserRole,
-  approvedByAdmin = true
 ) => {
+  const updateObj: any = {
+    role: newRole,
+    'roleStatus.approvedByAdmin': true,
+    'roleStatus.approvalDate': new Date(),
+    'roleStatus.isActive': true, 
+  };
+
   const updated = await User.findByIdAndUpdate(
     userId,
-    {
-      $set: {
-        role: newRole,
-        'roleStatus.approvedByAdmin': approvedByAdmin,
-        'roleStatus.approvalDate': approvedByAdmin ? new Date() : null,
-        updatedAt: new Date(),
-      },
-    },
+    { $set: updateObj },
     { new: true, runValidators: true }
   ).select(safeSelect);
 
@@ -88,12 +88,19 @@ export const adminDeleteUser = async (userId: string) => {
 };
 
 /* ---------- List all users (filterable) ---------- */
+
+/* ---------- List all users (filterable) ---------- */
 export const adminListUsers = async (filters: {
   role?: UserRole;
   search?: string;
   page?: number;
   limit?: number;
-}) => {
+}): Promise<{
+  users: Array<Omit<IUserLean, '_id'> & { id: string }>;
+  total: number;
+  page: number;
+  limit: number;
+}> => {
   const { role, search, page = 1, limit = 20 } = filters;
   const query: any = { isDeleted: false };
 
@@ -109,11 +116,20 @@ export const adminListUsers = async (filters: {
     .select(safeSelect)
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
-    .limit(limit);
+    .limit(limit)
+    .lean<IUserLean[]>() // Now correctly typed
+    .exec();
+
+  const serializedUsers = users.map((user) => ({
+    ...user,
+    id: user._id.toString(), // Now safe: _id is Types.ObjectId
+    _id: undefined, // remove _id from response
+  }));
 
   const total = await User.countDocuments(query);
-  return { users, total, page, limit };
+  return { users: serializedUsers, total, page, limit };
 };
+
 
 /* ---------- Get any user profile (admin) ---------- */
 export const adminGetUserProfile = async (userId: string) => {

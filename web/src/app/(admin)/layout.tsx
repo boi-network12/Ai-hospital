@@ -118,7 +118,7 @@ function AdminLayoutInner({
         </aside>
 
         {/* Main column */}
-        <div className="flex flex-1 flex-col lg:ml-64 overflow-hidden">
+        <div className="flex flex-1 flex-col lg:ml-75 overflow-hidden">
           <AdminTopBar onMenuClick={() => setSidebarOpen(true)} user={user} />
 
           <main className="flex-1 overflow-y-auto bg-gray-50 p-6 dark:bg-gray-950">
