@@ -2,9 +2,11 @@
 import { Request, Response } from 'express';
 import * as authService from '../services/authService';
 import * as otpService from '../services/otpService';
+import * as notificationService from '../services/notificationService';
 import User from '../models/UserModel';
 import { signAccess, signRefresh } from '../utils/jwt';
 import jwt from 'jsonwebtoken';
+import { Types } from 'mongoose';
 
 
 interface AuthReq extends Request {
@@ -83,6 +85,27 @@ export const login = async (req: Request, res: Response) => {
     active: true,
   });
   await user.save();
+
+  try {
+    const device = req.headers['user-agent'] || 'Unknown device';
+    const location = req.ip || 'Unknown location';
+    
+    await notificationService.sendNotification({
+      userId: user._id as Types.ObjectId,
+      type: 'security',
+      title: 'New Login Detected',
+      message: `Successful login from ${device} in ${location}.`,
+      priority: 'medium',
+      actionUrl: '/security',
+      data: {
+        device,
+        ipAddress: location,
+        timestamp: new Date(),
+      }
+    });
+  } catch (error) {
+     console.error('Failed to send login notification:', error);
+  }
 
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,

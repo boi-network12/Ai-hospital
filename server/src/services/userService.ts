@@ -2,6 +2,7 @@
 import User from '../models/UserModel';
 import { hashPassword, comparePassword } from './authService';
 import { Types } from 'mongoose';
+import * as notificationService from './notificationService';
 import { INotificationSettings, ISession } from '../types/usersDetails';
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary';
 
@@ -51,6 +52,7 @@ export const updateProfileGeneral = async (userId: string, updates: any) => {
 
   const toSet: any = { updatedAt: new Date() };
   let hasChanges = false;
+  const changedFields: string[] = [];
 
   for (const key of Object.keys(updates)) {
     // ----- numeric fields -------------------------------------------------
@@ -59,6 +61,7 @@ export const updateProfileGeneral = async (userId: string, updates: any) => {
       if (!isNaN(num) && num > 0) {
         toSet[key] = num;
         hasChanges = true;
+        changedFields.push(key.replace('profile.', ''));
       }
       continue;
     }
@@ -67,6 +70,12 @@ export const updateProfileGeneral = async (userId: string, updates: any) => {
     if (GENERAL_ALLOWED.includes(key)) {
       toSet[key] = updates[key];
       hasChanges = true;
+
+      const fieldName = key
+        .replace('profile.', '')
+        .replace('emergencyContact.', 'emergency contact ')
+        .replace(/\./g, ' ');
+      changedFields.push(fieldName);
     }
   }
 
@@ -85,6 +94,26 @@ export const updateProfileGeneral = async (userId: string, updates: any) => {
   ).select(selectSafe);
 
   if (!updatedUser) throw new Error('User not found');
+
+  if (changedFields.length > 0) {
+    try {
+      await notificationService.sendNotification({
+        userId: userId,
+        type: 'system',
+        title: 'Profile Updated',
+        message: `Your profile has been updated. Changed fields: ${changedFields.join(', ')}.`,
+        priority: 'low',
+        actionUrl: '/profile',
+        data: {
+          changedFields: changedFields,
+          updatedAt: new Date(),
+        }
+      });
+    } catch (error) {
+      console.error('Failed to send profile update notification:', error);
+      // Don't fail the update if notification fails
+    }
+  }
   return updatedUser;
 };
 

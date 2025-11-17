@@ -20,7 +20,6 @@ const _middleDisplayContent = _MiddleDisplayContent;
 export default function HomePage() {
   const { user } = useUser();
 
-  if (!user) return;
 
   return (
     <SafeAreaView style={styles.container}>

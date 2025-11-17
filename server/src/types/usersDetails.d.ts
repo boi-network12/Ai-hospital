@@ -34,6 +34,10 @@ export interface INotificationSettings {
   emailNotifications: boolean;
   pushNotifications: boolean;
   smsNotifications: boolean;
+  appointmentReminders: boolean;
+  securityAlerts: boolean;
+  roleUpdates: boolean;
+  promotional: boolean;
 }
 
 export interface ISession {

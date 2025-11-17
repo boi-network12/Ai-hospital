@@ -1,7 +1,9 @@
 // src/controllers/userController.ts
 import { Request, Response } from 'express';
 import * as userService from '../services/userService';
+import * as notificationService from '../services/notificationService';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import User from "../models/UserModel";
 
 type AuthReq = AuthRequest;
 
@@ -67,12 +69,32 @@ export const updateEmail = async (req: AuthReq, res: Response) => {
   const newEmail = rawEmail.trim().toLowerCase();
 
   try {
+    // Get old email before update
+    const oldUser = await User.findById(req.user._id);
+    if (!oldUser) throw new Error('User not found');
+
     const updatedUser = await userService.updateEmail(req.user._id, newEmail);
+    
+    // Send email change notification
+    await notificationService.sendNotification({
+      userId: req.user._id,
+      type: 'security',
+      title: 'Email Address Changed',
+      message: `Your email has been updated from ${oldUser.email} to ${newEmail}.`,
+      priority: 'high',
+      data: {
+        oldEmail: oldUser.email,
+        newEmail: newEmail,
+        changedAt: new Date(),
+      }
+    });
+
     return res.json(updatedUser);
   } catch (err: any) {
     return res.status(400).json({ message: err.message });
   }
 };
+
 
 /* ---------- Change password ---------- */
 export const updatePassword = async (req: AuthReq, res: Response) => {
@@ -109,6 +131,18 @@ export const updatePassword = async (req: AuthReq, res: Response) => {
   // -------------------------------------------------
   try {
     await userService.changePassword(req.user._id, currentPassword, newPassword);
+
+    await notificationService.sendNotification({
+        userId: req.user._id,
+        type: 'security',
+        title: 'Password Changed',
+        message: 'Your password has been successfully updated.',
+        priority: 'medium',
+        data: {
+          changedAt: new Date(),
+        }
+    });
+    
     return res.json({ message: 'Password updated successfully' });
   } catch (err: any) {
     // Service throws:

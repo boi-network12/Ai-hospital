@@ -2,6 +2,8 @@
 import bcrypt from 'bcrypt';
 import User from '../models/UserModel';
 import { generateOTP, requestOtp } from './otpService';
+import * as notificationService from './notificationService';
+import { Types } from 'mongoose';
 const { ADMINSEMAIL } = process.env || '';
 
 const ADMIN_EMAILS = (ADMINSEMAIL || '').split(',').map(e => e.trim().toLowerCase());
@@ -48,5 +50,19 @@ export const completeRegistration = async (data: {
   });
 
   await user.save();
+
+  try {
+    await notificationService.sendNotification({
+      userId: user._id as Types.ObjectId,
+      type: 'system',
+      title: 'Welcome to NeuroMed AI!',
+      message: `Hello ${data.name}! Welcome to our platform. We're glad to have you here.`,
+      priority: 'low',
+      actionUrl: '/profile',
+    });
+  } catch (error) {
+    console.error('Failed to send welcome notification:', error);
+  }
+
   return user;
 };

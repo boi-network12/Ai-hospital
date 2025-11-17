@@ -15,3 +15,4 @@ export const initSocket = (server: HttpServer): void => {
     registerChatHandlers(io, socket);
   });
 };
+// server/socket/index.ts

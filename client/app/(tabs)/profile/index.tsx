@@ -62,15 +62,13 @@ export default function ProfilePage() {
     return tags;
   }, [ageText, genderText, genotypeText]);
 
-  // ⬇️ Move this AFTER all hooks
-  if (!user) return null;
 
-  const firstName = user.name?.split(' ')[0] || 'User';
+  const firstName = user?.name?.split(' ')[0] || 'User';
 
   const TopHeader = () => (
     <View style={styles.TopHeaderContainer}>
       <Image
-        source={user.profile?.avatar ? { uri: user.profile.avatar } : profilePicture}
+        source={user?.profile?.avatar ? { uri: user?.profile.avatar } : profilePicture}
         placeholder={blurhash}
         style={styles.imgAvatar}
       />

@@ -3,11 +3,8 @@
 import { motion } from "framer-motion";
 import { Twitter, Mail } from "lucide-react";
 import Link from "next/link";
-import {  } from "next/navigation";
 
 export default function Footer() {
-  // const router = useRouter();
-
   // Smart link handler: scroll to ID or navigate
   const handleLinkClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -20,12 +17,11 @@ export default function Footer() {
         element.scrollIntoView({ behavior: "smooth" });
       }
     }
-    // For external or page routes, let Next.js handle it
   };
 
   return (
     <footer className="mt-32 w-full border-t border-gray-200 dark:border-gray-800 py-14 px-6">
-      <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-5 gap-10">
 
         {/* Brand */}
         <div>
@@ -83,17 +79,27 @@ export default function Footer() {
           onClick={handleLinkClick}
         />
 
-        {/* Support Links */}
+        {/* API Links */}
         <FooterSection
-          title="Support"
+          title="API"
           links={[
-            { text: "Help Center", href: "#faqs" },
-            { text: "Documentation", href: "/docs" },
-            { text: "Terms", href: "/terms" },
-            { text: "Privacy Policy", href: "/privacy" },
+            { text: "API Docs", href: "/api/docs" },
+            { text: "API Status", href: "/api/status" },
+            { text: "Integrations", href: "/api/integrations" },
+            { text: "SDKs", href: "/api/sdk" },
           ]}
           onClick={handleLinkClick}
         />
+
+        {/* Opportunities */}
+        <FooterSection
+          title="Opportunities"
+          links={[
+            { text: "Explore Opportunities", href: "/opportunities" },
+          ]}
+          onClick={handleLinkClick}
+        />
+
 
       </div>
 
