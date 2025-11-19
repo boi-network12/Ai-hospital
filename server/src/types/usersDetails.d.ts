@@ -8,6 +8,10 @@ export interface ILocation {
   city?: string;
   state?: string;
   country?: string;
+  coordinates?: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
 }
 
 export interface IProfile {
@@ -28,6 +32,66 @@ export interface IEmergencyContact {
   name: string;
   relationship: string;
   phoneNumber: string;
+}
+
+export interface IHealthcareCertification {
+  _id?: Types.ObjectId,
+  licenseNumber: string;
+  licenseType: string; // 'RN', 'MD', 'NP', etc.
+  issuingAuthority: string;
+  issueDate: Date;
+  expiryDate: Date;
+  verificationStatus: 'pending' | 'verified' | 'rejected';
+  verifiedBy?: Types.ObjectId;
+  verifiedAt?: Date;
+  documentUrl?: string;
+  notes?: string;
+}
+
+export interface IHealthcareSpecialization {
+  name: string;
+  yearsOfExperience: number;
+  boardCertified: boolean;
+  certificationNumber?: string;
+}
+
+export interface IProfessionalStats {
+  totalConsultations: number;
+  averageRating: number;
+  totalRatings: number;
+  totalTips: number;
+  responseTime?: number; // in minutes
+  acceptanceRate?: number; // percentage
+}
+
+export interface IAvailability {
+  isAvailable: boolean;
+  schedule: {
+    day: string; // 'monday', 'tuesday', etc.
+    slots: {
+      start: string;
+      end: string;
+    }[];
+  }[];
+  emergencyAvailable: boolean;
+  maxPatientsPerDay: number;
+}
+
+export interface IHealthcareProfile {
+  certifications: IHealthcareCertification[];
+  specializations: IHealthcareSpecialization[];
+  education: {
+    degree: string;
+    institution: string;
+    year: number;
+  }[];
+  languages: string[];
+  bio: string;
+  hourlyRate?: number;
+  stats: IProfessionalStats;
+  availability: IAvailability;
+  services: string[];
+  hospitalAffiliation?: string;
 }
 
 export interface INotificationSettings {
@@ -86,7 +150,10 @@ export interface IUser extends Document {
   notificationSettings?: INotificationSettings;
   sessions?: ISession[];
 
-  favorites?: Types.ObjectId[]; // array of provider IDs (doctor, nurse, hospital)
+  favorites?: Types.ObjectId[];
+
+  passwordResetOtp?: string;
+  passwordResetOtpExpires?: Date;
 
   isVerified: boolean;
   verificationMethod: VerificationMethod;
@@ -95,6 +162,32 @@ export interface IUser extends Document {
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+
+  // health
+  healthcareProfile?: IHealthcareProfile;
+  walletBalance: number;
+  isOnline: boolean;
+  lastActive: Date;
+}
+
+export interface IRating {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  professionalId: Types.ObjectId;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: Date;
+  appointmentId?: Types.ObjectId;
+}
+
+export interface ITip {
+  _id: Types.ObjectId;
+  fromUserId: Types.ObjectId;
+  toProfessionalId: Types.ObjectId;
+  amount: number;
+  message?: string;
+  createdAt: Date;
+  appointmentId?: Types.ObjectId;
 }
 
 export interface IAdminAnalytics {

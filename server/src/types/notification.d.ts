@@ -1,13 +1,15 @@
 // src/types/notificationTypes.ts
 import { Types } from 'mongoose';
 
-export type NotificationType = 
-  | 'system' 
-  | 'message' 
-  | 'appointment' 
-  | 'role_approval' 
-  | 'security' 
-  | 'medical';
+export type NotificationType =
+  | 'system'
+  | 'message'
+  | 'appointment'
+  | 'role_approval'
+  | 'security'
+  | 'medical'
+  | 'certification_update'
+  | 'certification_verification';
 
 export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 

@@ -11,8 +11,8 @@ router.post('/login', authCtrl.login);
 router.post('/refresh', authCtrl.refresh);
 router.post('/logout', verifyToken, authCtrl.logout);
 
-router.post('/forgot/otp', authCtrl.requestResetOtp);
-router.post('/forgot/reset', authCtrl.resetPassword);
+router.post('/forgot-password', authCtrl.forgotPassword);
+router.post('/reset-password', authCtrl.resetPassword);
 
 router.delete('/me', verifyToken, authCtrl.deleteAccount);
 

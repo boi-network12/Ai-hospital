@@ -12,7 +12,6 @@ interface UserContextType {
   fetchUser: () => Promise<void>;
   updateProfile: (data: Partial<User['profile']>) => Promise<void>;
   updateEmail: (email: string, password: string) => Promise<void>;
-  updatePassword: (current: string, newPass: string) => Promise<void>;
   updateEmergencyContact: (data: User['emergencyContact']) => Promise<void>;
   updateNotificationSettings: (settings: User['notificationSettings']) => Promise<void>;
 }
@@ -77,18 +76,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updatePassword = async (current: string, newPass: string) => {
-    try {
-      await apiFetch('/auth/me/password', {
-        method: 'PATCH',
-        body: { currentPassword: current, newPassword: newPass },
-      });
-      toast.success('Password updated');
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
   const updateEmergencyContact = async (data: User['emergencyContact']) => {
     try {
       const updated = await apiFetch<User>('/auth/me/emergency', {
@@ -123,7 +110,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         fetchUser,
         updateProfile,
         updateEmail,
-        updatePassword,
         updateEmergencyContact,
         updateNotificationSettings,
       }}

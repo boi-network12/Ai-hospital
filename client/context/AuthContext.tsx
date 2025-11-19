@@ -26,7 +26,7 @@ type Action =
   | { type: 'READY' }
   | { type: 'DELETE_ACCOUNT' };
 
-  const initialState: AuthState = {
+const initialState: AuthState = {
   isReady: false,
   isAuth: false,
   user: null,
@@ -76,20 +76,20 @@ type AuthContextProps = {
 export const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-     const [auth, dispatch] = useReducer(authReducer, initialState);
-     const { showAlert } = useToast();
+  const [auth, dispatch] = useReducer(authReducer, initialState);
+  const { showAlert } = useToast();
 
   // 
   // ------------------------------------------------------------------ //
   // 1. Restore tokens on app start
-      const handleError = (title: string, err: any) => {
-        const msg = err?.message || 'Something went wrong';
-        showAlert({ message: `${title}: ${msg}`, type: 'error' });
-        throw err;
-      };
+  const handleError = (title: string, err: any) => {
+    const msg = err?.message || 'Something went wrong';
+    showAlert({ message: `${title}: ${msg}`, type: 'error' });
+    throw err;
+  };
   // 
   // ------------------------------------------------------------------ //
-   useEffect(() => {
+  useEffect(() => {
     (async () => {
       const [access, refresh, rawUser] = await Promise.all([
         SecureStore.getItemAsync('accessToken'),
@@ -117,13 +117,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ]);
   };
 
-  
+
 
   // ------------------------------------------------------------------ //
   // 3. Core actions
   // ------------------------------------------------------------------ //
 
-   const login = async (payload: LoginPayload) => {
+  const login = async (payload: LoginPayload) => {
     try {
       const data = await apiFetch<{ accessToken: string; user: User; refreshToken?: string }>('/auth/login', {
         method: 'POST',
@@ -136,17 +136,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'LOGIN', payload: { user: data.user, accessToken: data.accessToken, refreshToken } });
 
       // Success feedback (optional)
-      showAlert({ 
-         message: `Welcome! Hi ${data.user.name || data.user.email}`, 
-         type: 'success'
-       });
+      showAlert({
+        message: `Welcome! Hi ${data.user.name || data.user.email}`,
+        type: 'success'
+      });
     } catch (err: any) {
-      
+
       handleError('Login failed', err);
     }
   };
 
-   const register = async (payload: RegisterPayload) => {
+  const register = async (payload: RegisterPayload) => {
     await apiFetch('/auth/register/otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -161,9 +161,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      showAlert({ 
-        message: `OTP sent! Check your inbox at ${payload.email}`, 
-        type: 'success' 
+      showAlert({
+        message: `OTP sent! Check your inbox at ${payload.email}`,
+        type: 'success'
       });
     } catch (err: any) {
       handleError('Could not send OTP', err);
@@ -191,26 +191,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const requestResetOtp = async (payload: OtpPayload) => {
     try {
-      await apiFetch('/auth/forgot/otp', {
+      await apiFetch('/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ email: payload.email }),
       });
-      showAlert({ 
-        message: `OTP sent! Check ${payload.email}`, 
-        type: 'success' 
+      showAlert({
+        message: `Password reset code sent to ${payload.email}`,
+        type: 'success'
       });
-    } catch (err: any) {
-      handleError('Could not send reset OTP', err);
+    } catch {
+      // handleError('Could not send reset OTP', err);
+      showAlert({
+        message: 'If the email exists, a reset code has been sent.',
+        type: 'info'
+      });
     }
   };
 
   const resetPassword = async ({ email, otp, newPassword }: VerifyOtpPayload & { newPassword: string }) => {
     try {
-      await apiFetch('/auth/forgot/reset', {
+      await apiFetch('/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp, newPassword }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: otp.trim(),
+          newPassword
+        }),
       });
       showAlert({ message: 'Password updated successfully!', type: 'success' });
     } catch (err: any) {
@@ -221,20 +229,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       const refresh = await SecureStore.getItemAsync('refreshToken');
-      await apiFetch('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: refresh }) }).catch(() => {});
+
+      // Only send if we actually have a refresh token
+      if (refresh) {
+        await apiFetch('/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refresh }),
+        }).catch(() => {
+          // Ignore network errors — logout should still proceed locally
+          console.log('Logout endpoint failed, continuing local logout');
+        });
+      }
+
+      // Always clear local data, even if server failed
+      await Promise.all([
+        SecureStore.deleteItemAsync('accessToken'),
+        SecureStore.deleteItemAsync('refreshToken'),
+        SecureStore.deleteItemAsync('user'),
+      ]);
+
+      dispatch({ type: 'LOGOUT' });
+      showAlert({ message: 'Logged out successfully', type: 'info' });
+    } catch (err: any) {
+      // Even if something fails, force local logout
       await Promise.all([
         SecureStore.deleteItemAsync('accessToken'),
         SecureStore.deleteItemAsync('refreshToken'),
         SecureStore.deleteItemAsync('user'),
       ]);
       dispatch({ type: 'LOGOUT' });
-      showAlert({ message: 'Logged out successfully', type: 'info' });
-    } catch (err: any) {
-      handleError('Logout error', err);
+      showAlert({ message: 'Logged out locally', type: 'info' });
     }
   };
 
- const refreshAccessToken = async () => {
+  const refreshAccessToken = async () => {
     try {
       const refresh = await SecureStore.getItemAsync('refreshToken');
       if (!refresh) throw new Error('No refresh token');
@@ -255,28 +284,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Inside AuthProvider
-const deleteAccount = async () => {
-  try {
-    await apiFetch('/auth/me', { method: 'DELETE' });
+  const deleteAccount = async () => {
+    try {
+      await apiFetch('/auth/me', { method: 'DELETE' });
 
-    // wipe everything locally
-    await Promise.all([
-      SecureStore.deleteItemAsync('accessToken'),
-      SecureStore.deleteItemAsync('refreshToken'),
-      SecureStore.deleteItemAsync('user'),
-    ]);
+      // wipe everything locally
+      await Promise.all([
+        SecureStore.deleteItemAsync('accessToken'),
+        SecureStore.deleteItemAsync('refreshToken'),
+        SecureStore.deleteItemAsync('user'),
+      ]);
 
-    dispatch({ type: 'DELETE_ACCOUNT' });
-    showAlert({ message: 'Your account has been deleted.', type: 'info' });
-  } catch (err: any) {
-    handleError('Delete account failed', err);
-  }
-};
+      dispatch({ type: 'DELETE_ACCOUNT' });
+      showAlert({ message: 'Your account has been deleted.', type: 'info' });
+    } catch (err: any) {
+      handleError('Delete account failed', err);
+    }
+  };
   // ------------------------------------------------------------------ //
   // 4. Auto-refresh interceptor (optional – can be added in apiFetch)
   // ------------------------------------------------------------------ //
   // (You could also wrap `apiFetch` to retry once on 401 with refresh)
-  
+
   return (
     <AuthContext.Provider
       value={{

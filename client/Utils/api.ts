@@ -3,9 +3,10 @@ import * as SecureStore from 'expo-secure-store';
 
 export const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
 // For production: 'https://neuromed-ai-backend.vercel.app'
+// Local host API: http://10.35.49.4:8080
 
 interface ApiFetchOptions extends RequestInit {
-  body?: any; 
+  body?: any;
   signal?: AbortSignal;
 }
 
@@ -90,7 +91,7 @@ export async function apiFetch<T = any>(
   // -------------------------------
   if (
     res.status === 401 &&
-    !endpoint.includes('/refresh')&&
+    !endpoint.includes('/refresh') &&
     !endpoint.includes('/login') &&
     !endpoint.includes('/register')
   ) {

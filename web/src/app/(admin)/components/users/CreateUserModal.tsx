@@ -23,6 +23,11 @@ export const CreateUserModal = ({ isOpen, onClose }: Props) => {
     role: 'user' as UserRole,
     gender: 'Prefer not to say',
     dateOfBirth: '',
+    location: {
+      city: '',
+      state: '',
+      country: '',
+    },
   });
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +46,11 @@ export const CreateUserModal = ({ isOpen, onClose }: Props) => {
         role: 'user',
         gender: 'Prefer not to say',
         dateOfBirth: '',
+        location: {
+          city: '',
+          state: '',
+          country: '',
+        },
       });
     } catch {
       // Error toast handled in context
@@ -49,7 +59,17 @@ export const CreateUserModal = ({ isOpen, onClose }: Props) => {
     }
   };
 
-  if (!isOpen) return null;
+   const handleLocationChange = (field: 'city' | 'state' | 'country', value: string) => {
+      setForm(prev => ({
+        ...prev,
+        location: {
+          ...prev.location,
+          [field]: value,
+        },
+      }));
+    };
+
+   if (!isOpen) return null;
 
   return (
     <div
@@ -144,6 +164,64 @@ export const CreateUserModal = ({ isOpen, onClose }: Props) => {
               onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none"
               aria-label="Phone number (optional)"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="dob-input" className="block text-sm font-medium mb-1">
+              Date of Birth
+            </label>
+            <input
+              id="dob-input"
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              aria-label="Date of birth"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="city-input" className="block text-sm font-medium mb-1">
+              City
+            </label>
+            <input
+              id="city-input"
+              type="text"
+              value={form.location.city}
+              onChange={(e) => handleLocationChange('city', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              aria-label="City"
+            />
+          </div>
+
+          {/* Location - State */}
+          <div>
+            <label htmlFor="state-input" className="block text-sm font-medium mb-1">
+              State
+            </label>
+            <input
+              id="state-input"
+              type="text"
+              value={form.location.state}
+              onChange={(e) => handleLocationChange('state', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              aria-label="State"
+            />
+          </div>
+
+          {/* Location - Country */}
+          <div>
+            <label htmlFor="country-input" className="block text-sm font-medium mb-1">
+              Country
+            </label>
+            <input
+              id="country-input"
+              type="text"
+              value={form.location.country}
+              onChange={(e) => handleLocationChange('country', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              aria-label="Country"
             />
           </div>
 

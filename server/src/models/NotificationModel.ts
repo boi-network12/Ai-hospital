@@ -1,15 +1,8 @@
 // src/models/NotificationModel.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { NotificationStatus, NotificationType } from '../types/notification';
 
-export type NotificationType = 
-  | 'system' 
-  | 'message' 
-  | 'appointment' 
-  | 'role_approval' 
-  | 'security' 
-  | 'medical';
 
-export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 
 export interface INotification extends Document {
   user: Types.ObjectId;

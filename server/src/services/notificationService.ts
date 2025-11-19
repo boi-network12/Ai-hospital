@@ -1,6 +1,6 @@
 // src/services/notificationService.ts
 import Notification from '../models/NotificationModel';
-import { INotificationCreate, INotificationFilters, INotificationLean, INotificationStats } from '../types/notification.d';
+import { INotificationCreate, INotificationFilters, INotificationLean, INotificationStats, NotificationType } from '../types/notification.d';
 import { Types } from 'mongoose';
 
 /* ---------- Create notification ---------- */
@@ -18,11 +18,11 @@ export const createNotification = async (data: INotificationCreate) => {
   });
 
   await notification.save();
-  
+
   // Emit real-time event (for WebSocket)
   // You can integrate this with your Socket.io setup
   // emitNotification(notification);
-  
+
   return notification;
 };
 
@@ -46,7 +46,7 @@ export const createBulkNotifications = async (notificationsData: INotificationCr
 
 /* ---------- Get user notifications ---------- */
 export const getUserNotifications = async (
-  userId: string, 
+  userId: string,
   filters: INotificationFilters = {}
 ): Promise<{
   notifications: Array<Omit<INotificationLean, '_id'> & { id: string }>;
@@ -54,17 +54,17 @@ export const getUserNotifications = async (
   page: number;
   limit: number;
 }> => {
-  const { 
-    type, 
-    status, 
-    priority, 
-    page = 1, 
+  const {
+    type,
+    status,
+    priority,
+    page = 1,
     limit = 20,
     startDate,
-    endDate 
+    endDate
   } = filters;
 
-  const query: any = { 
+  const query: any = {
     user: new Types.ObjectId(userId),
     isDeleted: false,
   };
@@ -72,7 +72,7 @@ export const getUserNotifications = async (
   if (type) query.type = type;
   if (status) query.status = status;
   if (priority) query.priority = priority;
-  
+
   // Date range filter
   if (startDate || endDate) {
     query.createdAt = {};
@@ -101,11 +101,11 @@ export const getUserNotifications = async (
 
   const total = await Notification.countDocuments(query);
 
-  return { 
-    notifications: serializedNotifications, 
-    total, 
-    page, 
-    limit 
+  return {
+    notifications: serializedNotifications,
+    total,
+    page,
+    limit
   };
 };
 
@@ -131,16 +131,16 @@ export const markAsRead = async (userId: string, notificationId: string) => {
 /* ---------- Mark all as read ---------- */
 export const markAllAsRead = async (userId: string) => {
   const result = await Notification.updateMany(
-    { 
-      user: userId, 
+    {
+      user: userId,
       status: 'unread',
       isDeleted: false,
     },
-    { 
-      $set: { 
+    {
+      $set: {
         status: 'read',
         updatedAt: new Date(),
-      } 
+      }
     }
   );
 
@@ -255,6 +255,8 @@ export const getNotificationStats = async (userId: string): Promise<INotificatio
       role_approval: 0,
       security: 0,
       medical: 0,
+      certification_update: 0,
+      certification_verification: 0,
     },
   };
 
@@ -365,7 +367,7 @@ export const NotificationTemplates = {
 /* ---------- Send notification wrapper ---------- */
 export const sendNotification = async (data: {
   userId: string | Types.ObjectId;
-  type: 'system' | 'message' | 'appointment' | 'role_approval' | 'security' | 'medical';
+  type: NotificationType;
   title: string;
   message: string;
   priority?: 'low' | 'medium' | 'high';

@@ -174,12 +174,8 @@ const styles = StyleSheet.create({
     borderRadius: hp(2),
     padding: hp(2),
     marginBottom: hp(2),
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: '#eee',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   sectionTitle: {
     fontSize: hp(1.9),

@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import * as authService from '../services/authService';
 import * as otpService from '../services/otpService';
 import * as notificationService from '../services/notificationService';
+import * as passwordResetService from '../services/passwordResetService'
 import User from '../models/UserModel';
 import { signAccess, signRefresh } from '../utils/jwt';
 import jwt from 'jsonwebtoken';
@@ -89,7 +90,7 @@ export const login = async (req: Request, res: Response) => {
   try {
     const device = req.headers['user-agent'] || 'Unknown device';
     const location = req.ip || 'Unknown location';
-    
+
     await notificationService.sendNotification({
       userId: user._id as Types.ObjectId,
       type: 'security',
@@ -104,7 +105,7 @@ export const login = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-     console.error('Failed to send login notification:', error);
+    console.error('Failed to send login notification:', error);
   }
 
   res.cookie('refreshToken', refreshToken, {
@@ -144,44 +145,96 @@ export const refresh = async (req: Request, res: Response) => {
   res.json({ accessToken: newAccess });
 };
 
-/* ---------- 5. Forgot password – request OTP ---------- */
-export const requestResetOtp = async (req: Request, res: Response) => {
+/**----------- 5.  Forget password  – request OTP  --------------- */
+export const forgotPassword = async (req: Request, res: Response) => {
   const { email } = req.body;
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ message: 'User not found' });
 
-  await authService.requestRegisterOtp(email); // reuse same OTP logic
-  res.json({ message: 'Reset OTP sent' });
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    await passwordResetService.sendResetOtp(email.trim().toLowerCase());
+    return res.json({
+      message: 'If the email exists, an OTP has been sent to reset your password.'
+    });
+  } catch (err: any) {
+    // We don't leak whether email exists
+    return res.json({
+      message: 'If the email exists, an OTP has been sent to reset your password.'
+    });
+  }
 };
 
 /* ---------- 6. Verify OTP & set new password ---------- */
 export const resetPassword = async (req: Request, res: Response) => {
   const { email, otp, newPassword } = req.body;
-  if (!otpService.verifyOTP(email, otp))
-    return res.status(400).json({ message: 'Invalid OTP' });
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ message: 'User not found' });
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+  }
 
-  user.password = await authService.hashPassword(newPassword);
-  await user.save();
-  res.json({ message: 'Password updated' });
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+  }
+
+  try {
+    await passwordResetService.resetPasswordWithOtp({
+      email: email.trim().toLowerCase(),
+      otp: otp.trim(),
+      newPassword,
+    });
+
+    return res.json({ message: 'Password has been reset successfully' });
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
+  }
 };
+
 
 /* ---------- 7. Logout (invalidate refresh token) ---------- */
 export const logout = async (req: AuthReq, res: Response) => {
-  const { refreshToken } = req.body;
-  if (refreshToken && req.user?._id) {
-    await User.updateOne(
-      { _id: req.user._id, 'sessions.token': refreshToken },
-      { $set: { 'sessions.$.active': false } }
-    );
+  try {
+    // Try to get refreshToken from multiple sources (in order of preference)
+    let refreshToken: string | undefined;
+
+    // 1. From request body (what your mobile app sends)
+    if (req.body && typeof req.body === 'object') {
+      refreshToken = req.body.refreshToken;
+    }
+
+    // 2. Fallback: from cookie (if you ever use httpOnly cookies)
+    if (!refreshToken && req.cookies) {
+      refreshToken = req.cookies.refreshToken;
+    }
+
+    // 3. Fallback: from Authorization header as Bearer (common pattern)
+    if (!refreshToken && req.headers.authorization?.startsWith('Bearer ')) {
+      refreshToken = req.headers.authorization.split(' ')[1];
+    }
+
+    // If we have a token and user is authenticated via JWT middleware
+    if (refreshToken && req.user?._id) {
+      await User.updateOne(
+        { _id: req.user._id, 'sessions.token': refreshToken },
+        { $set: { 'sessions.$.active': false } }
+      );
+    }
+
+    // Clear cookie if exists
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
+    return res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ message: 'Logout failed' });
   }
-  res.clearCookie('refreshToken'); // optional, harmless
-  res.json({ message: 'Logged out' });
 };
 
-/* ---------- 8. Delete Account (soft-delete) ---------- */
 /* ---------- 8. Delete Account (HARD DELETE) ---------- */
 export const deleteAccount = async (req: AuthReq, res: Response) => {
   const userId = req.user?._id;

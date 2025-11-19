@@ -1,8 +1,8 @@
-import User, {  } from '../models/UserModel';
+import User, { } from '../models/UserModel';
 import { hashPassword } from './authService';
-import { IAdminAnalytics, IUserLean, UserRole } from '../types/usersDetails';
+import { IAdminAnalytics, IHealthcareCertification, IHealthcareProfile, IUserLean, UserRole } from '../types/usersDetails';
 import { Types } from 'mongoose';
-import { sendMail } from '../utils/mailer';  
+import { sendMail } from '../utils/mailer';
 
 /* ---------- Helpers ---------- */
 const safeSelect = '-password -sessions.token';
@@ -16,6 +16,11 @@ export const adminCreateUser = async (data: {
   role: UserRole;
   gender?: string;
   dateOfBirth?: string;
+  location?: {
+    city?: string;
+    state?: string;
+    country?: string;
+  };
 }) => {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new Error('Email already registered');
@@ -31,6 +36,11 @@ export const adminCreateUser = async (data: {
     profile: {
       gender: data.gender ?? 'Prefer not to say',
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+      location: {
+        city: data.location?.city ?? '',
+        state: data.location?.state ?? '',
+        country: data.location?.country ?? '',
+      },
     },
   });
 
@@ -50,7 +60,7 @@ export const adminUpdateUserRole = async (
     role: newRole,
     'roleStatus.approvedByAdmin': true,
     'roleStatus.approvalDate': new Date(),
-    'roleStatus.isActive': true, 
+    'roleStatus.isActive': true,
   };
 
   const updated = await User.findByIdAndUpdate(
@@ -204,5 +214,82 @@ export const adminHandleRoleRequest = async (
        ${adminNote ? `<p>Admin note: ${adminNote}</p>` : ''}`;
 
   await sendMail(updated.email, subject, html);
+  return updated;
+};
+
+/* ---------- Update healthcare certifications ---------- */
+export const adminUpdateHealthcareCertifications = async (
+  userId: string,
+  certifications: IHealthcareCertification[]
+) => {
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        'healthcareProfile.certifications': certifications,
+        updatedAt: new Date()
+      }
+    },
+    { new: true, runValidators: true }
+  ).select(safeSelect);
+
+  if (!updated) throw new Error('User not found');
+  return updated;
+};
+
+/* ---------- Verify certification ---------- */
+export const adminVerifyCertification = async (
+  userId: string,
+  certificationId: string,
+  status: 'verified' | 'rejected',
+  notes: string,
+  verifiedBy: string
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  // Find the certification by ID in the array
+  const certificationIndex = user.healthcareProfile?.certifications.findIndex(
+    cert => cert._id?.toString() === certificationId
+  );
+
+  if (certificationIndex === -1 || certificationIndex === undefined) {
+    throw new Error('Certification not found');
+  }
+
+  // Update the certification
+  if (user.healthcareProfile?.certifications[certificationIndex]) {
+    user.healthcareProfile.certifications[certificationIndex].verificationStatus = status;
+    user.healthcareProfile.certifications[certificationIndex].verifiedBy = new Types.ObjectId(verifiedBy);
+    user.healthcareProfile.certifications[certificationIndex].verifiedAt = new Date();
+    if (notes) user.healthcareProfile.certifications[certificationIndex].notes = notes;
+  }
+
+  await user.save();
+  return await User.findById(userId).select(safeSelect);
+};
+
+/* ---------- Update professional details ---------- */
+export const adminUpdateProfessionalDetails = async (
+  userId: string,
+  data: Partial<IHealthcareProfile>
+) => {
+  const updateObj: any = {};
+
+  Object.keys(data).forEach(key => {
+    if (data[key as keyof IHealthcareProfile] !== undefined) {
+      updateObj[`healthcareProfile.${key}`] = data[key as keyof IHealthcareProfile];
+    }
+  });
+
+  updateObj.updatedAt = new Date();
+
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    { $set: updateObj },
+    { new: true, runValidators: true }
+  ).select(safeSelect);
+
+  if (!updated) throw new Error('User not found');
   return updated;
 };

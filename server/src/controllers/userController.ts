@@ -74,7 +74,7 @@ export const updateEmail = async (req: AuthReq, res: Response) => {
     if (!oldUser) throw new Error('User not found');
 
     const updatedUser = await userService.updateEmail(req.user._id, newEmail);
-    
+
     // Send email change notification
     await notificationService.sendNotification({
       userId: req.user._id,
@@ -133,16 +133,16 @@ export const updatePassword = async (req: AuthReq, res: Response) => {
     await userService.changePassword(req.user._id, currentPassword, newPassword);
 
     await notificationService.sendNotification({
-        userId: req.user._id,
-        type: 'security',
-        title: 'Password Changed',
-        message: 'Your password has been successfully updated.',
-        priority: 'medium',
-        data: {
-          changedAt: new Date(),
-        }
+      userId: req.user._id,
+      type: 'security',
+      title: 'Password Changed',
+      message: 'Your password has been successfully updated.',
+      priority: 'medium',
+      data: {
+        changedAt: new Date(),
+      }
     });
-    
+
     return res.json({ message: 'Password updated successfully' });
   } catch (err: any) {
     // Service throws:
@@ -203,4 +203,222 @@ export const getUserProfile = async (req: Request, res: Response) => {
   const user = await userService.getUserById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json(user);
+};
+
+/* ============ PROFESSIONAL CONTROLLER METHODS ============ */
+
+/* ---------- Get professional profile ---------- */
+export const getProfessionalProfile = async (req: AuthReq, res: Response) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -sessions.token');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is healthcare professional
+    if (!['doctor', 'nurse'].includes(user.role)) {
+      return res.status(403).json({ message: 'User is not a healthcare professional' });
+    }
+
+    res.json(user);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Update professional profile ---------- */
+export const updateProfessionalProfile = async (req: AuthReq, res: Response) => {
+  try {
+    const allowedUpdates = [
+      'profile.specialization',
+      'profile.department',
+      'profile.bio',
+      'healthcareProfile.bio',
+      'healthcareProfile.hourlyRate',
+      'healthcareProfile.services',
+      'healthcareProfile.languages'
+    ];
+
+    const updates: any = {};
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = req.body[key];
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    ).select('-password -sessions.token');
+
+    res.json(updatedUser);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+/* ---------- Get certifications ---------- */
+export const getMyCertifications = async (req: AuthReq, res: Response) => {
+  try {
+    // For now, return empty array - implement certification logic later
+    res.json([]);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Add certification ---------- */
+export const addCertification = async (req: AuthReq, res: Response) => {
+  try {
+    // Mock implementation - replace with actual certification creation
+    const newCertification = {
+      id: Date.now().toString(),
+      ...req.body,
+      verificationStatus: 'pending'
+    };
+
+    res.status(201).json(newCertification);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+/* ---------- Update certification ---------- */
+export const updateCertification = async (req: AuthReq, res: Response) => {
+  try {
+    const { certificationId } = req.params;
+
+    // Mock implementation
+    const updatedCertification = {
+      id: certificationId,
+      ...req.body
+    };
+
+    res.json(updatedCertification);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+/* ---------- Get professional stats ---------- */
+export const getProfessionalStats = async (req: AuthReq, res: Response) => {
+  try {
+    const stats = {
+      totalEarnings: 0,
+      totalConsultations: 0,
+      averageRating: 0,
+      pendingAppointments: 0
+    };
+
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Update availability ---------- */
+export const updateAvailability = async (req: AuthReq, res: Response) => {
+  try {
+    const { available } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          'healthcareProfile.availability.isAvailable': available,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    ).select('-password -sessions.token');
+
+    res.json(updatedUser);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+/* ---------- Update online status ---------- */
+export const updateOnlineStatus = async (req: AuthReq, res: Response) => {
+  try {
+    const { online } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          isOnline: online,
+          lastActive: new Date(),
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    ).select('-password -sessions.token');
+
+    res.json(updatedUser);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+/* ---------- Get ratings ---------- */
+export const getMyRatings = async (req: AuthReq, res: Response) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    // Mock implementation
+    const response = {
+      ratings: [],
+      total: 0,
+      page: Number(page),
+      limit: Number(limit)
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Get tips ---------- */
+export const getMyTips = async (req: AuthReq, res: Response) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+
+    // Mock implementation
+    const response = {
+      tips: [],
+      total: 0,
+      page: Number(page),
+      limit: Number(limit)
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Get earnings report ---------- */
+export const getEarningsReport = async (req: AuthReq, res: Response) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    // Mock implementation
+    const report = {
+      totalEarnings: 0,
+      period: { startDate, endDate },
+      transactions: []
+    };
+
+    res.json(report);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 };

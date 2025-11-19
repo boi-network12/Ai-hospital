@@ -6,6 +6,7 @@ import HealthRoutes from './health';
 import systemRoutes from './systemRoutes';
 import adminRoutes from './adminRoutes';
 import notificationRoutes from './notificationRoutes';
+import healthcareRoutes from './healthcareRoutes';
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use('/v1/health', HealthRoutes);
 router.use('/v1/system', systemRoutes);
 router.use('/v1/admin', adminRoutes);
 router.use('/v1/notifications', notificationRoutes);
+router.use('/v1/healthcare', healthcareRoutes);
 
 export default router;

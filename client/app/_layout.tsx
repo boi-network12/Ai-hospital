@@ -11,6 +11,8 @@ import { useAuth } from '@/Hooks/authHook.d';
 import { UserProvider } from '@/context/UserContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { NotificationProvider } from '@/context/NotificationContext';
+import { HealthcareProvider } from '@/context/HealthContext';
+import { ProfessionalProvider } from '@/context/ProfessionalContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -63,7 +65,11 @@ export default function RootLayout() {
         <AuthProvider>
           <UserProvider>
             <NotificationProvider>
-               <RootLayoutContent />
+              <HealthcareProvider>
+                <ProfessionalProvider>
+                  <RootLayoutContent />
+                </ProfessionalProvider>
+              </HealthcareProvider>
             </NotificationProvider>
           </UserProvider>
         </AuthProvider>

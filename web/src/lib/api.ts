@@ -113,28 +113,28 @@ export async function apiFetch<T = unknown>(
     body: unknown;
 
     constructor(message: string, status: number, body: unknown) {
-        super(message);
-        this.name = 'ApiError';
-        this.status = status;
-        this.body = body;
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
     }
-    }
+  }
 
-    /* ---------- error handling ---------- */
-    if (!res.ok) {
+  /* ---------- error handling ---------- */
+  if (!res.ok) {
     let body: unknown = null;
     try {
-        body = await res.json();
+      body = await res.json();
     } catch {
-        // ignore JSON parse errors
+      // ignore JSON parse errors
     }
 
     const message = typeof body === 'object' && body !== null && 'message' in body
-        ? (body as { message: string }).message
-        : `HTTP ${res.status}`;
+      ? (body as { message: string }).message
+      : `HTTP ${res.status}`;
 
     throw new ApiError(message, res.status, body);
-    }
+  }
 
   return (await res.json()) as T;
 }

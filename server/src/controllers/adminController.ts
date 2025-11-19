@@ -7,8 +7,17 @@ import User from "../models/UserModel";
 
 /* ---------- Create any user ---------- */
 export const createUser = async (req: AuthRequest, res: Response) => {
-  const { email, password, name, phoneNumber, role, gender, dateOfBirth } = req.body;
-  if (!email || !password || !name || !role) {
+  const {
+    email,
+    password,
+    name,
+    phoneNumber,
+    role,
+    gender,
+    dateOfBirth,
+    location
+  } = req.body;
+  if (!email || !password || !name || !role || !location) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
   try {
@@ -20,6 +29,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       role: role as UserRole,
       gender,
       dateOfBirth,
+      location
     });
     res.status(201).json(user);
   } catch (e: any) {
@@ -38,21 +48,21 @@ export const updateUserRole = async (req: AuthRequest, res: Response) => {
     if (!oldUser) throw new Error('User not found');
 
     const user = await adminService.adminUpdateUserRole(userId, role as UserRole);
-    
+
     // Send role update notification to the user
     await notificationService.sendNotification({
-        userId: userId,
-        type: 'role_approval',
-        title: 'Role Updated',
-        message: `Your role has been changed from ${oldUser.role} to ${role} by an administrator.`,
-        priority: 'high',
-        actionUrl: '/profile',
-        data: {
-          oldRole: oldUser.role,
-          newRole: role,
-          updatedBy: req.user._id,
-          updatedAt: new Date(),
-        }
+      userId: userId,
+      type: 'role_approval',
+      title: 'Role Updated',
+      message: `Your role has been changed from ${oldUser.role} to ${role} by an administrator.`,
+      priority: 'high',
+      actionUrl: '/profile',
+      data: {
+        oldRole: oldUser.role,
+        newRole: role,
+        updatedBy: req.user._id,
+        updatedAt: new Date(),
+      }
     });
 
     res.json(user);
@@ -67,10 +77,10 @@ export const toggleRestrict = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
   const { restrict } = req.body;
   if (typeof restrict !== 'boolean') return res.status(400).json({ message: 'restrict boolean required' });
-  
+
   try {
     const user = await adminService.adminToggleRestrict(userId, restrict);
-    
+
     // Send restriction notification
     if (restrict) {
       await notificationService.sendNotification({
@@ -158,10 +168,10 @@ export const handleRoleRequest = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
   const { approve, adminNote } = req.body;
   if (typeof approve !== 'boolean') return res.status(400).json({ message: 'approve boolean required' });
-  
+
   try {
     const user = await adminService.adminHandleRoleRequest(userId, approve, adminNote);
-    
+
     // Send role approval/rejection notification
     if (approve) {
       await notificationService.sendNotification({
@@ -193,6 +203,91 @@ export const handleRoleRequest = async (req: AuthRequest, res: Response) => {
         }
       });
     }
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Update healthcare certifications ---------- */
+export const updateHealthcareCertifications = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const { certifications } = req.body;
+
+  try {
+    const user = await adminService.adminUpdateHealthcareCertifications(userId, certifications);
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'certification_update',
+      title: 'Certifications Updated',
+      message: 'Your professional certifications have been updated by an administrator.',
+      priority: 'medium',
+      actionUrl: '/profile/certifications',
+      data: {
+        updatedBy: req.user._id,
+        updatedAt: new Date(),
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Verify certification ---------- */
+export const verifyCertification = async (req: AuthRequest, res: Response) => {
+  const { userId, certificationId } = req.params;
+  const { status, notes } = req.body;
+
+  try {
+    const user = await adminService.adminVerifyCertification(
+      userId,
+      certificationId,
+      status,
+      notes,
+      req.user._id
+    );
+
+    const statusMessage = status === 'verified' ? 'approved' : 'rejected';
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'certification_verification',
+      title: `Certification ${statusMessage.charAt(0).toUpperCase() + statusMessage.slice(1)}`,
+      message: `Your certification has been ${statusMessage}. ${notes ? `Notes: ${notes}` : ''}`,
+      priority: 'high',
+      actionUrl: '/profile/certifications',
+      data: {
+        certificationId,
+        status,
+        verifiedBy: req.user._id,
+        verifiedAt: new Date(),
+        notes
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Update professional details ---------- */
+export const updateProfessionalDetails = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const { specializations, availability, services, hourlyRate, bio } = req.body;
+
+  try {
+    const user = await adminService.adminUpdateProfessionalDetails(userId, {
+      specializations,
+      availability,
+      services,
+      hourlyRate,
+      bio
+    });
 
     res.json(user);
   } catch (e: any) {

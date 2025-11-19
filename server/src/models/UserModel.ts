@@ -40,6 +40,17 @@ const UserSchema = new Schema<IUser>({
       city: { type: String, default: '' },
       state: { type: String, default: '' },
       country: { type: String, default: '' },
+      coordinates: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number], // [longitude, latitude]
+          default: [0, 0]
+        }
+      }
     },
     dateOfBirth: { type: Date, default: null },
     gender: {
@@ -80,6 +91,27 @@ const UserSchema = new Schema<IUser>({
       ref: 'User', // references doctors/nurses/hospitals
     },
   ],
+  healthcareProfile: {
+    bio: { type: String, default: '' },
+    hourlyRate: { type: Number, default: 0 },
+    services: [{ type: String }],
+    languages: [{ type: String }],
+    availability: {
+      isAvailable: { type: Boolean, default: true },
+      schedule: [{
+        day: String,
+        slots: [{
+          start: String,
+          end: String
+        }]
+      }]
+    }
+  },
+
+  // Add these general fields
+  isOnline: { type: Boolean, default: false },
+  lastActive: { type: Date, default: Date.now },
+  walletBalance: { type: Number, default: 0 },
   isVerified: {
     type: Boolean,
     default: false,
@@ -95,6 +127,14 @@ const UserSchema = new Schema<IUser>({
   },
   deletedAt: {
     type: Date,
+  },
+  passwordResetOtp: {
+    type: String,
+    select: false,
+  },
+  passwordResetOtpExpires: {
+    type: Date,
+    select: false,
   },
   createdAt: {
     type: Date,
@@ -132,10 +172,13 @@ UserSchema.pre('save', function (next) {
   next();
 });
 
+UserSchema.index({ "profile.location.coordinates": "2dsphere" });
 UserSchema.index({ role: 1 });
 UserSchema.index({ 'roleStatus.approvedByAdmin': 1 });
 UserSchema.index({ isDeleted: 1 });
 
+UserSchema.index({ passwordResetOtpExpires: 1 }, { expireAfterSeconds: 0 });
+
 // this is all
 
-export default mongoose.model<IUser>('User', UserSchema);
+export default mongoose.model<IUser, mongoose.Model<IUser>>('User', UserSchema);

@@ -21,4 +21,10 @@ router.post('/role-requests/:userId', adminCtrl.handleRoleRequest);
 /* Analytics */
 router.get('/analytics', adminCtrl.analytics);
 
+
+// src/routes/adminRoutes.ts
+router.patch('/users/:userId/certifications', adminCtrl.updateHealthcareCertifications);
+router.patch('/users/:userId/certifications/:certificationId/verify', adminCtrl.verifyCertification);
+router.patch('/users/:userId/professional-details', adminCtrl.updateProfessionalDetails);
+
 export default router;
