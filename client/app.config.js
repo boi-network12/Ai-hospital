@@ -51,7 +51,7 @@ export default {
       versionCode: 3, // ✅ Added (increment per release)
       adaptiveIcon: {
         foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundColor: "#fff",
+        backgroundColor: "#ffffff",
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       edgeToEdgeEnabled: true,
