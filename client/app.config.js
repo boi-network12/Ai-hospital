@@ -16,6 +16,10 @@ export default {
       policy: "appVersion" // recommended for OTA updates
     },
 
+    updates: {
+      url: "https://u.expo.dev/5d6ec21d-85ab-4479-b217-11b455ee7df0"
+    },
+
     extra: {
       WEATHER_API_KEY: process.env.WEATHER_API_KEY,
       CITY: process.env.CITY || "Lagos",
@@ -30,7 +34,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.neuromed.app",
       buildNumber: "3", // ✅ Added (increment per release)
-      icon: "./assets/images/icon.png", 
+      icon: "./assets/images/icon.png",
       config: {
         usesNonExemptEncryption: false
       },
