@@ -176,6 +176,12 @@ UserSchema.index({ "profile.location.coordinates": "2dsphere" });
 UserSchema.index({ role: 1 });
 UserSchema.index({ 'roleStatus.approvedByAdmin': 1 });
 UserSchema.index({ isDeleted: 1 });
+UserSchema.index({ "profile.location.state": 1 });
+UserSchema.index({ "profile.location.country": 1 });
+UserSchema.index({ "healthcareProfile.stats.averageRating": -1 });
+UserSchema.index({ "healthcareProfile.stats.totalRatings": -1 });
+UserSchema.index({ "healthcareProfile.availability.isAvailable": -1 });
+UserSchema.index({ role: 1, isVerified: 1, "roleStatus.isActive": 1 });
 
 UserSchema.index({ passwordResetOtpExpires: 1 }, { expireAfterSeconds: 0 });
 

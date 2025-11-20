@@ -86,6 +86,7 @@ export interface IHealthcareProfile {
   services: string[];
   hospitalAffiliation?: string;
   isOnline: boolean;
+  isVerified?: boolean;
   lastActive: string; // ISO date
 }
 
@@ -210,7 +211,8 @@ export interface HealthcareProfessional {
   averageRating: number;
   totalRatings: number;
   isOnline: boolean;
-  distance?: number; // km - for location-based results
+  distance?: number;
+  isVerified?: boolean;
 }
 
 export interface ProfessionalsFilter {
@@ -235,6 +237,9 @@ export interface ProfessionalsResponse {
   total: number;
   page: number;
   limit: number;
+  message?: string;
+  searchLocation?: string;
+  searchScope?: string;
 }
 
 /* ======================== AUTH STATE ======================== */

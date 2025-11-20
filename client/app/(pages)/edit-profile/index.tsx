@@ -1,4 +1,4 @@
-import { ActivityIndicator, ScrollView,StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import GeneralSettingsHeader from '@/components/Headers/GeneralSettingsHeader'
 import { router } from 'expo-router'
@@ -10,6 +10,8 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 export default function EditProfile() {
   const { user, updateProfile, loading: userLoading } = useUser();
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const isHealthcareProfessional = user?.role === 'doctor' || user?.role === 'nurse' || user?.role === 'ai';
 
   // Local state for form
   const [form, setForm] = useState({
@@ -36,75 +38,75 @@ export default function EditProfile() {
 
   // Fill form when user loads
   useEffect(() => {
-  if (user) {
-    setForm({
-      name: user.name || '',
-      phoneNumber: user.phoneNumber || '',
-      'profile.location.city': user.profile?.location?.city || '',
-      'profile.location.state': user.profile?.location?.state || '',
-      'profile.location.country': user.profile?.location?.country || '',
-      'profile.dateOfBirth': user.profile?.dateOfBirth 
-        ? new Date(user.profile.dateOfBirth).toISOString().split('T')[0] 
-        : '',
-      'profile.gender': user.profile?.gender || 'Prefer not to say',
-      'profile.bloodGroup': user.profile?.bloodGroup || '',
-      'profile.genotype': user.profile?.genotype || '',
-      'profile.height': user.profile?.height?.toString() || '',
-      'profile.weight': user.profile?.weight?.toString() || '',
-      'profile.specialization': user.profile?.specialization || '',
-      'profile.department': user.profile?.department || '',
-      'profile.bio': user.profile?.bio || '',
-      'emergencyContact.name': user.emergencyContact?.name || '',
-      'emergencyContact.relationship': user.emergencyContact?.relationship || '',
-      'emergencyContact.phoneNumber': user.emergencyContact?.phoneNumber || '',
-    });
-  }
-}, [user]);
+    if (user) {
+      setForm({
+        name: user.name || '',
+        phoneNumber: user.phoneNumber || '',
+        'profile.location.city': user.profile?.location?.city || '',
+        'profile.location.state': user.profile?.location?.state || '',
+        'profile.location.country': user.profile?.location?.country || '',
+        'profile.dateOfBirth': user.profile?.dateOfBirth
+          ? new Date(user.profile.dateOfBirth).toISOString().split('T')[0]
+          : '',
+        'profile.gender': user.profile?.gender || 'Prefer not to say',
+        'profile.bloodGroup': user.profile?.bloodGroup || '',
+        'profile.genotype': user.profile?.genotype || '',
+        'profile.height': user.profile?.height?.toString() || '',
+        'profile.weight': user.profile?.weight?.toString() || '',
+        'profile.specialization': user.profile?.specialization || '',
+        'profile.department': user.profile?.department || '',
+        'profile.bio': user.profile?.bio || '',
+        'emergencyContact.name': user.emergencyContact?.name || '',
+        'emergencyContact.relationship': user.emergencyContact?.relationship || '',
+        'emergencyContact.phoneNumber': user.emergencyContact?.phoneNumber || '',
+      });
+    }
+  }, [user]);
 
   const handleSave = async () => {
-  if (!user) return;
+    if (!user) return;
 
-  // Filter out unchanged or empty fields
-  const changedData: any = {};
-  Object.keys(form).forEach((key) => {
-    const newVal = form[key as keyof typeof form];
-    const getDeepValue = (obj: any, path: string): any => {
-      return path.split('.').reduce((acc, part) => {
-        if (acc === null || acc === undefined) return undefined;
-        return acc[part];
-      }, obj);
-    };
-    let oldVal = getDeepValue(user, key)
+    // Filter out unchanged or empty fields
+    const changedData: any = {};
+    Object.keys(form).forEach((key) => {
+      const newVal = form[key as keyof typeof form];
+      const getDeepValue = (obj: any, path: string): any => {
+        return path.split('.').reduce((acc, part) => {
+          if (acc === null || acc === undefined) return undefined;
+          return acc[part];
+        }, obj);
+      };
+      let oldVal = getDeepValue(user, key)
 
 
-    if (newVal !== oldVal && (newVal !== '' || oldVal === undefined)) {
-      changedData[key] = newVal === '' ? null : newVal; 
+      if (newVal !== oldVal && (newVal !== '' || oldVal === undefined)) {
+        changedData[key] = newVal === '' ? null : newVal;
+      }
+    });
+
+    if (Object.keys(changedData).length === 0) {
+      router.back();
+      return;
     }
-  });
 
-  if (Object.keys(changedData).length === 0) {
-    router.back();
-    return;
-  }
-
-  setSaving(true);
-  try {
-    await updateProfile(changedData); // ← only send changed fields
-    router.back();
-  } catch (err: any) {
-    console.log(err);
-  } finally {
-    setSaving(false);
-  }
-};
+    setSaving(true);
+    try {
+      await updateProfile(changedData); // ← only send changed fields
+      router.back();
+    } catch (err: any) {
+      console.log(err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (userLoading || !user) {
-      return (
-        <SafeAreaView style={styles.container}>
-          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: hp(20) }} />
-        </SafeAreaView>
-      );
-    }
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: hp(20) }} />
+      </SafeAreaView>
+    );
+  }
 
 
   return (
@@ -126,55 +128,63 @@ export default function EditProfile() {
             onChangeText={(text) => setForm({ ...form, name: text })}
           />
 
-          <InputField
-            label="Phone Number"
-            value={form.phoneNumber}
-            onChangeText={(text) => setForm({ ...form, phoneNumber: text })}
-            keyboardType="phone-pad"
-          />
+          {!isHealthcareProfessional && (
+            <InputField
+              label="Phone Number"
+              value={form.phoneNumber}
+              onChangeText={(text) => setForm({ ...form, phoneNumber: text })}
+              keyboardType="phone-pad"
+            />
+          )}
 
           {/* === Gender === */}
-          <View style={styles.genderRow}>
-            {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => (
+          {!isHealthcareProfessional && (
+            <>
+              <View style={styles.genderRow}>
+                {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    style={[
+                      styles.genderBtn,
+                      form['profile.gender'] === g && styles.genderBtnActive,
+                    ]}
+                    onPress={() => setForm({ ...form, 'profile.gender': g })}
+                  >
+                    <Text
+                      style={[
+                        styles.genderBtnText,
+                        form['profile.gender'] === g && styles.genderBtnTextActive,
+                      ]}
+                    >
+                      {g}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Date of Birth */}
               <TouchableOpacity
-                key={g}
-                style={[
-                  styles.genderBtn,
-                  form['profile.gender'] === g && styles.genderBtnActive,
-                ]}
-                onPress={() => setForm({ ...form, 'profile.gender': g })}
+                style={styles.dateInput}
+                onPress={() => setShowDatePicker(true)}
               >
-                <Text style={[
-                  styles.genderBtnText,
-                  form['profile.gender'] === g && styles.genderBtnTextActive,
-                ]}>
-                  {g}
+                <Text style={form['profile.dateOfBirth'] ? styles.dateText : styles.placeholderText}>
+                  {form['profile.dateOfBirth'] || 'Select Date of Birth'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          
-          
-          <TouchableOpacity
-            style={styles.dateInput}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={form['profile.dateOfBirth'] ? styles.dateText : styles.placeholderText}>
-              {form['profile.dateOfBirth'] || 'Select Date of Birth'}
-            </Text>
-          </TouchableOpacity>
 
-          <DateTimePickerModal
-            isVisible={showDatePicker}
-            mode="date"
-            date={form['profile.dateOfBirth'] ? new Date(form['profile.dateOfBirth']) : new Date()}
-            onConfirm={(date) => {
-              setForm({ ...form, 'profile.dateOfBirth': date.toISOString().split('T')[0] });
-              setShowDatePicker(false);
-            }}
-            onCancel={() => setShowDatePicker(false)}
-            maximumDate={new Date()}
-          />
+              <DateTimePickerModal
+                isVisible={showDatePicker}
+                mode="date"
+                date={form['profile.dateOfBirth'] ? new Date(form['profile.dateOfBirth']) : new Date()}
+                onConfirm={(date) => {
+                  setForm({ ...form, 'profile.dateOfBirth': date.toISOString().split('T')[0] });
+                  setShowDatePicker(false);
+                }}
+                onCancel={() => setShowDatePicker(false)}
+                maximumDate={new Date()}
+              />
+            </>
+          )}
 
           <InputField
             label="Blood Group"
@@ -204,30 +214,33 @@ export default function EditProfile() {
         </View>
 
         {/* === Location === */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location</Text>
+        {!isHealthcareProfessional && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location</Text>
 
-          <InputField
-            label="City"
-            value={form['profile.location.city']}
-            onChangeText={(text) => setForm({ ...form, 'profile.location.city': text })}
-          />
+            <InputField
+              label="City"
+              value={form['profile.location.city']}
+              onChangeText={(text) => setForm({ ...form, 'profile.location.city': text })}
+            />
 
-          <InputField
-            label="State"
-            value={form['profile.location.state']}
-            onChangeText={(text) => setForm({ ...form, 'profile.location.state': text })}
-          />
+            <InputField
+              label="State"
+              value={form['profile.location.state']}
+              onChangeText={(text) => setForm({ ...form, 'profile.location.state': text })}
+            />
 
-          <InputField
-            label="Country"
-            value={form['profile.location.country']}
-            onChangeText={(text) => setForm({ ...form, 'profile.location.country': text })}
-          />
-        </View>
+            <InputField
+              label="Country"
+              value={form['profile.location.country']}
+              onChangeText={(text) => setForm({ ...form, 'profile.location.country': text })}
+            />
+          </View>
+        )}
+
 
         {/* === Professional === */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Professional</Text>
 
           <InputField
@@ -249,7 +262,7 @@ export default function EditProfile() {
             multiline
             numberOfLines={4}
           />
-        </View>
+        </View> */}
 
         {/* === Emergency Contact === */}
         <View style={styles.section}>

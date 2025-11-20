@@ -3,6 +3,7 @@ import { hashPassword } from './authService';
 import { IAdminAnalytics, IHealthcareCertification, IHealthcareProfile, IUserLean, UserRole } from '../types/usersDetails';
 import { Types } from 'mongoose';
 import { sendMail } from '../utils/mailer';
+import { sendUserCreationEmail } from '../utils/emailUserCreation';
 
 /* ---------- Helpers ---------- */
 const safeSelect = '-password -sessions.token';
@@ -46,8 +47,23 @@ export const adminCreateUser = async (data: {
 
 
   await user.save();
+
+  //  store plaintext password temporarily for email
+  const plaintextPassword = data.password;
+
   const savedUser = await User.findById(user._id).select(safeSelect);
   if (!savedUser) throw new Error('Failed to retrieve created user');
+
+  try {
+    await sendUserCreationEmail(
+      data.email,
+      data.name,
+      data.role,
+      plaintextPassword,
+    )
+  } catch (error) {
+    console.error('Failed to send welcome email: ', error)
+  }
   return savedUser;
 };
 

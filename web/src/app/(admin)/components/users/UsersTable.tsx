@@ -15,16 +15,18 @@ import {
   Mail,
   CheckCircle,
   XCircle,
+  Edit,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdmin } from '@/context/AdminContext';
-import { UserRole } from '@/types/auth';
+import { User, UserRole } from '@/types/auth';
 
 interface Props {
   onViewProfile: (userId: string) => void;
+  onUpdateUser: (user: User) => void;
 }
 
-export const UsersTable = ({ onViewProfile }: Props) => {
+export const UsersTable = ({ onViewProfile, onUpdateUser }: Props) => {
   const {
     admin,
     fetchUsers,
@@ -44,12 +46,12 @@ export const UsersTable = ({ onViewProfile }: Props) => {
 
   // Close dropdown on outside click
   useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (!dropdownOpen) return;
-      
+
       const target = event.target as Node;
       const openDropdown = dropdownRefs.current.get(dropdownOpen);
-      
+
       if (openDropdown && !openDropdown.contains(target)) {
         setDropdownOpen(null);
       }
@@ -74,7 +76,7 @@ export const UsersTable = ({ onViewProfile }: Props) => {
   const totalPages = Math.ceil(total / limit);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
-  // Add validation
+    // Add validation
     if (!userId || userId === 'undefined') {
       toast.error('Invalid user ID');
       return;
@@ -94,9 +96,9 @@ export const UsersTable = ({ onViewProfile }: Props) => {
       await toggleRestrict(userId, restrict);
       toast.success(restrict ? 'User restricted' : 'User unrestricted');
     } catch (error: any) {
-        console.error('Restrict toggle error:', error);
-        toast.error(error.message || 'Failed to update restriction');
-      }
+      console.error('Restrict toggle error:', error);
+      toast.error(error.message || 'Failed to update restriction');
+    }
   };
 
   const handleDelete = async (userId: string) => {
@@ -105,9 +107,9 @@ export const UsersTable = ({ onViewProfile }: Props) => {
       await deleteUser(userId);
       toast.success('User deleted');
     } catch (error: any) {
-        console.error('Delete error:', error);
-        toast.error(error.message || 'Failed to delete user');
-      }
+      console.error('Delete error:', error);
+      toast.error(error.message || 'Failed to delete user');
+    }
   };
 
   const toggleDropdown = (userId: string) => (e: React.MouseEvent) => {
@@ -127,7 +129,7 @@ export const UsersTable = ({ onViewProfile }: Props) => {
     []
   );
 
-    useEffect(() => {
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!dropdownOpen) return;
       const node = dropdownRefs.current.get(dropdownOpen);
@@ -302,9 +304,9 @@ export const UsersTable = ({ onViewProfile }: Props) => {
                       >
                         <button
                           type="button"
-                              onClick={toggleDropdown(user.id)}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-                              aria-label={`More actions for ${user.name}`}
+                          onClick={toggleDropdown(user.id)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+                          aria-label={`More actions for ${user.name}`}
                         >
                           <MoreVertical className="w-5 h-5" />
                         </button>
@@ -331,6 +333,19 @@ export const UsersTable = ({ onViewProfile }: Props) => {
                                   >
                                     <Eye className="w-4 h-4" aria-hidden="true" />
                                     View Profile
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onUpdateUser(user);
+                                      setDropdownOpen(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 transition"
+                                  >
+                                    <Edit className="w-4 h-4" aria-hidden="true" />
+                                    Update Profile
                                   </button>
                                 </li>
                                 <li>

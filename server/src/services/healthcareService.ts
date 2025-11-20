@@ -22,6 +22,7 @@ interface FindProfessionalsFilters {
     sortBy: string;
 }
 
+
 // src/services/healthcareService.ts
 export const findHealthcareProfessionals = async (filters: FindProfessionalsFilters) => {
     const {
@@ -36,9 +37,9 @@ export const findHealthcareProfessionals = async (filters: FindProfessionalsFilt
         sortBy
     } = filters;
 
-    // Base query for healthcare professionals
+    // Base query for active healthcare professionals
     const baseQuery: any = {
-        role: { $in: ['doctor', 'nurse'] }, // Only doctors and nurses
+        role: { $in: ['doctor', 'nurse'] },
         isDeleted: false,
         isVerified: true,
         'roleStatus.isActive': true,
@@ -60,271 +61,221 @@ export const findHealthcareProfessionals = async (filters: FindProfessionalsFilt
         baseQuery['healthcareProfile.stats.averageRating'] = { $gte: minRating };
     }
 
-    // Availability filter
-    if (availability) {
-        baseQuery['healthcareProfile.availability.isAvailable'] = true;
-        baseQuery.isOnline = true;
-    }
+    // // Availability filter - prioritize available professionals
+    // if (availability) {
+    //     baseQuery['healthcareProfile.availability.isAvailable'] = true;
+    //     baseQuery.isOnline = true;
+    // }
 
-    let sort: any = {};
-    switch (sortBy) {
-        case 'rating':
-            sort = { 'healthcareProfile.stats.averageRating': -1 };
-            break;
-        case 'experience':
-            sort = { 'healthcareProfile.specializations.yearsOfExperience': -1 };
-            break;
-        case 'distance':
-            // Will be handled in geo query
-            sort = { distance: 1 };
-            break;
-        default:
-            sort = { 'healthcareProfile.stats.averageRating': -1 };
-    }
+    // Enhanced cascading search with multiple levels
+    const searchResults = await performCascadingSearch(baseQuery, location, coordinates, {
+        page: Number(page),
+        limit: Number(limit),
+        sortBy: sortBy as string
+    });
 
-    // 🔥 CASCADING LOCATION SEARCH LOGIC
-    const searchLocations = await buildCascadingLocationQueries(baseQuery, location, coordinates);
+    return {
+        professionals: searchResults.professionals,
+        total: searchResults.total,
+        page,
+        limit,
+        searchLocation: searchResults.usedLocationType,
+        searchScope: searchResults.searchScope
+    };
+};
 
+// Enhanced cascading search implementation
+const performCascadingSearch = async (
+    baseQuery: any,
+    location?: { city?: string; state?: string; country?: string },
+    coordinates?: { latitude: number; longitude: number; maxDistance: number },
+    options: { page: number; limit: number; sortBy: string } = { page: 1, limit: 20, sortBy: 'rating' }
+) => {
+    const { page, limit, sortBy } = options;
+
+    const searchLevels = await buildSearchLevels(baseQuery, location, coordinates);
     let professionals: any[] = [];
     let total = 0;
-    let usedLocationType = 'worldwide'; // Track which location level we used
+    let usedLocationType = 'global';
+    let searchScope = 'global';
 
-    // Try each location level until we find professionals
-    for (const locationQuery of searchLocations) {
-        const { query, locationType, geoPipeline } = locationQuery;
+    const MIN_RESULTS_TO_STOP = 5; // Don't stop cascading unless we have at least 5 pros
 
+    for (const level of searchLevels) {
         try {
-            if (geoPipeline) {
-                // Geo-spatial search with coordinates
-                const result = await User.aggregate([
-                    ...geoPipeline,
-                    { $sort: sortBy === 'distance' ? { distance: 1 } : sort },
-                    { $skip: (page - 1) * limit },
-                    { $limit: limit },
-                    {
-                        $project: {
-                            password: 0,
-                            'sessions.token': 0,
-                            passwordResetOtp: 0,
-                            passwordResetOtpExpires: 0
-                        }
-                    }
-                ]);
+            const result = await executeSearchQuery(level.query, level.sort || getSortCriteria(sortBy), page, limit * 3, level.aggregation);
 
-                if (result.length > 0) {
-                    professionals = result;
-                    total = await User.countDocuments(query);
-                    usedLocationType = locationType;
-                    break; // Found professionals, stop searching
-                }
-            } else {
-                // Text-based location search
-                const result = await User.find(query)
-                    .select('-password -sessions.token -passwordResetOtp -passwordResetOtpExpires')
-                    .sort(sort)
-                    .skip((page - 1) * limit)
-                    .limit(limit)
-                    .lean<IUserLean[]>();
+            if (result.professionals.length > 0) {
+                professionals = result.professionals;
+                total = result.total;
+                usedLocationType = level.locationType;
+                searchScope = level.scope;
 
-                if (result.length > 0) {
-                    professionals = result;
-                    total = await User.countDocuments(query);
-                    usedLocationType = locationType;
-                    break; // Found professionals, stop searching
+                // ONLY stop early if we have enough results
+                if (professionals.length >= MIN_RESULTS_TO_STOP) {
+                    break;
                 }
+                // Otherwise: continue to broader search to collect more
             }
         } catch (error) {
-            console.error(`Error searching in ${locationType}:`, error);
-            // Continue to next location level
-            continue;
+            console.error(`Error searching in ${level.locationType}:`, error);
         }
     }
 
-    // If still no professionals found, get any healthcare professionals worldwide
-    if (professionals.length === 0) {
-        professionals = await User.find(baseQuery)
+    // Final fallback: always get global if still too few
+    if (professionals.length < MIN_RESULTS_TO_STOP) {
+        const fallback = await executeSearchQuery(baseQuery, getSortCriteria(sortBy), 1, limit * 5);
+        const globalPros = fallback.professionals.filter((p: any) =>
+            !professionals.some(existing => existing.id === p.id)
+        );
+
+        professionals = [...professionals, ...globalPros].slice(0, limit);
+        total = professionals.length;
+        usedLocationType = professionals.length > 0 ? usedLocationType : 'global';
+        searchScope = 'mixed';
+    }
+
+    return {
+        professionals,
+        total,
+        usedLocationType,
+        searchScope: searchScope === 'mixed' ? 'country' : searchScope
+    };
+};
+
+// Build search levels from most specific to broadest
+const buildSearchLevels = async (
+    baseQuery: any,
+    location?: { city?: string; state?: string; country?: string },
+    coordinates?: { latitude: number; longitude: number; maxDistance: number }
+) => {
+    const levels = [];
+
+    // 1. NEARBY + HIGH RATED (Fastest win — most users want this)
+    if (coordinates) {
+        levels.push({
+            query: { ...baseQuery },
+            locationType: 'nearby',
+            scope: 'local_area',
+            sort: getSortCriteria('rating', true),
+            aggregation: [
+                {
+                    $geoNear: {
+                        near: { type: 'Point', coordinates: [coordinates.longitude, coordinates.latitude] },
+                        distanceField: 'distance',
+                        maxDistance: 50 * 1000, // 50km
+                        spherical: true,
+                        query: baseQuery
+                    }
+                }
+            ]
+        });
+    }
+
+    // 2. Same city (text match)
+    if (location?.city) {
+        const escaped = location.city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        levels.push({
+            query: { ...baseQuery, 'profile.location.city': new RegExp(escaped, 'i') },
+            locationType: 'city',
+            scope: 'city',
+            sort: getSortCriteria('rating')
+        });
+    }
+
+    // 3. Same country (still relevant)
+    if (location?.country) {
+        levels.push({
+            query: { ...baseQuery, 'profile.location.country': new RegExp(location.country, 'i') },
+            locationType: 'country',
+            scope: 'country',
+            sort: getSortCriteria('rating')
+        });
+    }
+
+    // 4. Global fallback (always works)
+    levels.push({
+        query: baseQuery,
+        locationType: 'global',
+        scope: 'global',
+        sort: getSortCriteria('rating')
+    });
+
+    return levels;
+};
+
+// Execute search query with proper sorting and pagination
+const executeSearchQuery = async (
+    query: any,
+    sort: any,
+    page: number,
+    limit: number,
+    aggregation?: any[]
+) => {
+    let professionals: any[] = [];
+    let total = 0;
+
+    if (aggregation) {
+        // Use aggregation pipeline for geo queries
+        const pipeline = [
+            ...aggregation,
+            { $sort: sort },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            {
+                $project: {
+                    password: 0,
+                    'sessions.token': 0,
+                    passwordResetOtp: 0,
+                    passwordResetOtpExpires: 0
+                }
+            }
+        ];
+
+        professionals = await User.aggregate(pipeline);
+        total = await User.countDocuments(query);
+    } else {
+        // Regular query
+        professionals = await User.find(query)
             .select('-password -sessions.token -passwordResetOtp -passwordResetOtpExpires')
             .sort(sort)
             .skip((page - 1) * limit)
             .limit(limit)
             .lean<IUserLean[]>();
 
-        total = await User.countDocuments(baseQuery);
-        usedLocationType = 'worldwide';
+        total = await User.countDocuments(query);
     }
 
     return {
         professionals: professionals.map(prof => ({
             ...prof,
             id: prof._id.toString(),
-            _id: undefined,
-            searchLocation: usedLocationType // Add which location level was used
+            _id: undefined
         })),
-        total,
-        page,
-        limit,
-        searchLocation: usedLocationType // Metadata about search scope
+        total
     };
 };
 
-// 🔥 Build cascading location queries from most specific to broadest
-const buildCascadingLocationQueries = async (
-    baseQuery: any,
-    location?: { city?: string; state?: string; country?: string },
-    coordinates?: { latitude: number; longitude: number; maxDistance: number }
-) => {
-    const locationQueries: Array<{
-        query: any;
-        locationType: string;
-        geoPipeline?: any[];
-    }> = [];
+// Get sort criteria based on user preference
+const getSortCriteria = (sortBy: string, hasDistance = false) => {
+    const baseSort = {
+        'healthcareProfile.stats.averageRating': -1,
+        'healthcareProfile.stats.totalRatings': -1,     // More ratings = more trusted
+        'healthcareProfile.availability.isAvailable': -1, // Soft boost for available
+        createdAt: -1
+    };
 
-    // If we have coordinates, prioritize geo-spatial search
-    if (coordinates && coordinates.latitude && coordinates.longitude) {
-        // 1. Exact coordinates with small radius (5km)
-        locationQueries.push({
-            query: { ...baseQuery },
-            locationType: 'exact_location',
-            geoPipeline: [
-                {
-                    $geoNear: {
-                        near: {
-                            type: 'Point',
-                            coordinates: [coordinates.longitude, coordinates.latitude]
-                        },
-                        distanceField: 'distance',
-                        maxDistance: 5000, // 5km
-                        spherical: true,
-                        query: baseQuery
-                    }
-                }
-            ]
-        });
-
-        // 2. Broader radius (25km)
-        locationQueries.push({
-            query: { ...baseQuery },
-            locationType: 'nearby_cities',
-            geoPipeline: [
-                {
-                    $geoNear: {
-                        near: {
-                            type: 'Point',
-                            coordinates: [coordinates.longitude, coordinates.latitude]
-                        },
-                        distanceField: 'distance',
-                        maxDistance: 25000, // 25km
-                        spherical: true,
-                        query: baseQuery
-                    }
-                }
-            ]
-        });
-
-        // 3. Even broader radius (100km)
-        locationQueries.push({
-            query: { ...baseQuery },
-            locationType: 'regional',
-            geoPipeline: [
-                {
-                    $geoNear: {
-                        near: {
-                            type: 'Point',
-                            coordinates: [coordinates.longitude, coordinates.latitude]
-                        },
-                        distanceField: 'distance',
-                        maxDistance: coordinates.maxDistance * 1000, // Use provided max distance
-                        spherical: true,
-                        query: baseQuery
-                    }
-                }
-            ]
-        });
+    if (hasDistance) {
+        return { distance: 1, ...baseSort }; // Closest first
     }
 
-    // Text-based location cascading (if location data provided)
-    if (location) {
-        // 4. Exact city match
-        if (location.city) {
-            locationQueries.push({
-                query: {
-                    ...baseQuery,
-                    'profile.location.city': new RegExp(`^${location.city}$`, 'i')
-                },
-                locationType: 'exact_city'
-            });
-        }
-
-        // 5. City contains (broader city search)
-        if (location.city) {
-            locationQueries.push({
-                query: {
-                    ...baseQuery,
-                    'profile.location.city': new RegExp(location.city, 'i')
-                },
-                locationType: 'similar_cities'
-            });
-        }
-
-        // 6. State level
-        if (location.state) {
-            locationQueries.push({
-                query: {
-                    ...baseQuery,
-                    'profile.location.state': new RegExp(location.state, 'i')
-                },
-                locationType: 'state'
-            });
-        }
-
-        // 7. Country level
-        if (location.country) {
-            locationQueries.push({
-                query: {
-                    ...baseQuery,
-                    'profile.location.country': new RegExp(location.country, 'i')
-                },
-                locationType: 'country'
-            });
-        }
-
-        // 8. Continent level (simplified - you might want to map countries to continents)
-        if (location.country) {
-            // For Nigeria, search nearby African countries
-            const africanCountries = ['nigeria', 'ghana', 'kenya', 'south africa', 'egypt'];
-            if (africanCountries.includes(location.country.toLowerCase())) {
-                locationQueries.push({
-                    query: {
-                        ...baseQuery,
-                        'profile.location.country': {
-                            $in: africanCountries.map(country => new RegExp(country, 'i'))
-                        }
-                    },
-                    locationType: 'continent'
-                });
-            }
-        }
-    }
-
-    // 9. National level (all professionals in the country if we have country info)
-    if (location?.country) {
-        locationQueries.push({
-            query: {
-                ...baseQuery,
-                'profile.location.country': new RegExp(location.country, 'i')
-            },
-            locationType: 'national'
-        });
-    }
-
-    return locationQueries;
+    return baseSort;
 };
 
 
 export const getProfessionalProfile = async (professionalId: string) => {
     const professional = await User.findById(professionalId)
         .select('-password -sessions.token -email -phoneNumber')
-        .populate('healthcareProfile.certifications.verifiedBy', 'name')
         .lean<IUserLean>();
 
     if (!professional) throw new Error('Professional not found');
@@ -334,12 +285,22 @@ export const getProfessionalProfile = async (professionalId: string) => {
     const ratings = await Rating.find({ professionalId })
         .populate('userId', 'name')
         .sort({ createdAt: -1 })
-        .limit(10);
+        .limit(10)
+        .lean();
 
     return {
         ...professional,
         id: professional._id.toString(),
         _id: undefined,
-        recentRatings: ratings
+        recentRatings: ratings.map(r => ({
+            ...r,
+            id: r._id.toString(),
+            _id: undefined,
+            userId: r.userId ? {
+                ...r.userId,
+                id: r.userId._id.toString(),
+                _id: undefined
+            } : null
+        }))
     };
 };

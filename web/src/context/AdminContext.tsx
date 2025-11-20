@@ -101,6 +101,7 @@ interface AdminContextProps {
     approve: boolean,
     adminNote?: string
   ) => Promise<User>;
+  updateUserProfile: (userId: string, updates: Partial<User>) => Promise<User>;
 }
 
 const AdminContext = createContext<AdminContextProps | undefined>(undefined);
@@ -241,6 +242,18 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     return user;
   };
 
+  /** --------- update user profile ------------ */
+  const updateUserProfile = async (userId: string, updates: Partial<User>): Promise<User> => {
+    ensureAdmin();
+    const user = await apiFetch<User>(`/admin/users/${userId}/profile`, {
+      method: 'PATCH',
+      body: updates,
+    });
+    toast.success('Profile updated');
+    await fetchUsers(); // refresh list
+    return user;
+  };
+
   /* ---------- Auto-load on mount (if admin) ---------- */
   useEffect(() => {
     if (auth.isReady && auth.isAuth && auth.user?.role === 'admin') {
@@ -269,6 +282,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         deleteUser,
         getUserProfile,
         handleRoleRequest,
+        updateUserProfile
       }}
     >
       {children}

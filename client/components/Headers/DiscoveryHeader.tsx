@@ -13,12 +13,23 @@ interface DiscoveryHeaderProps {
     state: string;
     country: string;
   } | null;
+  isLoadingLocation?: boolean;
 }
 
-export default function DiscoveryHeader({ onFilterPress, onLocationPress, location }: DiscoveryHeaderProps) {
-  const displayLocation = location
-    ? `${location.city}, ${location.country}`
-    : 'Getting location...';
+export default function DiscoveryHeader({ onFilterPress, onLocationPress, location, isLoadingLocation = false }: DiscoveryHeaderProps) {
+  const getLocationText = () => {
+    if (isLoadingLocation) return 'Detecting your location...';
+    if (!location) return 'Tap to set location';
+
+    const city = location.city;
+    const isPlaceholder = city === 'Nearby Area' || city === 'Your Area' || !city;
+
+    return isPlaceholder
+      ? 'Tap to detect location'
+      : `${city}, ${location.country}`;
+  };
+
+  const displayText = getLocationText();
 
   // Animation Value
   const rotation = useRef(new Animated.Value(0)).current;
@@ -72,7 +83,7 @@ export default function DiscoveryHeader({ onFilterPress, onLocationPress, locati
         <LocationIcon width={hp(2.2)} height={hp(2.2)} color="#8089ff" />
 
         <Text style={styles.targetStyleText} numberOfLines={1}>
-          {displayLocation}
+          {displayText}
         </Text>
 
         {/* Animated refresh icon */}

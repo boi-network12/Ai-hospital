@@ -66,7 +66,6 @@ export const updateUserRole = async (req: AuthRequest, res: Response) => {
     });
 
     res.json(user);
-    res.json(user);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
   }
@@ -290,6 +289,59 @@ export const updateProfessionalDetails = async (req: AuthRequest, res: Response)
     });
 
     res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/** --------- update user profile -------------------- */
+
+export const updateUserProfile = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const updates = req.body;
+
+  // Prevent updating these fields via this endpoint
+  const disallowedFields = ['password', 'avatar', 'sessions', 'passwordResetOtp', 'passwordResetOtpExpires', '_id', 'email'];
+  for (const field of disallowedFields) {
+    if (updates[field] !== undefined) {
+      return res.status(400).json({ message: `Cannot update ${field} via this endpoint` });
+    }
+  }
+
+  try {
+    // Find user first
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Apply updates deeply (supports nested objects)
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updates, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    ).select('-password -sessions.token -passwordResetOtp -passwordResetOtpExpires');
+
+    // Send notification about profile update
+    await notificationService.sendNotification({
+      userId,
+      type: 'profile_update',
+      title: 'Profile Updated by Admin',
+      message: 'An administrator has updated your profile. You can now log in with your credentials.',
+      priority: 'high',
+      actionUrl: '/login',
+      data: {
+        updatedBy: req.user._id,
+        updatedAt: new Date(),
+        changes: Object.keys(updates),
+      },
+    });
+
+    // Optional: Send email with login credentials if email/password were just set
+    if (updates.email || updates.tempPassword) {
+      // You can send email here using your email service
+      // e.g., sendWelcomeEmail(user.email, updates.tempPassword || 'their password')
+    }
+
+    res.json(updatedUser);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
   }

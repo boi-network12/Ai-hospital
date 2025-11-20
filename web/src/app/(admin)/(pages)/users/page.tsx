@@ -8,22 +8,35 @@ import { CreateUserModal } from '../../components/users/CreateUserModal';
 import { UserProfileModal } from '../../components/users/UserProfileModal';
 import { UsersTable } from '../../components/users/UsersTable';
 import { User } from '@/types/auth';
+import { UpdateUserModal } from '../../components/users/UpdateUserModal';
 
 
 export default function UsersPage() {
-  const { getUserProfile } = useAdmin();
+  const { getUserProfile, fetchUsers } = useAdmin();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [updateUser, setUpdateUser] = useState<User | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   const viewProfile = async (userId: string) => {
     try {
       const profile = await getUserProfile(userId);
       setSelectedUser(profile);
     } catch (error: any) {
-        console.error('View profile error:', error);
-        toast.error(error.message || 'Failed to load profile');
-      }
+      console.error('View profile error:', error);
+      toast.error(error.message || 'Failed to load profile');
+    }
+  };
+
+  const handleUpdateUser = (user: User) => {
+    setUpdateUser(user);
+    setShowUpdateModal(true);
+  };
+
+  const handleUpdateSuccess = () => {
+    // Refresh the users list after successful update
+    fetchUsers();
   };
 
   return (
@@ -49,7 +62,10 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <UsersTable onViewProfile={viewProfile} />
+      <UsersTable
+        onViewProfile={viewProfile}
+        onUpdateUser={handleUpdateUser}
+      />
 
       {/* Modals */}
       <CreateUserModal
@@ -60,6 +76,16 @@ export default function UsersPage() {
       <UserProfileModal
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
+      />
+
+      <UpdateUserModal
+        user={updateUser}
+        isOpen={showUpdateModal}
+        onClose={() => {
+          setShowUpdateModal(false);
+          setUpdateUser(null);
+        }}
+        onSuccess={handleUpdateSuccess}
       />
     </>
   );

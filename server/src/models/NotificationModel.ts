@@ -30,7 +30,17 @@ const NotificationSchema = new Schema<INotification>({
   },
   type: {
     type: String,
-    enum: ['system', 'message', 'appointment', 'role_approval', 'security', 'medical'],
+    enum: [
+      'system',
+      'message',
+      'appointment',
+      'role_approval',
+      'security',
+      'medical',
+      'certification_update',
+      'certification_verification',
+      'profile_update'
+    ],
     required: true,
   },
   title: {

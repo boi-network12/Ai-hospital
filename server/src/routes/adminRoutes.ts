@@ -27,4 +27,7 @@ router.patch('/users/:userId/certifications', adminCtrl.updateHealthcareCertific
 router.patch('/users/:userId/certifications/:certificationId/verify', adminCtrl.verifyCertification);
 router.patch('/users/:userId/professional-details', adminCtrl.updateProfessionalDetails);
 
+// Add this line with your other admin routes
+router.patch('/users/:userId/profile', adminCtrl.updateUserProfile);
+
 export default router;

@@ -20,7 +20,12 @@ interface HealthcareState {
     filters: ProfessionalsFilter;
     ratings: IRating[];
     tips: ITip[];
+    cache: {
+        professionals: Map<string, HealthcareProfessional[]>;
+        lastFetch: number;
+    };
 }
+
 
 type Action =
     | { type: 'SET_PROFESSIONALS'; payload: HealthcareProfessional[] }
@@ -32,6 +37,7 @@ type Action =
     | { type: 'ADD_RATING'; payload: IRating }
     | { type: 'ADD_TIP'; payload: ITip }
     | { type: 'UPDATE_PROFESSIONAL'; payload: HealthcareProfessional }
+    | { type: 'UPDATE_CACHE'; payload: { professionals: Map<string, HealthcareProfessional[]>; lastFetch: number } }
     | { type: 'RESET' };
 
 const initialState: HealthcareState = {
@@ -49,7 +55,26 @@ const initialState: HealthcareState = {
         sortBy: 'rating'
     },
     ratings: [],
-    tips: []
+    tips: [],
+    cache: {
+        professionals: new Map(),
+        lastFetch: 0
+    }
+};
+
+const generateCacheKey = (filters: Partial<ProfessionalsFilter>): string => {
+    return JSON.stringify({
+        city: filters.city,
+        state: filters.state,
+        country: filters.country,
+        role: filters.role,
+        specialization: filters.specialization,
+        minRating: filters.minRating,
+        sortBy: filters.sortBy,
+        latitude: filters.latitude,
+        longitude: filters.longitude,
+        maxDistance: filters.maxDistance
+    });
 };
 
 function healthcareReducer(state: HealthcareState, action: Action): HealthcareState {
@@ -79,6 +104,14 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
                 selectedProfessional: state.selectedProfessional?.id === action.payload.id
                     ? action.payload
                     : state.selectedProfessional
+            };
+        case 'UPDATE_CACHE':
+            return {
+                ...state,
+                cache: {
+                    professionals: action.payload.professionals,
+                    lastFetch: action.payload.lastFetch
+                }
             };
         case 'RESET':
             return initialState;
@@ -117,11 +150,35 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         try {
             dispatch({ type: 'SET_LOADING', payload: true });
 
-            const queryParams = new URLSearchParams();
             const effectiveFilters = { ...healthcare.filters, ...filters };
+            const cacheKey = generateCacheKey(effectiveFilters);
+            const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+            // Check cache
+            const now = Date.now();
+            const cachedData = healthcare.cache.professionals.get(cacheKey);
+
+            if (cachedData && (now - healthcare.cache.lastFetch) < CACHE_DURATION) {
+                dispatch({ type: 'SET_PROFESSIONALS', payload: cachedData });
+                dispatch({ type: 'SET_FILTERS', payload: effectiveFilters });
+                return;
+            }
+
+            // Build query params for cascading search
+            const queryParams = new URLSearchParams();
+
+            // Location data for cascading search
+            if (effectiveFilters.city) queryParams.append('city', effectiveFilters.city);
+            if (effectiveFilters.state) queryParams.append('state', effectiveFilters.state);
+            if (effectiveFilters.country) queryParams.append('country', effectiveFilters.country);
+            if (effectiveFilters.latitude) queryParams.append('latitude', effectiveFilters.latitude.toString());
+            if (effectiveFilters.longitude) queryParams.append('longitude', effectiveFilters.longitude.toString());
+            if (effectiveFilters.maxDistance) queryParams.append('maxDistance', effectiveFilters.maxDistance.toString());
+
+            // Other filters
             Object.entries(effectiveFilters).forEach(([key, value]) => {
-                if (value !== undefined && value !== '' && value !== null) {
+                if (value !== undefined && value !== '' && value !== null &&
+                    !['city', 'state', 'country', 'latitude', 'longitude', 'maxDistance'].includes(key)) {
                     queryParams.append(key, value.toString());
                 }
             });
@@ -129,14 +186,33 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
             const endpoint = `/healthcare/professionals?${queryParams.toString()}`;
             const data = await apiFetch<ProfessionalsResponse>(endpoint);
 
+            // Update cache
+            const newCache = new Map(healthcare.cache.professionals);
+            newCache.set(cacheKey, data.professionals);
+
             dispatch({ type: 'SET_PROFESSIONALS', payload: data.professionals });
             dispatch({ type: 'SET_FILTERS', payload: effectiveFilters });
+            dispatch({
+                type: 'UPDATE_CACHE',
+                payload: {
+                    professionals: newCache,
+                    lastFetch: now
+                }
+            });
+
+            if (data.message) {
+                showAlert({
+                    message: data.message,
+                    type: 'info',
+                    duration: 3000
+                });
+            }
         } catch (err: any) {
             handleError('Failed to fetch professionals', err);
         } finally {
             dispatch({ type: 'SET_LOADING', payload: false });
         }
-    }, [healthcare.filters]);
+    }, [healthcare.filters, healthcare.cache, showAlert]);
 
     /* ---------- Get professional profile ---------- */
     const getProfessionalProfile = async (professionalId: string) => {

@@ -50,7 +50,11 @@ export const getHealthcareProfessionals = async (req: Request, res: Response) =>
 
         res.json({
             ...professionals,
-            message: getSearchLocationMessage(professionals.searchLocation, location)
+            message: getSearchLocationMessage(
+                professionals.searchLocation,
+                professionals.searchScope,
+                location
+            )
         });
     } catch (error: any) {
         res.status(400).json({ message: error.message });
@@ -58,22 +62,22 @@ export const getHealthcareProfessionals = async (req: Request, res: Response) =>
 };
 
 // Helper function to generate user-friendly search messages
-const getSearchLocationMessage = (searchLocation: string, location: any) => {
-    const messages: { [key: string]: string } = {
+const getSearchLocationMessage = (searchLocation: string, searchScope: string, location: any) => {
+    const scopeMessages: { [key: string]: string } = {
         exact_location: `Showing professionals at your exact location`,
-        nearby_cities: `Showing professionals near your location`,
+        local_area: `Showing professionals in your local area`,
         regional: `Showing professionals in your region`,
-        exact_city: `Showing professionals in ${location.city}`,
-        similar_cities: `Showing professionals in areas similar to ${location.city}`,
-        state: `Showing professionals in ${location.state} state`,
-        country: `Showing professionals in ${location.country}`,
-        continent: `Showing professionals in your continent`,
-        national: `Showing professionals nationwide in ${location.country}`,
-        worldwide: `Showing professionals worldwide`
+        city: `Showing professionals in ${location?.city || 'your city'}`,
+        city_area: `Showing professionals in areas similar to ${location?.city || 'your area'}`,
+        state: `Showing professionals throughout ${location?.state || 'your state'}`,
+        country: `Showing professionals across ${location?.country || 'your country'}`,
+        continental: `Showing professionals in your continent`,
+        global: `Showing healthcare professionals worldwide`
     };
 
-    return messages[searchLocation] || 'Showing healthcare professionals';
+    return scopeMessages[searchScope] || 'Showing healthcare professionals';
 };
+
 
 /* ---------- Get professional profile ---------- */
 export const getProfessionalProfile = async (req: Request, res: Response) => {

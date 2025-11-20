@@ -257,6 +257,7 @@ export const getNotificationStats = async (userId: string): Promise<INotificatio
       medical: 0,
       certification_update: 0,
       certification_verification: 0,
+      profile_update: 0,
     },
   };
 

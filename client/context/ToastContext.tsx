@@ -7,6 +7,7 @@ type ToastType = "info" | "success" | "error" | "warning";
 interface ToastOptions {
   message: string;
   type?: ToastType;
+  duration?: number;
 }
 
 interface ToastContextProps {

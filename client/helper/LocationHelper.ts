@@ -10,6 +10,24 @@ export interface LocationData {
     longitude?: number;
 }
 
+// This will be injected from your user context
+let userProfileLocation: LocationData | null = null;
+
+export const setUserProfileLocation = (location: LocationData | null) => {
+    userProfileLocation = location;
+};
+
+const getSmartDefaultLocation = (): LocationData => {
+    if (userProfileLocation) {
+        return {
+            city: userProfileLocation.city || 'Your Area',
+            state: userProfileLocation.state || '',
+            country: userProfileLocation.country || 'Nigeria',
+        };
+    }
+    return { city: 'Nearby Area', state: '', country: 'Nigeria' };
+};
+
 // Check if Geolocation service is available
 const isGeolocationAvailable = () => {
     return true;
@@ -65,15 +83,64 @@ export const getCurrentLocation = async (): Promise<LocationData> => {
  */
 export const getLocationWithPermission = async (): Promise<LocationData | null> => {
     try {
-        const hasPermission = await requestLocationPermission();
-        if (!hasPermission) return getDefaultLocation();
-        return await getCurrentLocation();
+        // 1. Try last known location first (INSTANT — usually <100ms)
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown) {
+            console.log('Using cached location (instant)');
+            return await reverseGeocode(lastKnown.coords.latitude, lastKnown.coords.longitude);
+        }
+
+        // 2. Request permission + fresh location with timeout
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return null;
+
+        const locationPromise = Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced, // Fast + accurate enough
+        });
+
+        const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 4000)
+        );
+
+        const location = await Promise.race([locationPromise, timeoutPromise]).catch(() => null);
+        if (!location?.coords) return null;
+
+        return await reverseGeocode(location.coords.latitude, location.coords.longitude);
     } catch (error) {
-        console.error('Failed to get location:', error);
-        return getDefaultLocation();
+        console.warn('Location failed:', error);
+        return null;
     }
 };
 
+// Fast reverse geocoding with fallback
+const reverseGeocode = async (lat: number, lon: number): Promise<LocationData> => {
+    try {
+        const response = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+            { signal: AbortSignal.timeout(3000) }
+        );
+        const data = await response.json();
+
+        return {
+            city: data.city || data.locality || 'Nearby Area',
+            state: data.principalSubdivision || '',
+            country: data.countryName || 'Nigeria',
+            latitude: lat,
+            longitude: lon,
+        };
+    } catch {
+        return {
+            city: 'Nearby Area',
+            state: '',
+            country: 'Nigeria',
+            latitude: lat,
+            longitude: lon,
+        };
+    }
+};
+
+// Export default fallback (used when location denied or failed)
+export const getFallbackLocation = (): LocationData => getSmartDefaultLocation();
 
 /**
  * Get default location (fallback)

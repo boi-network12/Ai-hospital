@@ -9,7 +9,8 @@ export type NotificationType =
   | 'security'
   | 'medical'
   | 'certification_update'
-  | 'certification_verification';
+  | 'certification_verification'
+  | 'profile_update';
 
 export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 

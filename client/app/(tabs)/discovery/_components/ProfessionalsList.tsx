@@ -1,294 +1,231 @@
-// components/DiscoveryComponents/ProfessionalsList.tsx
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
-import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { HealthcareProfessional } from '@/types/auth.d';
+import React, { useRef, useEffect } from "react";
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    TouchableOpacity,
+    Image,
+    Animated,
+    useWindowDimensions,
+} from "react-native";
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
+import { HealthcareProfessional } from "@/types/auth.d";
+
 import StarIcon from "@/assets/Svgs/star.svg";
 import LocationPinIcon from "@/assets/Svgs/locate.svg";
 import ClockIcon from "@/assets/Svgs/clock.svg";
+import VerifiedIcon from "@/assets/Svgs/badge-check.svg";
+import { useRouter } from "expo-router";
 
 interface ProfessionalsListProps {
     professionals: HealthcareProfessional[];
-    location?: {
-        city: string;
-        state: string;
-        country: string;
-    } | null;
-    onProfessionalPress?: (professional: HealthcareProfessional) => void;
 }
 
-export default function ProfessionalsList({
-    professionals,
-    location,
-    onProfessionalPress
-}: ProfessionalsListProps) {
+export default function ProfessionalsList({ professionals }: ProfessionalsListProps) {
+    const router = useRouter();
+    const { width } = useWindowDimensions();
+    const isTablet = width > 768;
+    const numColumns = isTablet ? 3 : 2;
 
-    const renderProfessionalItem = ({ item }: { item: HealthcareProfessional }) => (
-        <TouchableOpacity
-            style={styles.professionalCard}
-            onPress={() => onProfessionalPress?.(item)}
-            activeOpacity={0.8}
-        >
-            {/* Avatar */}
-            <View style={styles.avatarContainer}>
-                {item.profile?.avatar ? (
-                    <Image
-                        source={{ uri: item.profile.avatar }}
-                        style={styles.avatar}
-                    />
-                ) : (
-                    <View style={styles.avatarPlaceholder}>
-                        <Text style={styles.avatarText}>
-                            {item.name.charAt(0).toUpperCase()}
+    const animationValues = useRef(professionals.map(() => new Animated.Value(0))).current;
+
+    useEffect(() => {
+        Animated.stagger(
+            150,
+            animationValues.map((anim) =>
+                Animated.timing(anim, {
+                    toValue: 1,
+                    duration: 500,
+                    useNativeDriver: true,
+                })
+            )
+        ).start();
+    }, [professionals]);
+
+    const handleProfessionalPress = (professional: HealthcareProfessional) => {
+        router.push(`/medical/${professional.id}`);
+    };
+
+    const renderProfessionalItem = ({ item, index }: { item: HealthcareProfessional; index: number }) => {
+        const scale = animationValues[index].interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.9, 1],
+        });
+
+        return (
+            <Animated.View style={{ transform: [{ scale }], opacity: animationValues[index] }}>
+                <TouchableOpacity style={styles.card} onPress={() => handleProfessionalPress(item)} activeOpacity={0.9}>
+                    {/* Avatar Section */}
+                    <View style={styles.avatarContainer}>
+                        {item.profile?.avatar ? (
+                            <Image source={{ uri: item.profile.avatar }} style={styles.avatar} />
+                        ) : (
+                            <View style={styles.avatarPlaceholder}>
+                                <Text style={styles.avatarText}>{item.name?.charAt(0).toUpperCase()}</Text>
+                            </View>
+                        )}
+                        {item.healthcareProfile?.isVerified && (
+                            <View style={styles.verifiedBadge}>
+                                <VerifiedIcon width={hp(1.5)} height={hp(1.5)} fill="#fff" />
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Name */}
+                    <Text style={styles.name} numberOfLines={1}>
+                        {item.name}
+                    </Text>
+
+                    {/* Role */}
+                    <Text style={styles.role} numberOfLines={1}>
+                        {item.role === "doctor"
+                            ? "Medical Doctor"
+                            : item.role === "nurse"
+                                ? "Registered Nurse"
+                                : "Healthcare Professional"}
+                    </Text>
+
+                    {/* Rating */}
+                    <View style={styles.infoRow}>
+                        <StarIcon width={hp(1.5)} height={hp(1.5)} fill="#FFC107" />
+                        <Text style={styles.rating}>
+                            {item.healthcareProfile?.stats?.averageRating?.toFixed(1) || "0.0"}
+                        </Text>
+                        <Text style={styles.ratingCount}>
+                            ({item.healthcareProfile?.stats?.totalRatings || 0})
                         </Text>
                     </View>
-                )}
 
-                {/* Online Status */}
-                {item.healthcareProfile?.isOnline && (
-                    <View style={styles.onlineIndicator} />
-                )}
-            </View>
-
-            {/* Info */}
-            <View style={styles.infoContainer}>
-                <Text style={styles.name} numberOfLines={1}>
-                    {item.name}
-                </Text>
-
-                <Text style={styles.role}>
-                    {item.role === 'doctor' ? 'Medical Doctor' : 'Registered Nurse'}
-                    {item.healthcareProfile?.specializations?.[0] &&
-                        ` • ${item.healthcareProfile.specializations[0].name}`
-                    }
-                </Text>
-
-                {/* Rating */}
-                <View style={styles.ratingContainer}>
-                    <StarIcon width={hp(1.5)} height={hp(1.5)} color="#FFD700" />
-                    <Text style={styles.rating}>
-                        {item.healthcareProfile?.stats?.averageRating?.toFixed(1) || '0.0'}
-                    </Text>
-                    <Text style={styles.ratingCount}>
-                        ({item.healthcareProfile?.stats?.totalRatings || 0})
-                    </Text>
-                </View>
-
-                {/* Location & Distance */}
-                <View style={styles.locationContainer}>
-                    <LocationPinIcon width={hp(1.5)} height={hp(1.5)} color="#666" />
-                    <Text style={styles.location} numberOfLines={1}>
-                        {item.profile?.location?.city || 'Unknown location'}
-                        {item.distance && ` • ${item.distance.toFixed(1)}km away`}
-                    </Text>
-                </View>
-
-                {/* Availability */}
-                <View style={styles.availabilityContainer}>
-                    <ClockIcon width={hp(1.5)} height={hp(1.5)} color="#666" />
-                    <Text style={[
-                        styles.availability,
-                        item.healthcareProfile?.availability?.isAvailable
-                            ? styles.available
-                            : styles.unavailable
-                    ]}>
-                        {item.healthcareProfile?.availability?.isAvailable
-                            ? 'Available now'
-                            : 'Not available'
-                        }
-                    </Text>
-                </View>
-
-                {/* Services */}
-                {item.healthcareProfile?.services && item.healthcareProfile.services.length > 0 && (
-                    <View style={styles.servicesContainer}>
-                        <Text style={styles.services} numberOfLines={1}>
-                            {item.healthcareProfile.services.slice(0, 3).join(' • ')}
+                    {/* Location */}
+                    <View style={styles.infoRow}>
+                        <LocationPinIcon width={hp(1.5)} height={hp(1.5)} fill="#6B7280" />
+                        <Text style={styles.location} numberOfLines={1}>
+                            {item.profile?.location?.city || "Unknown"}
                         </Text>
                     </View>
-                )}
-            </View>
 
-            {/* Consultation Fee */}
-            {item.healthcareProfile?.hourlyRate && (
-                <View style={styles.feeContainer}>
-                    <Text style={styles.fee}>
-                        ${item.healthcareProfile.hourlyRate}/hr
-                    </Text>
-                </View>
-            )}
-        </TouchableOpacity>
-    );
+                    {/* Availability */}
+                    <View style={styles.infoRow}>
+                        <ClockIcon width={hp(1.5)} height={hp(1.5)} fill="#6B7280" />
+                        <Text
+                            style={[
+                                styles.availability,
+                                item.healthcareProfile?.availability?.isAvailable ? styles.available : styles.unavailable,
+                            ]}
+                        >
+                            {item.healthcareProfile?.availability?.isAvailable ? "Available" : "Unavailable"}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>
-                    Healthcare Professionals
-                </Text>
-                <Text style={styles.subtitle}>
-                    {professionals.length} found near {location?.city || 'your location'}
-                </Text>
-            </View>
-
-            <FlatList
-                data={professionals}
-                renderItem={renderProfessionalItem}
-                keyExtractor={(item) => item.id}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
-        </View>
+        <FlatList
+            data={professionals}
+            renderItem={renderProfessionalItem}
+            numColumns={numColumns}
+            key={numColumns}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            columnWrapperStyle={styles.columnWrapper}
+        />
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        paddingHorizontal: hp(2),
-    },
-    header: {
-        paddingVertical: hp(2),
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-        marginBottom: hp(1),
-    },
-    title: {
-        fontSize: hp(2.2),
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: hp(0.5),
-    },
-    subtitle: {
-        fontSize: hp(1.6),
-        color: '#666',
-    },
     listContent: {
-        paddingBottom: hp(2),
+        paddingHorizontal: wp(4),
+        paddingVertical: hp(1),
     },
-    professionalCard: {
-        flexDirection: 'row',
-        backgroundColor: '#fff',
-        borderRadius: hp(1.5),
-        padding: hp(1.5),
-        marginVertical: hp(0.5),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
+    columnWrapper: {
+        justifyContent: "space-between",
+    },
+    card: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: hp(1),
+        padding: hp(2),
+        marginBottom: hp(2),
+        width: wp(42),
+        alignSelf: "center",
+        borderWidth: hp(0.05),
+        borderColor: "#E5E7EB",
     },
     avatarContainer: {
-        position: 'relative',
-        marginRight: hp(1.5),
+        alignSelf: "center",
+        marginBottom: hp(1.5),
     },
     avatar: {
-        width: hp(6),
-        height: hp(6),
-        borderRadius: hp(3),
+        width: hp(7),
+        height: hp(7),
+        borderRadius: hp(7) / 2,
     },
     avatarPlaceholder: {
-        width: hp(6),
-        height: hp(6),
-        borderRadius: hp(3),
-        backgroundColor: '#8089ff',
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: hp(7),
+        height: hp(7),
+        borderRadius: hp(7) / 2,
+        backgroundColor: "#E5E7EB",
+        justifyContent: "center",
+        alignItems: "center",
     },
     avatarText: {
-        color: '#fff',
-        fontSize: hp(2),
-        fontWeight: 'bold',
+        fontSize: hp(2.4),
+        fontWeight: "700",
+        color: "#6B7280",
     },
-    onlineIndicator: {
-        position: 'absolute',
+    verifiedBadge: {
+        position: "absolute",
         bottom: 0,
         right: 0,
-        width: hp(1.2),
-        height: hp(1.2),
-        borderRadius: hp(0.6),
-        backgroundColor: '#4CAF50',
-        borderWidth: 2,
-        borderColor: '#fff',
-    },
-    infoContainer: {
-        flex: 1,
+        backgroundColor: "#4F46E5",
+        borderRadius: hp(1),
+        padding: hp(0.3),
+        borderWidth: 1,
+        borderColor: "#fff",
     },
     name: {
-        fontSize: hp(1.8),
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: hp(0.3),
+        fontSize: hp(1.9),
+        fontWeight: "600",
+        textAlign: "center",
+        color: "#111827",
+        marginBottom: hp(0.4),
     },
     role: {
         fontSize: hp(1.5),
-        color: '#666',
-        marginBottom: hp(0.5),
+        color: "#6B7280",
+        textAlign: "center",
+        marginBottom: hp(1),
     },
-    ratingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: hp(0.3),
+    infoRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: hp(0.4),
     },
     rating: {
         fontSize: hp(1.4),
-        fontWeight: '600',
-        color: '#333',
-        marginLeft: hp(0.5),
-        marginRight: hp(0.3),
+        fontWeight: "600",
+        marginLeft: 4,
+        color: "#4B5563",
     },
     ratingCount: {
-        fontSize: hp(1.3),
-        color: '#666',
-    },
-    locationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: hp(0.3),
+        fontSize: hp(1.2),
+        color: "#9CA3AF",
+        marginLeft: 2,
     },
     location: {
         fontSize: hp(1.3),
-        color: '#666',
-        marginLeft: hp(0.5),
+        color: "#4B5563",
+        marginLeft: hp(0.6),
         flex: 1,
-    },
-    availabilityContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: hp(0.5),
     },
     availability: {
         fontSize: hp(1.3),
-        marginLeft: hp(0.5),
-        fontWeight: '500',
+        marginLeft: hp(0.6),
+        fontWeight: "500",
     },
-    available: {
-        color: '#4CAF50',
-    },
-    unavailable: {
-        color: '#F44336',
-    },
-    servicesContainer: {
-        marginTop: hp(0.5),
-    },
-    services: {
-        fontSize: hp(1.2),
-        color: '#888',
-        fontStyle: 'italic',
-    },
-    feeContainer: {
-        justifyContent: 'center',
-        alignItems: 'flex-end',
-    },
-    fee: {
-        fontSize: hp(1.4),
-        fontWeight: 'bold',
-        color: '#8089ff',
-    },
-    separator: {
-        height: 1,
-        backgroundColor: '#f0f0f0',
-        marginVertical: hp(0.5),
-    },
+    available: { color: "#10B981" },
+    unavailable: { color: "#EF4444" },
 });
