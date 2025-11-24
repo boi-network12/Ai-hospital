@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import NetworkLatencyDisplay from '@/config/NetworkLatencyDisplay';
 import { useUser } from '@/Hooks/userHooks.d';
+import { useHydrationData } from '@/Hooks/useHydration.d';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
@@ -19,6 +20,7 @@ const _middleDisplayContent = _MiddleDisplayContent;
 
 export default function HomePage() {
   const { user } = useUser();
+  const hydration = useHydrationData();
 
 
   return (
@@ -70,6 +72,7 @@ export default function HomePage() {
         {/* widget for step, weather, hydration, time to bed */}
         <HomeWidget 
            user={user}
+           hydration={hydration}
         />
       </ScrollView>
     </SafeAreaView>

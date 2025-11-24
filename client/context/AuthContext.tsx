@@ -251,7 +251,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       dispatch({ type: 'LOGOUT' });
       showAlert({ message: 'Logged out successfully', type: 'info' });
-    } catch (err: any) {
+    } catch {
       // Even if something fails, force local logout
       await Promise.all([
         SecureStore.deleteItemAsync('accessToken'),

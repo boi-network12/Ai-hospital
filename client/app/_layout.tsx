@@ -13,6 +13,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { HealthcareProvider } from '@/context/HealthContext';
 import { ProfessionalProvider } from '@/context/ProfessionalContext';
+import { HydrationProvider } from '@/context/HydrationContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -67,7 +68,9 @@ export default function RootLayout() {
             <NotificationProvider>
               <HealthcareProvider>
                 <ProfessionalProvider>
-                  <RootLayoutContent />
+                  <HydrationProvider>
+                    <RootLayoutContent />
+                  </HydrationProvider>
                 </ProfessionalProvider>
               </HealthcareProvider>
             </NotificationProvider>

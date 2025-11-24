@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet } from 'react-native'
-import React, { useEffect, useState, useCallback } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import React, { useEffect, useState } from 'react'
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen'
 import { Accelerometer } from 'expo-sensors'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import {  } from 'expo-router'
- import Constants from 'expo-constants';
+import { router } from 'expo-router'
+import Constants from 'expo-constants';
+import * as Location from 'expo-location';
 import { fetchWithCache } from '@/Utils/api'
 
 import Accessibility from '@/assets/Svgs/accessibility.svg'
@@ -19,23 +20,24 @@ import Water from '@/assets/Svgs/glass-water.svg'
 import Bed from '@/assets/Svgs/bed.svg'
 import { User } from '@/types/auth'
 
-
-// const Weather_Key = '3f4dd97dd74e4e11a49222554231905'
-// const Weather_Key = process.env.WEATHER_API_KEY;
 const Weather_Key = Constants.expoConfig?.extra?.WEATHER_API_KEY;
-const GOAL = Constants.expoConfig?.extra?.GOAL;
+// const GOAL = Constants.expoConfig?.extra?.GOAL;
 
 
 // ✅ Reusable widget component
-const Widget = ({ icon: Icon, title, value, subtitle }: any) => (
-  <View style={styles.widgetContainer}>
+const Widget = ({ icon: Icon, title, value, subtitle, onPress }: any) => (
+  <TouchableOpacity 
+      style={styles.widgetContainer}
+      onPress={onPress}
+      activeOpacity={0.4}
+  >
     <View style={styles.svgContainer}>
       <Icon width={hp(4)} height={hp(3.5)} color="#8089ff" />
     </View>
     <Text style={styles.widgetText}>{title}</Text>
     <Text style={styles.placeholderValue}>{value}</Text>
     <Text style={styles.placeholderSubtext}>{subtitle}</Text>
-  </View>
+  </TouchableOpacity>
 )
 
 const getWeatherIcon = (desc: string) => {
@@ -54,14 +56,25 @@ const getWeatherIcon = (desc: string) => {
 
 interface HomeWidgetProps {
   user: User | null;
+  hydration: any;
 }
 
-export default function HomeWidget({ user }: HomeWidgetProps) {
+export default function HomeWidget({ user, hydration }: HomeWidgetProps) {
   const [steps, setSteps] = useState(0)
   const [temp, setTemp] = useState('—')
   const [desc, setDesc] = useState('Loading…')
-  const [liters, setLiters] = useState(0)
-  const [time, setTime] = useState('—')
+  const [time, setTime] = useState('—');
+  const [weatherCity, setCityForSubtitle] = useState<string>('');
+
+  const handleHydrationPress = () => {
+    router.push('/hydration')
+  }
+
+  // Format hydration data
+  const hydrationValue = `${(hydration.currentIntake / 1000).toFixed(1)} L`
+  const hydrationSubtitle = hydration.isGoalMet 
+    ? 'Goal achieved! 🎉' 
+    : `${hydration.remaining}ml remaining`
 
   /** ----------------------------
    * STEP TRACKER LOGIC
@@ -89,6 +102,94 @@ export default function HomeWidget({ user }: HomeWidgetProps) {
 
     initSteps()
   }, [])
+
+  /** -------------------------- 
+   * WAETHER FETCH LOGIC
+   * ---------------------------*/
+
+  useEffect(() => {
+  let isMounted = true;
+
+  (async () => {
+    try {
+      // 1. Request permission
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        if (isMounted) {
+          setTemp('—');
+          setDesc('Location permission denied');
+          setCityForSubtitle('');
+        }
+        return;
+      }
+
+      setDesc('Getting location…'); // Better UX
+
+      // Increased timeout to 20–25 seconds (realistic for cold GPS)
+      const getLocationWithTimeout = async (opts: Location.LocationOptions, ms: number) => {
+        return Promise.race([
+          Location.getCurrentPositionAsync(opts),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Location request timed out')), ms)
+          ),
+        ]);
+      };
+
+      const location = await getLocationWithTimeout(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          // You can also try High here if needed
+          // accuracy: Location.Accuracy.High,
+          timeInterval: 10000,
+          distanceInterval: 0,
+        },
+        25000 // 25 seconds — much more reliable
+      );
+
+      if (!isMounted) return;
+
+      const { latitude, longitude } = location.coords;
+
+      // Reverse geocode
+      const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const cityName = address.city || address.region || address.country || 'Unknown';
+
+      // Fetch weather
+      const url = `https://api.weatherapi.com/v1/current.json?key=${Weather_Key}&q=${latitude},${longitude}&aqi=no`;
+      const data = await fetchWithCache<any>('weather', url);
+
+      if (!isMounted) return;
+
+      if (data?.current) {
+        setTemp(`${Math.round(data.current.temp_c)}°C`);
+        setDesc(data.current.condition.text);
+        setCityForSubtitle(cityName);
+      } else {
+        throw new Error('Invalid weather data');
+      }
+    } catch (err: any) {
+      if (!isMounted) return;
+
+      console.error('Location/Weather error:', err);
+
+      // More user-friendly messages
+      if (err.message?.includes('timed out')) {
+        setDesc('Location taking too long…');
+      } else if (err.message?.includes('denied')) {
+        setDesc('Location access denied');
+      } else {
+        setDesc('Weather unavailable');
+      }
+
+      setTemp('—');
+      setCityForSubtitle('');
+    }
+  })();
+
+  return () => {
+    isMounted = false;
+  };
+}, []); // Keep empty dependency array
 
   // Accelerometer listener
   useEffect(() => {
@@ -169,30 +270,7 @@ export default function HomeWidget({ user }: HomeWidgetProps) {
     })()
   }, [user])
 
-  /** ----------------------------
-   * HYDRATION TRACKER
-   * ---------------------------- */
-  const loadHydration = useCallback(async () => {
-    const saved = await AsyncStorage.getItem('hydration_today')
-    const today = new Date().toISOString().slice(0, 10)
-    if (saved) {
-      const { value, date } = JSON.parse(saved)
-      if (date === today) setLiters(value)
-    }
-  }, [])
-
-  // const addGlass = async () => {
-  //   const newVal = Math.min(liters + 0.25, GOAL)
-  //   const payload = JSON.stringify({
-  //     value: newVal,
-  //     date: new Date().toISOString().slice(0, 10),
-  //   })
-  //   await AsyncStorage.setItem('hydration_today', payload)
-  //   setLiters(newVal)
-  // }
-
-  useEffect(() => { loadHydration() }, [loadHydration])
-
+ 
   /** ----------------------------
    * BEDTIME TRACKER
    * ---------------------------- */
@@ -217,20 +295,19 @@ export default function HomeWidget({ user }: HomeWidgetProps) {
         subtitle="Daily Movement"
       />
 
-      {user?.profile?.location?.city ? (
-        <Widget
+      <Widget
           icon={getWeatherIcon(desc)}
           title="Weather"
           value={temp}
-          subtitle={`${desc} (${user?.profile?.location?.city})`}
-        />
-      ) : null}
+          subtitle={weatherCity ? `${desc} • ${weatherCity}` : desc}
+      />
 
       <Widget
         icon={Water}
         title="Hydration"
-        value={`${liters.toFixed(2)} L`}
-        subtitle={`of ${GOAL} L goal`}
+        value={hydrationValue}
+        subtitle={hydrationSubtitle}
+        onPress={handleHydrationPress}
       />
 
       <Widget

@@ -2,7 +2,7 @@ import { deleteCookie, getCookie, setCookie } from '@/helper/cookie';
 
 const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
 // https://neuromed-ai-backend.vercel.app
-// http://10.83.205.4:8080
+// http://10.135.152.4:8080
 
 /* -------------------------------------------------
    Request options – body can be anything that fetch
