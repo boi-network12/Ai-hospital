@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Types } from 'mongoose';
+import HydrationGoal from '../models/HydrationGoalModel';
 import { HydrationService } from '../services/hydrationService';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IBodyMetrics } from '../types/hydrationTypes';
@@ -12,17 +13,15 @@ export const logIntake = async (req: AuthRequest, res: Response) => {
     const { amount, beverageType, notes } = req.body;
     const userId = req.user._id;
 
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Valid amount is required' 
-      });
-    }
+    const validBeverageTypes = ['water', 'tea', 'coffee', 'juice', 'soda', 'sports_drink', 'other'];
+    const validatedBeverageType = validBeverageTypes.includes(beverageType) 
+      ? beverageType 
+      : 'water';
 
     const log = await HydrationService.logIntake(
       new Types.ObjectId(userId), 
       amount, 
-      beverageType, 
+      validatedBeverageType, 
       notes
     );
 
@@ -76,6 +75,33 @@ export const setGoal = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// In src/controllers/hydrationController.ts - ADD THIS CONTROLLER
+export const getGoal = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user._id;
+    const goal = await HydrationGoal.findOne({ userId: new Types.ObjectId(userId) });
+    
+    if (!goal) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    res.json({
+      success: true,
+      data: goal
+    });
+  } catch (error) {
+    console.error('Get goal error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get hydration goal'
+    });
+  }
+};
+
 
 /**
  * Get today's hydration stats

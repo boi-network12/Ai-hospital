@@ -6,7 +6,8 @@ import {
   getLogs, 
   generateRecommendation, 
   getRecommendation, 
-  deleteLog 
+  deleteLog,
+  getGoal
 } from '../controllers/hydrationController';
 import { verifyToken } from '../middlewares/authMiddleware';
 
@@ -20,6 +21,9 @@ router.post('/log', logIntake);
 
 // Set hydration goal
 router.post('/goal', setGoal);
+
+// get goal
+router.get('/goal', getGoal);
 
 // Get today's stats
 router.get('/stats/today', getTodayStats);

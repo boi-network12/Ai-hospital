@@ -25,7 +25,7 @@ export default function HomePage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style='auto' />
+      <StatusBar style='dark' />
       <ScrollView bounces 
           showsVerticalScrollIndicator={false}
         >

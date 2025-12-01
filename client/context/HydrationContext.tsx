@@ -107,8 +107,19 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
 
   const getTodayStats = useCallback(async () => {
     try {
+      console.log('Fetching stats...'); // DEBUG
       const stats = await apiFetch('/hydration/stats/today');
-      dispatch({ type: 'SET_STATS', payload: stats ?? null });
+      console.log('Stats received:', stats); // DEBUG - check structure
+      
+      // Make sure we're getting the right data
+      if (stats && stats.data) {
+        dispatch({ type: 'SET_STATS', payload: stats.data });
+      } else if (stats) {
+        dispatch({ type: 'SET_STATS', payload: stats });
+      } else {
+        console.warn('No stats data received');
+        dispatch({ type: 'SET_STATS', payload: null });
+      }
     } catch (error) {
       console.error('Error fetching hydration stats:', error);
       dispatch({ type: 'SET_STATS', payload: null });
@@ -150,9 +161,23 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
   const getTodayLogs = useCallback(async () => {
     try {
       const result = await apiFetch('/hydration/logs?limit=50');
-      dispatch({ type: 'SET_LOGS', payload: result.logs });
+      
+      if (result && result.logs) {
+        // Filter to show only today's logs on the main screen
+        const today = new Date().toISOString().split('T')[0];
+        const todayLogs = result.logs.filter((log: HydrationLog) => {
+          if (!log.timestamp) return false;
+          const logDate = new Date(log.timestamp).toISOString().split('T')[0];
+          return logDate === today;
+        });
+        
+        dispatch({ type: 'SET_LOGS', payload: todayLogs });
+      } else {
+        dispatch({ type: 'SET_LOGS', payload: [] });
+      }
     } catch (error) {
       console.error('Error fetching hydration logs:', error);
+      dispatch({ type: 'SET_LOGS', payload: [] });
     }
   }, []);
 
@@ -186,9 +211,11 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
 
   const logWaterIntake = async (amount: number, beverageType: string = 'water', notes?: string) => {
     try {
+      dispatch({ type: 'SET_LOADING', payload: true }); // Add loading
+      
       const response = await apiFetch('/hydration/log', {
         method: 'POST',
-        body: {  // ← Pass object directly
+        body: {  
           amount, 
           beverageType, 
           notes 
@@ -197,15 +224,18 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
 
       if (response?.data) {
         dispatch({ type: 'ADD_LOG', payload: response.data });
-        // Refresh BOTH stats and logs
+        // Refresh ALL data - this is critical
         await Promise.all([
           getTodayStats(),
-          getTodayLogs(), // ← ADD THIS LINE
+          getTodayLogs(),
+          getHydrationGoal(), // Also refresh goal if needed
         ]);
       }
     } catch (error) {
       console.error('Error logging water intake:', error);
       throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
@@ -223,9 +253,12 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
         body: goalData, // ← Pass object directly
       });
 
-      if (updatedGoal?.data) {
+      if (updatedGoal && updatedGoal.success) {
         dispatch({ type: 'SET_GOAL', payload: updatedGoal.data });
         await getTodayStats();
+        return updatedGoal;
+      } else {
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Error setting hydration goal:', error);

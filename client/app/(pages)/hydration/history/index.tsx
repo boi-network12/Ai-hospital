@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useHydrationData } from '@/Hooks/useHydration.d';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons'; // Back icon
 
 export default function HistoryScreen() {
   const hydration = useHydrationData();
+  const router = useRouter();
 
   const formatDate = (dateString: string) => {
     try {
@@ -23,12 +26,17 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
+
+      {/* Header with Back Button */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.title}>Hydration History</Text>
       </View>
 
-      <ScrollView>
-        {hydration.stats?.history ? (
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {hydration.stats?.history?.length ? (
           hydration.stats.history.map((day, index) => (
             <View key={index} style={styles.dayCard}>
               <View style={styles.dayHeader}>
@@ -75,21 +83,34 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f2f4f8',
   },
   header: {
-    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   dayCard: {
-    margin: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
     padding: 16,
-    backgroundColor: '#f8f9ff',
+    backgroundColor: '#fff',
     borderRadius: 12,
   },
   dayHeader: {
@@ -100,10 +121,11 @@ const styles = StyleSheet.create({
   },
   dayDate: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#333',
   },
   statusIndicator: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
@@ -116,19 +138,19 @@ const styles = StyleSheet.create({
   statusText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   progressBar: {
-    height: 8,
+    height: 10,
     backgroundColor: '#e0e0e0',
-    borderRadius: 4,
+    borderRadius: 5,
     overflow: 'hidden',
     marginBottom: 12,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#8089ff',
-    borderRadius: 4,
+    backgroundColor: '#4f6ef7',
+    borderRadius: 5,
   },
   statsRow: {
     flexDirection: 'row',
@@ -137,8 +159,8 @@ const styles = StyleSheet.create({
   },
   intakeText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#8089ff',
+    fontWeight: '700',
+    color: '#4f6ef7',
   },
   goalText: {
     fontSize: 14,
@@ -146,7 +168,7 @@ const styles = StyleSheet.create({
   },
   percentageText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#333',
   },
   emptyState: {
@@ -156,7 +178,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#666',
     marginBottom: 8,
   },

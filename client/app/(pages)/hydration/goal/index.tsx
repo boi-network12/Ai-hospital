@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useHydrationData } from '@/Hooks/useHydration.d';
 import { useHydration } from '@/context/HydrationContext';
-import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useToast } from '@/Hooks/useToast.d';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 export default function GoalScreen() {
   const hydration = useHydrationData();
   const { showAlert } = useToast();
   const { state } = useHydration();
+
   const [goal, setGoal] = useState(String(hydration.dailyGoal));
   const [isLoading, setIsLoading] = useState(false);
 
-  // In your GoalScreen component, update the updateGoal function:
   const updateGoal = async () => {
     const newGoal = parseInt(goal);
     if (isNaN(newGoal) || newGoal < 500 || newGoal > 10000) {
@@ -26,9 +34,8 @@ export default function GoalScreen() {
     setIsLoading(true);
 
     try {
-      await hydration.setGoal(newGoal); // Use the fixed setGoal function
+      await hydration.setGoal(newGoal);
       showAlert({ message: 'Daily goal updated successfully!', type: 'success' });
-      // Refresh data to show updated progress
       await hydration.refreshHydrationData();
     } catch {
       showAlert({ message: 'Failed to update goal', type: 'error' });
@@ -38,49 +45,38 @@ export default function GoalScreen() {
   };
 
   const quickGoals = [
-    { amount: 1500, label: 'Light Activity', icon: 'walk-outline', color: '#4ADE80' },
-    { amount: 2000, label: 'Moderate Activity', icon: 'bicycle-outline', color: '#60A5FA' },
-    { amount: 2500, label: 'Active Lifestyle', icon: 'fitness-outline', color: '#F59E0B' },
-    { amount: 3000, label: 'Very Active', icon: 'barbell-outline', color: '#EF4444' },
+    { amount: 1500, label: 'Light Activity', icon: 'walk-outline' },
+    { amount: 2000, label: 'Moderate Activity', icon: 'bicycle-outline' },
+    { amount: 2500, label: 'Active Lifestyle', icon: 'fitness-outline' },
+    { amount: 3000, label: 'Very Active', icon: 'barbell-outline' },
   ];
 
-  // Use state values for progress display
   const currentIntake = state.stats?.totalIntake || 0;
   const remaining = state.stats?.remaining || 0;
   const progressPercentage = Math.min(state.stats?.percentage || 0, 100);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
-            <Ionicons name="water-outline" size={hp(3)} color="#fff" />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.title}>Hydration Goal</Text>
-            <Text style={styles.subtitle}>Set your daily water target</Text>
-          </View>
-          <View style={styles.headerIcon}>
-            <Ionicons name="trophy-outline" size={hp(2.5)} color="#fff" />
-          </View>
-        </View>
-      </LinearGradient>
+      <StatusBar style="dark" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton}>
+          <Ionicons name="arrow-back" size={hp(2.5)} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Hydration Goal</Text>
+        <Ionicons name="water-outline" size={hp(2.5)} color="#333" />
+      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Main Goal Card */}
-        <LinearGradient
-          colors={['#ffffff', '#f8faff']}
-          style={styles.mainCard}
-        >
+
+        {/* Goal Card */}
+        <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="flag-outline" size={hp(3)} color="#667eea" />
+            <Ionicons name="flag-outline" size={hp(3)} color="#333" />
             <Text style={styles.cardTitle}>Daily Target</Text>
           </View>
-          
+
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Goal Amount (ml)</Text>
             <View style={styles.inputWrapper}>
@@ -89,355 +85,170 @@ export default function GoalScreen() {
                 value={goal}
                 onChangeText={setGoal}
                 keyboardType="numeric"
-                placeholder="Enter your daily goal"
-                placeholderTextColor="#9CA3AF"
+                placeholder="Enter goal"
+                placeholderTextColor="#999"
               />
-              <Ionicons name="pencil-outline" size={hp(2)} color="#667eea" />
+              <Ionicons name="pencil-outline" size={hp(2)} color="#666" />
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={styles.updateButton} 
-            onPress={updateGoal}
-            disabled={isLoading}
-          >
-            <LinearGradient
-              colors={['#667eea', '#764ba2']}
-              style={styles.buttonGradient}
-            >
-              {isLoading ? (
-                <ActivityIndicator size={hp(2)} color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle-outline" size={hp(2.2)} color="#fff" />
-                  <Text style={styles.updateButtonText}>Update Goal</Text>
-                </>
-              )}
-            </LinearGradient>
+          <TouchableOpacity style={styles.updateButton} onPress={updateGoal} disabled={isLoading}>
+            {isLoading ? (
+              <ActivityIndicator size={hp(2)} color="#fff" />
+            ) : (
+              <Text style={styles.updateButtonText}>Save Goal</Text>
+            )}
           </TouchableOpacity>
-        </LinearGradient>
+        </View>
 
-        {/* Quick Goals Section */}
+        {/* Quick Goals */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="flash-outline" size={hp(2.5)} color="#374151" />
-            <Text style={styles.sectionTitle}>Quick Presets</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Quick Presets</Text>
           <View style={styles.quickGoals}>
-            {quickGoals.map((item, index) => (
+            {quickGoals.map((item) => (
               <TouchableOpacity
                 key={item.amount}
                 style={styles.quickGoalButton}
                 onPress={() => setGoal(String(item.amount))}
               >
-                <LinearGradient
-                  colors={['#fff', '#f7faff']}
-                  style={[styles.quickGoalGradient, { borderLeftColor: item.color }]}
-                >
-                  <View style={styles.quickGoalIcon}>
-                    <Ionicons name={item.icon as any} size={hp(2.5)} color={item.color} />
-                  </View>
-                  <Text style={styles.quickGoalAmount}>{item.amount}ml</Text>
-                  <Text style={styles.quickGoalLabel}>{item.label}</Text>
-                </LinearGradient>
+                <Ionicons name={item.icon as any} size={hp(2.5)} color="#555" />
+                <Text style={styles.quickGoalAmount}>{item.amount}ml</Text>
+                <Text style={styles.quickGoalLabel}>{item.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Progress Section */}
+        {/* Progress */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="stats-chart-outline" size={hp(2.5)} color="#374151" />
-            <Text style={styles.sectionTitle}>Today&apos;s Progress</Text>
-          </View>
-          
-          <LinearGradient
-            colors={['#ffffff', '#f8faff']}
-            style={styles.progressCard}
-          >
+          <Text style={styles.sectionTitle}>Today&apos;s Progress</Text>
+          <View style={styles.card}>
             {/* Progress Circle */}
-            <View style={styles.progressCircleContainer}>
-              <View style={styles.progressCircle}>
-                <Text style={styles.progressPercentage}>{progressPercentage}%</Text>
-                <Text style={styles.progressLabel}>Completed</Text>
-              </View>
+            <View style={styles.progressCircle}>
+              <Text style={styles.progressValue}>{progressPercentage}%</Text>
+              <Text style={styles.progressLabel}>Completed</Text>
             </View>
 
-            {/* Progress Stats */}
+            {/* Stats */}
             <View style={styles.progressInfo}>
               <View style={styles.progressRow}>
-                <View style={styles.progressItem}>
-                  <Ionicons name="water-outline" size={hp(2.2)} color="#667eea" />
-                  <Text style={styles.progressItemLabel}>Current Intake</Text>
-                  <Text style={styles.progressItemValue}>{currentIntake}ml</Text>
-                </View>
-                <View style={styles.progressItem}>
-                  <Ionicons name="time-outline" size={hp(2.2)} color="#F59E0B" />
-                  <Text style={styles.progressItemLabel}>Remaining</Text>
-                  <Text style={styles.progressItemValue}>{remaining}ml</Text>
-                </View>
+                <Text style={styles.progressItemLabel}>Intake</Text>
+                <Text style={styles.progressItemValue}>{currentIntake} ml</Text>
               </View>
-              
+              <View style={styles.progressRow}>
+                <Text style={styles.progressItemLabel}>Remaining</Text>
+                <Text style={styles.progressItemValue}>{remaining} ml</Text>
+              </View>
+
               {/* Progress Bar */}
-              <View style={styles.progressBarContainer}>
-                <View style={styles.progressBar}>
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    style={[styles.progressFill, { width: `${progressPercentage}%` }]}
-                  />
-                </View>
-                <View style={styles.progressBarLabels}>
-                  <Text style={styles.progressBarText}>0ml</Text>
-                  <Text style={styles.progressBarText}>{goal}ml</Text>
-                </View>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
               </View>
             </View>
-          </LinearGradient>
+          </View>
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8faff',
-  },
-  headerGradient: {
-    paddingHorizontal: hp(2),
-    paddingBottom: hp(3),
-    borderBottomLeftRadius: hp(3),
-    borderBottomRightRadius: hp(3),
-  },
+  container: { flex: 1, backgroundColor: '#F5F6F8' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: hp(1.5),
+    padding: hp(2),
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#fff',
   },
   backButton: {
-    padding: hp(1),
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: hp(1.5),
+    padding: hp(1.2),
+    backgroundColor: '#f0f0f0',
+    borderRadius: hp(1),
   },
-  title: {
-    fontSize: hp(2.2),
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: hp(1.6),
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: hp(0.5),
-    textAlign: 'center',
-  },
-  headerIcon: {
-    padding: hp(1),
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: hp(1.5),
-  },
-  scrollView: {
-    flex: 1,
-    marginTop: hp(1),
-  },
-  mainCard: {
-    margin: hp(2),
-    padding: hp(2.5),
-    borderRadius: hp(2),
+  headerTitle: { fontSize: hp(2.2), fontWeight: '600', color: '#333' },
+  scrollView: { flex: 1 },
+
+  card: {
     backgroundColor: '#fff',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    padding: hp(2),
+    margin: hp(2),
+    borderRadius: hp(1.5),
+    borderWidth: 1,
+    borderColor: '#ececec',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: hp(2),
-  },
-  cardTitle: {
-    fontSize: hp(2),
-    fontWeight: 'bold',
-    color: '#374151',
-    marginLeft: hp(1),
-  },
-  inputContainer: {
-    marginBottom: hp(2),
-  },
-  inputLabel: {
-    fontSize: hp(1.6),
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: hp(1),
-  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: hp(2) },
+  cardTitle: { fontSize: hp(2), fontWeight: '600', marginLeft: hp(1), color: '#333' },
+
+  inputContainer: { marginBottom: hp(2) },
+  inputLabel: { fontSize: hp(1.6), color: '#555', marginBottom: hp(1) },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    borderRadius: hp(1.5),
-    paddingHorizontal: hp(2),
-    backgroundColor: '#fff',
-  },
-  input: {
-    flex: 1,
-    paddingVertical: hp(1.8),
-    fontSize: hp(1.8),
-    color: '#374151',
-  },
-  updateButton: {
-    borderRadius: hp(1.5),
-    overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  buttonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: hp(1.8),
-    gap: hp(1),
-  },
-  updateButtonText: {
-    color: '#fff',
-    fontSize: hp(1.8),
-    fontWeight: 'bold',
-  },
-  section: {
-    marginHorizontal: hp(2),
-    marginBottom: hp(2),
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: hp(2),
-  },
-  sectionTitle: {
-    fontSize: hp(2),
-    fontWeight: 'bold',
-    color: '#374151',
-    marginLeft: hp(1),
-  },
-  quickGoals: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: hp(1.5),
-  },
-  quickGoalButton: {
-    flex: 1,
-    minWidth: '47%',
-    borderRadius: hp(1.5),
-    overflow: 'hidden',
-    borderColor: '#eee',
-    borderWidth: 0.5
-  },
-  quickGoalGradient: {
-    padding: hp(2),
-    alignItems: 'center',
-    borderLeftWidth: hp(0.4),
-    backgroundColor: '#fff',
-  },
-  quickGoalIcon: {
-    padding: hp(1),
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    borderWidth: 1,
+    borderColor: '#dddddd',
     borderRadius: hp(1),
-    marginBottom: hp(1),
+    paddingHorizontal: hp(2),
+    backgroundColor: '#f9f9f9',
   },
-  quickGoalAmount: {
-    fontSize: hp(1.8),
-    fontWeight: 'bold',
-    color: '#374151',
-    textAlign: 'center',
-  },
-  quickGoalLabel: {
-    fontSize: hp(1.4),
-    color: '#6B7280',
-    marginTop: hp(0.5),
-    textAlign: 'center',
-  },
-  progressCard: {
-    borderRadius: hp(2),
-    padding: hp(2.5),
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  progressCircleContainer: {
+  input: { flex: 1, paddingVertical: hp(1.6), fontSize: hp(1.8), color: '#333' },
+
+  updateButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: hp(1.8),
+    borderRadius: hp(1),
     alignItems: 'center',
-    marginBottom: hp(2),
   },
+  updateButtonText: { color: '#fff', fontSize: hp(1.8), fontWeight: '600' },
+
+  section: { marginHorizontal: hp(2), marginBottom: hp(2) },
+  sectionTitle: { fontSize: hp(2), fontWeight: '600', color: '#333', marginBottom: hp(1.5) },
+
+  quickGoals: { flexDirection: 'row', flexWrap: 'wrap', gap: hp(1) },
+  quickGoalButton: {
+    width: '47%',
+    padding: hp(1.8),
+    borderRadius: hp(1),
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quickGoalAmount: { fontSize: hp(1.8), fontWeight: '500', color: '#333' },
+  quickGoalLabel: { fontSize: hp(1.4), color: '#666', marginTop: hp(0.5), textAlign: 'center' },
+
   progressCircle: {
-    width: hp(12),
-    height: hp(12),
-    borderRadius: hp(6),
-    backgroundColor: '#f8faff',
-    borderWidth: hp(0.3),
+    width: hp(13),
+    height: hp(13),
+    borderRadius: hp(6.5),
+    borderWidth: 2,
     borderColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: hp(2),
   },
-  progressPercentage: {
-    fontSize: hp(2.2),
-    fontWeight: 'bold',
-    color: '#374151',
-  },
-  progressLabel: {
-    fontSize: hp(1.2),
-    color: '#6B7280',
-    marginTop: hp(0.5),
-  },
-  progressInfo: {
-    gap: hp(2),
-  },
-  progressRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  progressItemLabel: {
-    fontSize: hp(1.4),
-    color: '#6B7280',
-    marginTop: hp(0.5),
-    marginBottom: hp(0.5),
-  },
-  progressItemValue: {
-    fontSize: hp(1.8),
-    fontWeight: 'bold',
-    color: '#374151',
-  },
-  progressBarContainer: {
-    marginTop: hp(1),
-  },
+  progressValue: { fontSize: hp(2.5), fontWeight: '700', color: '#333' },
+  progressLabel: { fontSize: hp(1.3), color: '#666', marginTop: hp(0.5) },
+
+  progressInfo: { marginTop: hp(1) },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: hp(0.8) },
+  progressItemLabel: { fontSize: hp(1.6), color: '#666' },
+  progressItemValue: { fontSize: hp(1.7), fontWeight: '600', color: '#333' },
+
   progressBar: {
     height: hp(1),
     backgroundColor: '#E5E7EB',
     borderRadius: hp(0.5),
+    marginTop: hp(1),
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: hp(0.5),
-  },
-  progressBarLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: hp(0.5),
-  },
-  progressBarText: {
-    fontSize: hp(1.2),
-    color: '#6B7280',
+    backgroundColor: '#3B82F6',
   },
 });

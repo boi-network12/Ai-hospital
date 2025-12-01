@@ -67,13 +67,19 @@ export class HydrationService {
   static async getTodayStats(userId: Types.ObjectId): Promise<IHydrationStats> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+
+     // Use UTC for MongoDB query to avoid timezone issues
+    const startOfDay = new Date(today.toISOString());
+    const endOfDay = new Date(today.toISOString());
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    // const tomorrow = new Date(today);
+    // tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Get today's intake
     const todayLogs = await HydrationLog.find({
       userId,
-      timestamp: { $gte: today, $lt: tomorrow }
+      timestamp: { $gte: startOfDay, $lt: endOfDay }
     });
 
     const totalIntake = todayLogs.reduce((sum, log) => sum + log.amount, 0);
