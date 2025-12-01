@@ -105,9 +105,17 @@ const UserSchema = new Schema<IUser>({
           end: String
         }]
       }]
-    }
+    },
+    stats: {
+       averageRating: { type: Number, default: 0 },
+        totalRatings: { type: Number, default: 0 },
+        totalConsultations: { type: Number, default: 0 },
+        responseTime: { type: Number, default: 0 },
+        acceptanceRate: { type: Number, default: 0 }
+    },
   },
 
+  
   // Add these general fields
   isOnline: { type: Boolean, default: false },
   lastActive: { type: Date, default: Date.now },

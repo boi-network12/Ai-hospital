@@ -38,6 +38,7 @@ type Action =
     | { type: 'ADD_TIP'; payload: ITip }
     | { type: 'UPDATE_PROFESSIONAL'; payload: HealthcareProfessional }
     | { type: 'UPDATE_CACHE'; payload: { professionals: Map<string, HealthcareProfessional[]>; lastFetch: number } }
+    | { type: 'UPDATE_RATING'; payload: { id: string; rating: Partial<IRating> } }
     | { type: 'RESET' };
 
 const initialState: HealthcareState = {
@@ -113,6 +114,15 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
                     lastFetch: action.payload.lastFetch
                 }
             };
+        case 'UPDATE_RATING':
+            return {
+                ...state,
+                ratings: state.ratings.map(rating =>
+                    rating.id === action.payload.id 
+                        ? { ...rating, ...action.payload.rating }
+                        : rating
+                )
+            };
         case 'RESET':
             return initialState;
         default:
@@ -131,6 +141,14 @@ interface HealthcareContextProps {
     updateProfessionalAvailability: (available: boolean) => Promise<void>;
     updateProfessionalProfile: (data: Partial<User['healthcareProfile']>) => Promise<void>;
     clearSelectedProfessional: () => void;
+    getUserProfessionalRating: (professionalId: string) => Promise<{
+        hasRated: boolean;
+        id?: string;
+        rating: number;
+        comment?: string;
+        createdAt?: string | null;
+        updatedAt?: string | null;
+    }>;
 }
 
 export const HealthcareContext = createContext<HealthcareContextProps | undefined>(undefined);
@@ -139,11 +157,11 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
     const [healthcare, dispatch] = useReducer(healthcareReducer, initialState);
     const { showAlert } = useToast();
 
-    const handleError = (title: string, err: any) => {
+    const handleError = useCallback((title: string, err: any) => {
         const msg = err?.message || 'Something went wrong';
         showAlert({ message: `${title}: ${msg}`, type: 'error' });
         throw err;
-    };
+    }, [showAlert]);
 
     /* ---------- Fetch healthcare professionals ---------- */
     const fetchProfessionals = useCallback(async (filters?: Partial<ProfessionalsFilter>) => {
@@ -212,7 +230,7 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             dispatch({ type: 'SET_LOADING', payload: false });
         }
-    }, [healthcare.filters, healthcare.cache, showAlert]);
+    }, [healthcare.filters, healthcare.cache, showAlert, handleError]);
 
     /* ---------- Get professional profile ---------- */
     const getProfessionalProfile = async (professionalId: string) => {
@@ -237,20 +255,52 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         appointmentId?: string
     ): Promise<IRating> => {
         try {
-            const newRating = await apiFetch<IRating>(`/healthcare/professionals/${professionalId}/rate`, {
-                method: 'POST',
-                body: { rating, comment, appointmentId }
+            // First, check user's current rating
+            const userRating = await getUserProfessionalRating(professionalId);
+            
+            let endpoint: string;
+            let method: 'POST' | 'PUT';
+            let body: any = { rating, comment, appointmentId };
+            
+            if (userRating.hasRated && userRating.id) {
+                // Update existing rating - USE THE CORRECT ENDPOINT
+                endpoint = `/healthcare/professionals/${professionalId}/rate`;
+                method = 'PUT';
+            } else {
+                // Create new rating
+                endpoint = `/healthcare/professionals/${professionalId}/rate`;
+                method = 'POST';
+            }
+            
+            const newRating = await apiFetch<IRating>(endpoint, {
+                method,
+                body
             });
 
-            dispatch({ type: 'ADD_RATING', payload: newRating });
+            // Dispatch based on whether it's an update or new
+            if (userRating.hasRated && userRating.id) {
+                dispatch({ 
+                    type: 'UPDATE_RATING', 
+                    payload: { 
+                        id: userRating.id, 
+                        rating: newRating 
+                    }
+                });
+            } else {
+                dispatch({ type: 'ADD_RATING', payload: newRating });
+            }
 
-            // Update professional in list if exists
+            // Update professional in list
             const updatedProfessional = await apiFetch<HealthcareProfessional>(
                 `/healthcare/professionals/${professionalId}`
             );
             dispatch({ type: 'UPDATE_PROFESSIONAL', payload: updatedProfessional });
 
-            showAlert({ message: 'Rating submitted successfully!', type: 'success' });
+            showAlert({ 
+                message: `Rating ${userRating.hasRated ? 'updated' : 'submitted'} successfully!`, 
+                type: 'success' 
+            });
+
             return newRating;
         } catch (err: any) {
             handleError('Failed to submit rating', err);
@@ -344,6 +394,40 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         dispatch({ type: 'SET_SELECTED_PROFESSIONAL', payload: null });
     };
 
+    /* ---------- Get user's rating for a professional ---------- */
+    const getUserProfessionalRating = async (professionalId: string) => {
+        try {
+            const response = await apiFetch<{
+                hasRated: boolean;
+                id?: string;
+                rating: number;
+                comment?: string;
+                createdAt?: string | null;
+                updatedAt?: string | null;
+            }>(`/healthcare/professionals/${professionalId}/user-rating`);
+            
+            return {
+                hasRated: response.hasRated,
+                id: response.id,
+                rating: response.rating || 0,
+                comment: response.comment || '',
+                createdAt: response.createdAt || null,
+                updatedAt: response.updatedAt || null
+            };
+        } catch (error) {
+            console.error('Failed to get user rating:', error);
+            return { 
+                hasRated: false, 
+                rating: 0, 
+                comment: '', 
+                createdAt: null,
+                updatedAt: null
+            };
+        }
+    };
+
+    // Add to HealthcareContext interface and implementation
+
     return (
         <HealthcareContext.Provider
             value={{
@@ -357,6 +441,7 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
                 updateProfessionalAvailability,
                 updateProfessionalProfile,
                 clearSelectedProfessional,
+                getUserProfessionalRating,
             }}
         >
             {children}

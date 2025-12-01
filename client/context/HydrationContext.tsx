@@ -107,9 +107,7 @@ export const HydrationProvider = ({ children }: { children: ReactNode }) => {
 
   const getTodayStats = useCallback(async () => {
     try {
-      console.log('Fetching stats...'); // DEBUG
       const stats = await apiFetch('/hydration/stats/today');
-      console.log('Stats received:', stats); // DEBUG - check structure
       
       // Make sure we're getting the right data
       if (stats && stats.data) {

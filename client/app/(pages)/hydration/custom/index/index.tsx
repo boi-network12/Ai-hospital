@@ -7,7 +7,6 @@ import {
   TextInput, 
   TouchableOpacity, 
   ScrollView, 
-  Alert 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -15,8 +14,10 @@ import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import { useHydrationData } from '@/Hooks/useHydration.d';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useToast } from '@/Hooks/useToast.d';
 
 export default function CustomIntakeScreen() {
+  const { showAlert } = useToast();
   const hydration = useHydrationData();
   const [amount, setAmount] = useState('');
   const [beverageType, setBeverageType] = useState('water');
@@ -35,19 +36,19 @@ export default function CustomIntakeScreen() {
   const intakeAmount = parseInt(amount);
   
   if (!intakeAmount || intakeAmount <= 0 || intakeAmount > 5000) {
-    Alert.alert('Invalid Amount', 'Please enter a valid amount between 1ml and 5000ml');
+    showAlert({ message: 'Please enter a valid amount between 1ml and 5000ml', type: 'info' });
     return;
   }
 
   try {
     await hydration.logWaterIntake(intakeAmount, beverageType, notes);
-    Alert.alert('Success', `${intakeAmount}ml of ${beverageTypes.find(b => b.value === beverageType)?.label} logged successfully!`);
+    showAlert({ message: `${intakeAmount}ml of ${beverageTypes.find(b => b.value === beverageType)?.label} logged successfully!`, type: 'success' });
     router.back();
   } catch (error: any) {
     // Enhanced error handling
     const errorMessage = error?.message || 'Failed to log intake. Please try again.';
     console.error('Log intake error:', error);
-    Alert.alert('Error', errorMessage);
+    showAlert({ message: errorMessage, type: 'error' });
   }
 };
 

@@ -99,6 +99,7 @@ export interface IRating {
   rating: number; // 1-5
   comment: string;
   createdAt: string; // ISO date
+  updatedAt?: string;
   appointmentId?: string;
 }
 
@@ -213,6 +214,7 @@ export interface HealthcareProfessional {
   isOnline: boolean;
   distance?: number;
   isVerified?: boolean;
+  phoneNumber?: string;
 }
 
 export interface ProfessionalsFilter {

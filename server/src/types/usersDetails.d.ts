@@ -170,6 +170,8 @@ export interface IUser extends Document {
   lastActive: Date;
 }
 
+
+
 export interface IRating {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
@@ -177,6 +179,7 @@ export interface IRating {
   rating: number; // 1-5
   comment: string;
   createdAt: Date;
+  updatedAt?: Date;
   appointmentId?: Types.ObjectId;
 }
 

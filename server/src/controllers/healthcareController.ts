@@ -4,6 +4,14 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 import * as healthcareService from '../services/healthcareService';
 import * as ratingService from '../services/ratingService';
 import * as tipService from '../services/tipService';
+import Rating from '../models/RatingModel';
+import { Types } from 'mongoose';
+import User from '../models/UserModel';
+
+interface UpdateRatingData {
+    rating: number;
+    comment?: string;
+}
 
 /* ---------- Get healthcare professionals ---------- */
 export const getHealthcareProfessionals = async (req: Request, res: Response) => {
@@ -96,18 +104,92 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
     const { professionalId } = req.params;
     const { rating, comment, appointmentId } = req.body;
 
+    console.log('Rating request received:', {
+        userId: req.user._id,
+        professionalId,
+        rating,
+        comment,
+        appointmentId
+    });
+
     try {
-        const result = await ratingService.addRating({
-            userId: req.user._id,
-            professionalId,
-            rating,
-            comment,
-            appointmentId
+        // First check if user already rated
+        const existingRating = await Rating.findOne({
+            userId: new Types.ObjectId(req.user._id),
+            professionalId: new Types.ObjectId(professionalId)
         });
 
-        res.status(201).json(result);
+        let result;
+        
+        if (existingRating) {
+            // Update existing rating
+            existingRating.rating = rating;
+            if (comment !== undefined) existingRating.comment = comment;
+            if (appointmentId) existingRating.appointmentId = new Types.ObjectId(appointmentId);
+            existingRating.updatedAt = new Date();
+            
+            await existingRating.save();
+            result = existingRating;
+            
+            // Update professional stats
+            await updateProfessionalStats(professionalId);
+            
+            return res.json({
+                ...result.toObject(),
+                id: result._id.toString(),
+                message: 'Rating updated successfully'
+            }); 
+        } else {
+            // Create new rating
+            result = await ratingService.addRating({
+                userId: req.user._id,
+                professionalId,
+                rating,
+                comment,
+                appointmentId
+            });
+            
+            return res.status(201).json({
+                ...result.toObject(),
+                id: result._id.toString(),
+                message: 'Rating submitted successfully'
+            });
+        }
     } catch (error: any) {
-        res.status(400).json({ message: error.message });
+        console.error('Rate professional error:', error);
+        res.status(400).json({ 
+            message: error.message || 'Failed to submit rating' 
+        });
+    }
+};
+
+const updateProfessionalStats = async (professionalId: string) => {
+    try {
+        const stats = await Rating.aggregate([
+            { $match: { professionalId: new Types.ObjectId(professionalId) } },
+            {
+                $group: {
+                    _id: '$professionalId',
+                    averageRating: { $avg: '$rating' },
+                    totalRatings: { $sum: 1 }
+                }
+            }
+        ]);
+
+        if (stats.length > 0) {
+            const updateData: any = {
+                $set: {
+                    // Use the correct path from your User schema
+                    'healthcareProfile.averageRating': Math.round(stats[0].averageRating * 10) / 10,
+                    'healthcareProfile.totalRatings': stats[0].totalRatings
+                }
+            };
+
+            await User.findByIdAndUpdate(professionalId, updateData);
+        }
+    } catch (error) {
+        console.error('Error updating professional stats:', error);
+        throw error;
     }
 };
 
@@ -146,5 +228,66 @@ export const getProfessionalRatings = async (req: Request, res: Response) => {
         res.json(ratings);
     } catch (error: any) {
         res.status(400).json({ message: error.message });
+    }
+};
+
+export const getUserProfessionalRating = async (req: AuthRequest, res: Response) => {
+    const { professionalId } = req.params;
+    
+    try {
+        const userRating = await ratingService.getUserRatingForProfessional(
+            req.user._id.toString(),
+            professionalId
+        );
+        
+        res.json({
+            hasRated: !!userRating,
+            id: userRating?._id?.toString() || null,
+            rating: userRating?.rating || 0,
+            comment: userRating?.comment || '',
+            createdAt: userRating?.createdAt || null,
+            updatedAt: userRating?.updatedAt || null
+        });
+    } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+/** ------------------ update the rating --------------- */
+export const updateProfessionalRating = async (req: AuthRequest, res: Response) => {
+    try {
+        const { professionalId } = req.params;
+        const { rating, comment } = req.body;
+        
+        // First check if user already rated
+        const existingRating = await Rating.findOne({
+            userId: new Types.ObjectId(req.user._id),
+            professionalId: new Types.ObjectId(professionalId)
+        });
+
+        if (!existingRating) {
+            return res.status(404).json({ message: 'Rating not found' });
+        }
+
+        // Update existing rating
+        existingRating.rating = rating;
+        if (comment !== undefined) existingRating.comment = comment;
+        existingRating.updatedAt = new Date();
+        
+        await existingRating.save();
+        
+        // Update professional stats
+        await updateProfessionalStats(professionalId);
+        
+        return res.json({
+            ...existingRating.toObject(),
+            id: existingRating._id.toString(),
+            message: 'Rating updated successfully'
+        });
+    } catch (error: any) {
+        console.error('Update rating error:', error);
+        res.status(400).json({ 
+            message: error.message || 'Failed to update rating' 
+        });
     }
 };

@@ -12,6 +12,9 @@ router.get('/professionals/:professionalId/ratings', healthcareCtrl.getProfessio
 
 // Protected routes
 router.post('/professionals/:professionalId/rate', verifyToken, healthcareCtrl.rateProfessional);
+router.put('/professionals/:professionalId/rate', verifyToken, healthcareCtrl.updateProfessionalRating); 
 router.post('/professionals/:professionalId/tip', verifyToken, healthcareCtrl.tipProfessional);
+router.get('/professionals/:professionalId/user-rating', verifyToken, healthcareCtrl.getUserProfessionalRating);
 
 export default router;
+ 
