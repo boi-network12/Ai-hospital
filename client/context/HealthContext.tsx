@@ -137,7 +137,7 @@ interface HealthcareContextProps {
     rateProfessional: (professionalId: string, rating: number, comment?: string, appointmentId?: string) => Promise<IRating>;
     tipProfessional: (professionalId: string, amount: number, message?: string, appointmentId?: string) => Promise<ITip>;
     updateFilters: (filters: Partial<ProfessionalsFilter>) => void;
-    getProfessionalRatings: (professionalId: string, page?: number, limit?: number) => Promise<void>;
+    getProfessionalRatings: (professionalId: string, page?: number, limit?: number) => Promise<{ ratings: IRating[]; total: number; page: number; limit: number }>;
     updateProfessionalAvailability: (available: boolean) => Promise<void>;
     updateProfessionalProfile: (data: Partial<User['healthcareProfile']>) => Promise<void>;
     clearSelectedProfessional: () => void;
@@ -290,12 +290,6 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
                 dispatch({ type: 'ADD_RATING', payload: newRating });
             }
 
-            // Update professional in list
-            const updatedProfessional = await apiFetch<HealthcareProfessional>(
-                `/healthcare/professionals/${professionalId}`
-            );
-            dispatch({ type: 'UPDATE_PROFESSIONAL', payload: updatedProfessional });
-
             showAlert({ 
                 message: `Rating ${userRating.hasRated ? 'updated' : 'submitted'} successfully!`, 
                 type: 'success' 
@@ -338,14 +332,20 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
     };
 
     /* ---------- Get professional ratings ---------- */
-    const getProfessionalRatings = async (professionalId: string, page: number = 1, limit: number = 10) => {
+    const getProfessionalRatings = async (
+        professionalId: string,
+        page: number = 1,
+        limit: number = 10
+    ): Promise<{ ratings: IRating[]; total: number; page: number; limit: number }> => {
         try {
             const response = await apiFetch<{ ratings: IRating[]; total: number; page: number; limit: number }>(
                 `/healthcare/professionals/${professionalId}/ratings?page=${page}&limit=${limit}`
             );
             dispatch({ type: 'SET_RATINGS', payload: response.ratings });
+            return response;
         } catch (err: any) {
             handleError('Failed to load ratings', err);
+            throw err; // ← Add this line!
         }
     };
 

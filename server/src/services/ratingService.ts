@@ -16,10 +16,23 @@ export const addRating = async (data: AddRatingData) => {
     session.startTransaction();
     
     try {
-        // Check for existing rating
+        // VALIDATE INPUTS FIRST
+        if (!data.userId || !data.professionalId) {
+            throw new Error('User ID and Professional ID are required');
+        }
+
+        // Validate ObjectId format
+        if (!Types.ObjectId.isValid(data.userId) || !Types.ObjectId.isValid(data.professionalId)) {
+            throw new Error('Invalid ID format');
+        }
+
+        const userObjId = new Types.ObjectId(data.userId);
+        const profObjId = new Types.ObjectId(data.professionalId);
+
+        // Check for existing rating FIRST
         const existingRating = await Rating.findOne({
-            userId: new Types.ObjectId(data.userId),
-            professionalId: new Types.ObjectId(data.professionalId)
+            userId: userObjId,
+            professionalId: profObjId
         }).session(session);
 
         let rating;
@@ -30,14 +43,13 @@ export const addRating = async (data: AddRatingData) => {
             if (data.comment !== undefined) existingRating.comment = data.comment;
             if (data.appointmentId) existingRating.appointmentId = new Types.ObjectId(data.appointmentId);
             existingRating.updatedAt = new Date();
-            
             await existingRating.save({ session });
             rating = existingRating;
         } else {
             // Create new rating
             rating = new Rating({
-                userId: new Types.ObjectId(data.userId),
-                professionalId: new Types.ObjectId(data.professionalId),
+                userId: userObjId,
+                professionalId: profObjId,
                 rating: data.rating,
                 comment: data.comment,
                 appointmentId: data.appointmentId ? new Types.ObjectId(data.appointmentId) : undefined
@@ -46,16 +58,156 @@ export const addRating = async (data: AddRatingData) => {
             await rating.save({ session });
         }
 
-        // Update professional's average rating - FIXED HERE
+        // Update professional stats
         await updateProfessionalStats(data.professionalId);
         
         await session.commitTransaction();
+        
         return rating;
-    } catch (error) {
+    } catch (error: any) {
         await session.abortTransaction();
+        
+        // Handle specific MongoDB duplicate key error
+        if (error.code === 11000) {
+            console.log('Duplicate key error detected, cleaning up null values...');
+            
+            // Clean up any documents with null values (outside of transaction)
+            await Rating.deleteMany({
+                $or: [
+                    { userId: null },
+                    { professionalId: null }
+                ]
+            });
+            
+            console.log('Null values cleaned up, now retrying the rating operation...');
+            
+            // Retry the operation WITHOUT transaction for simplicity
+            return addRatingRetry(data);
+        }
+        
+        console.error('Rating error:', error);
         throw error;
     } finally {
-        session.endSession();
+        await session.endSession();
+    }
+};
+
+// Separate retry function without transaction to avoid nested transactions
+const addRatingRetry = async (data: AddRatingData) => {
+    try {
+        console.log('Retrying rating operation after cleanup...');
+        
+        // VALIDATE INPUTS FIRST
+        if (!data.userId || !data.professionalId) {
+            throw new Error('User ID and Professional ID are required');
+        }
+
+        // Validate ObjectId format
+        if (!Types.ObjectId.isValid(data.userId) || !Types.ObjectId.isValid(data.professionalId)) {
+            throw new Error('Invalid ID format');
+        }
+
+        const userObjId = new Types.ObjectId(data.userId);
+        const profObjId = new Types.ObjectId(data.professionalId);
+
+        // DEBUG: Check what exists in the database
+        console.log('Checking for existing ratings...');
+        const existingRatings = await Rating.find({
+            $or: [
+                { userId: userObjId, professionalId: profObjId },
+                { userId: userObjId },
+                { professionalId: profObjId }
+            ]
+        });
+        console.log('Existing ratings found:', existingRatings.length);
+
+        // Check for existing rating - look more thoroughly
+        const existingRating = await Rating.findOne({
+            userId: userObjId,
+            professionalId: profObjId
+        });
+
+        if (existingRating) {
+            console.log('Found existing rating, updating it...');
+            // Update existing rating
+            existingRating.rating = data.rating;
+            if (data.comment !== undefined) existingRating.comment = data.comment;
+            if (data.appointmentId) existingRating.appointmentId = new Types.ObjectId(data.appointmentId);
+            existingRating.updatedAt = new Date();
+            
+            await existingRating.save();
+            console.log('Existing rating updated successfully');
+            
+            // Update professional stats
+            await updateProfessionalStats(data.professionalId);
+            
+            return existingRating;
+        }
+
+        console.log('No existing rating found, creating new one...');
+        // Create new rating
+        const rating = new Rating({
+            userId: userObjId,
+            professionalId: profObjId,
+            rating: data.rating,
+            comment: data.comment || '',
+            appointmentId: data.appointmentId ? new Types.ObjectId(data.appointmentId) : undefined
+        });
+        
+        console.log('Saving new rating...');
+        await rating.save();
+        console.log('New rating saved successfully');
+
+        // Update professional stats
+        await updateProfessionalStats(data.professionalId);
+        
+        return rating;
+    } catch (retryError: any) {
+        console.error('Retry failed with error:', retryError);
+        
+        if (retryError.code === 11000) {
+            // Try to find what's causing the duplicate
+            const userObjId = new Types.ObjectId(data.userId);
+            const profObjId = new Types.ObjectId(data.professionalId);
+            
+            const conflictingRating = await Rating.findOne({
+                $or: [
+                    { userId: userObjId, professionalId: profObjId },
+                    { 
+                        $and: [
+                            { userId: { $ne: userObjId } },
+                            { professionalId: { $ne: profObjId } }
+                        ]
+                    }
+                ]
+            });
+            
+            console.log('Conflicting rating found:', conflictingRating);
+            
+            if (conflictingRating) {
+                // If we found a conflicting rating, update it instead
+                conflictingRating.rating = data.rating;
+                if (data.comment !== undefined) conflictingRating.comment = data.comment;
+                conflictingRating.updatedAt = new Date();
+                await conflictingRating.save();
+                
+                await updateProfessionalStats(data.professionalId);
+                return conflictingRating;
+            }
+            
+            throw new Error('You have already rated this professional. Please update your existing rating instead.');
+        }
+        
+        // Log more details about the error
+        console.error('Full error details:', {
+            message: retryError.message,
+            code: retryError.code,
+            keyPattern: retryError.keyPattern,
+            keyValue: retryError.keyValue,
+            stack: retryError.stack
+        });
+        
+        throw retryError;
     }
 };
 
@@ -135,7 +287,7 @@ export const getProfessionalRatings = async (professionalId: string, page: numbe
     const ratings = await Rating.find({ 
         professionalId: new Types.ObjectId(professionalId) 
     })
-        .populate('userId', 'name profile.avatar')
+        .populate('userId', 'name profile.avatar email')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)

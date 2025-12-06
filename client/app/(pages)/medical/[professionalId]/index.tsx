@@ -7,7 +7,6 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
-    Alert,
     ActivityIndicator,
     Modal,
     TextInput,
@@ -23,7 +22,6 @@ import LocationPinIcon from "@/assets/Svgs/locate.svg";
 import ClockIcon from "@/assets/Svgs/clock.svg";
 import VerifiedIcon from "@/assets/Svgs/badge-check.svg";
 import MessageIcon from "@/assets/Svgs/message-circle-more.svg";
-import TipIcon from "@/assets/Svgs/badge-dollar-sign.svg";
 import BackIcon from "@/assets/Svgs/arrow-left.svg";
 import DollarIcon from "@/assets/Svgs/dollar-sign.svg";
 import AwardIcon from "@/assets/Svgs/award.svg";
@@ -40,6 +38,7 @@ import { HealthcareProfessional } from '@/types/auth.d';
 import { RefreshControl } from 'react-native-gesture-handler';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useToast } from '@/Hooks/useToast.d';
+import { debounce } from 'lodash';
 
 export default function MedicalProfessionalProfile() {
     const { professionalId } = useLocalSearchParams();
@@ -160,11 +159,24 @@ export default function MedicalProfessionalProfile() {
         
         try {
             setLoadingRatings(true);
-            // This would need to be implemented in your context
-            // For now, we'll use a mock or empty array
-            setRecentRatings([]);
+            // Call the actual function to get ratings
+            const response = await getProfessionalRatings(professionalId as string, 1, 10);
+            
+            // Map the response to match your UI format
+            if (response && response.ratings) {
+                const formattedRatings = response.ratings.map(rating => ({
+                    id: rating.id || rating.id,
+                    userName: (rating as any).userId?.name || 'Anonymous User',
+                    rating: rating.rating,
+                    comment: rating.comment || '',
+                    createdAt: rating.createdAt,
+                    updatedAt: rating.updatedAt
+                }));
+                setRecentRatings(formattedRatings);
+            }
         } catch (err) {
             console.error('Failed to load ratings:', err);
+            showAlert({ message: 'Failed to load reviews', type: 'error' });
         } finally {
             setLoadingRatings(false);
         }
@@ -180,69 +192,12 @@ export default function MedicalProfessionalProfile() {
         setRefreshing(false);
     };
 
-    const handleSendTip = async (customAmount?: number) => {
-        try {
-            const amount = customAmount || parseInt(tipAmount) || 10;
-            await tipProfessional(professionalId as string, amount, tipMessage || "Thank you for your service!");
-            showAlert({ message: 'Tip sent successfully!', type: 'success' });
-            setShowTipModal(false);
-            setTipMessage('');
-        } catch {
-            showAlert({ message: 'Failed to send tip', type: 'error' });
-        }
-    };
-
     const handleSendMessage = () => {
         router.push(`/chat/${professionalId}`);
     };
 
     const handleScheduleAppointment = () => {
         router.push(`/appointment/book/${professionalId}`);
-    };
-
-    const handleRateProfessional = async (rating: number) => {
-        if (!user) {
-            Alert.alert('Login Required', 'Please login to rate this professional', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Login', onPress: () => router.push('/auth/login') }
-            ]);
-            return;
-        }
-        
-        try {
-            await loadUserRating();
-            const currentComment = userRating.comment || '';
-            
-            if (userRating.hasRated) {
-                Alert.alert(
-                    'Update Rating',
-                    'You have already rated this professional. Would you like to:',
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        { 
-                            text: 'Update Rating Only', 
-                            onPress: async () => {
-                                await handleRatingUpdate(rating, currentComment);
-                            }
-                        },
-                        { 
-                            text: 'Update with New Comment', 
-                            onPress: () => {
-                                showCommentDialog(rating, currentComment, true);
-                            }
-                        }
-                    ]
-                );
-            } else {
-                showCommentDialog(rating, '', false);
-            }
-        } catch (error: any) {
-            console.error('Rating error:', error);
-            showAlert({ 
-                message: error.message || 'Failed to submit rating', 
-                type: 'error' 
-            });
-        }
     };
 
     const handleRatingUpdate = async (rating: number, comment?: string) => {
@@ -277,6 +232,10 @@ export default function MedicalProfessionalProfile() {
         }
     };
 
+    const handleCommentChange = debounce((text: string) => {
+        setTempComment(text);
+    }, 100);
+
     const CommentModal = () => (
         <Modal
             visible={showCommentModal}
@@ -296,7 +255,11 @@ export default function MedicalProfessionalProfile() {
                         numberOfLines={4}
                         placeholder="Share your experience (optional)..."
                         value={tempComment}
-                        onChangeText={setTempComment}
+                        onChangeText={handleCommentChange}
+                        autoFocus={true}
+                        onBlur={(e) => {
+                            // Ensure the latest text is captured on blur
+                        }}
                     />
                     
                     <View style={styles.modalButtons}>
@@ -336,77 +299,6 @@ export default function MedicalProfessionalProfile() {
         </Modal>
     );
 
-    const TipModal = () => (
-        <Modal
-            visible={showTipModal}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setShowTipModal(false)}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Send a Tip</Text>
-                    
-                    <View style={styles.tipAmountContainer}>
-                        <Text style={styles.tipLabel}>Amount ($)</Text>
-                        <View style={styles.amountInputContainer}>
-                            <DollarIcon width={hp(2.5)} height={hp(2.5)} fill="#666" />
-                            <TextInput
-                                style={styles.amountInput}
-                                value={tipAmount}
-                                onChangeText={setTipAmount}
-                                keyboardType="numeric"
-                                placeholder="10"
-                            />
-                        </View>
-                    </View>
-                    
-                    <View style={styles.quickAmounts}>
-                        {[5, 10, 20, 50, 100].map((amount) => (
-                            <TouchableOpacity
-                                key={amount}
-                                style={styles.quickAmountButton}
-                                onPress={() => setTipAmount(amount.toString())}
-                            >
-                                <Text style={styles.quickAmountText}>${amount}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                    
-                    <View style={styles.messageContainer}>
-                        <Text style={styles.tipLabel}>Message (Optional)</Text>
-                        <TextInput
-                            style={styles.messageInput}
-                            multiline
-                            numberOfLines={3}
-                            placeholder="Add a personal message..."
-                            value={tipMessage}
-                            onChangeText={setTipMessage}
-                        />
-                    </View>
-                    
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                            style={[styles.modalButton, styles.cancelButton]}
-                            onPress={() => {
-                                setShowTipModal(false);
-                                setTipMessage('');
-                            }}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                            style={[styles.modalButton, styles.submitButton]}
-                            onPress={() => handleSendTip()}
-                        >
-                            <Text style={styles.submitButtonText}>Send Tip</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
 
     const renderInteractiveStars = (rating: number = 0, interactive: boolean = true) => {
         const stars = [];
@@ -724,7 +616,7 @@ export default function MedicalProfessionalProfile() {
             </View>
         );
     };
-
+    
     const renderTabs = () => (
         <View style={styles.tabsContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -899,6 +791,7 @@ export default function MedicalProfessionalProfile() {
                     />
                 }
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             >
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
@@ -939,7 +832,9 @@ export default function MedicalProfessionalProfile() {
                         </Text>
                     </View>
 
-                    {professional.healthcareProfile?.hourlyRate && (
+                    {professional.healthcareProfile?.hourlyRate !== undefined && 
+                    professional.healthcareProfile?.hourlyRate !== null && 
+                    !isNaN(professional.healthcareProfile?.hourlyRate) && (
                         <View style={styles.hourlyRateContainer}>
                             <DollarIcon width={hp(1.8)} height={hp(1.8)} fill="#28a745" />
                             <Text style={styles.hourlyRateText}>
@@ -969,14 +864,6 @@ export default function MedicalProfessionalProfile() {
                         <Text style={styles.actionText}>Book</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
-                        style={[styles.actionButton, styles.tipButton]} 
-                        onPress={() => setShowTipModal(true)}
-                        activeOpacity={0.8}
-                    >
-                        <TipIcon width={hp(2.5)} height={hp(2.5)} fill="#fff" />
-                        <Text style={styles.actionText}>Tip</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Tabs */}
@@ -994,7 +881,6 @@ export default function MedicalProfessionalProfile() {
 
             {/* Modals */}
             <CommentModal />
-            <TipModal />
         </SafeAreaView>
     );
 }
@@ -1013,11 +899,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderBottomWidth: 0.5,
         borderBottomColor: '#e9ecef',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 2,
     },
     backButton: {
         padding: hp(0.5),

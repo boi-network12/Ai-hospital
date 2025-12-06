@@ -113,50 +113,69 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
     });
 
     try {
-        // First check if user already rated
-        const existingRating = await Rating.findOne({
+        // VALIDATE INPUTS
+        if (!professionalId) {
+            return res.status(400).json({ message: 'Professional ID is required' });
+        }
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+        }
+
+        // Check if user has already rated this professional
+        const existingUserRating = await Rating.findOne({
             userId: new Types.ObjectId(req.user._id),
             professionalId: new Types.ObjectId(professionalId)
         });
 
-        let result;
-        
-        if (existingRating) {
+        if (existingUserRating) {
             // Update existing rating
-            existingRating.rating = rating;
-            if (comment !== undefined) existingRating.comment = comment;
-            if (appointmentId) existingRating.appointmentId = new Types.ObjectId(appointmentId);
-            existingRating.updatedAt = new Date();
+            existingUserRating.rating = rating;
+            if (comment !== undefined) existingUserRating.comment = comment;
+            if (appointmentId) existingUserRating.appointmentId = new Types.ObjectId(appointmentId);
+            existingUserRating.updatedAt = new Date();
             
-            await existingRating.save();
-            result = existingRating;
+            await existingUserRating.save();
             
             // Update professional stats
             await updateProfessionalStats(professionalId);
             
             return res.json({
-                ...result.toObject(),
-                id: result._id.toString(),
+                ...existingUserRating.toObject(),
+                id: existingUserRating._id.toString(),
                 message: 'Rating updated successfully'
-            }); 
-        } else {
-            // Create new rating
-            result = await ratingService.addRating({
-                userId: req.user._id,
-                professionalId,
-                rating,
-                comment,
-                appointmentId
-            });
-            
-            return res.status(201).json({
-                ...result.toObject(),
-                id: result._id.toString(),
-                message: 'Rating submitted successfully'
             });
         }
+
+        // Check if professional exists first
+        const professional = await User.findById(professionalId);
+        if (!professional || professional.role === 'user') {
+            return res.status(404).json({ message: 'Professional not found' });
+        }
+
+        // Use rating service to create new rating
+        const result = await ratingService.addRating({
+            userId: req.user._id,
+            professionalId,
+            rating,
+            comment,
+            appointmentId
+        });
+        
+        return res.status(201).json({
+            ...result.toObject(),
+            id: result._id.toString(),
+            message: 'Rating submitted successfully'
+        });
     } catch (error: any) {
         console.error('Rate professional error:', error);
+        
+        if (error.message.includes('already rated')) {
+            return res.status(409).json({ 
+                message: 'You have already rated this professional. Please update your existing rating instead.' 
+            });
+        }
+        
         res.status(400).json({ 
             message: error.message || 'Failed to submit rating' 
         });

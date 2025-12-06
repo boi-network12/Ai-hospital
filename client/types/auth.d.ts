@@ -93,6 +93,7 @@ export interface IHealthcareProfile {
 /* ======================== RATING & TIP TYPES ======================== */
 export interface IRating {
   id: string;
+  name?: string;
   userId: string;
   professionalId: string;
   userName: string;
