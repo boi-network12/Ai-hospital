@@ -258,6 +258,11 @@ export const getNotificationStats = async (userId: string): Promise<INotificatio
       certification_update: 0,
       certification_verification: 0,
       profile_update: 0,
+      general_announcement: 0,
+      booking_request: 0,
+      booking_updated: 0,
+      booking_cancelled: 0,
+      booking_status_changed: 0,
     },
   };
 

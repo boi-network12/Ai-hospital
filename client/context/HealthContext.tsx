@@ -13,6 +13,40 @@ import {
 } from '@/types/auth.d';
 import { useToast } from '@/Hooks/useToast.d';
 
+// ---------- NEW TYPES ----------
+export interface Appointment {
+    id: string;
+    patientId: any;
+    professionalId: any;
+    type: 'virtual' | 'physical';
+    date: string;
+    duration: number;
+    status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'rejected';
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+    // populated fields
+    patient?: {
+        name: string;
+        profile?: { avatar?: string };
+        phoneNumber?: string;
+        email?: string;
+    };
+    professional?: {
+        name: string;
+        profile?: { avatar?: string; specialization?: string };
+        healthcareProfile?: any;
+    };
+}
+
+interface AppointmentsResponse {
+    appointments: Appointment[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+}
+
 interface HealthcareState {
     professionals: HealthcareProfessional[];
     selectedProfessional: HealthcareProfessional | null;
@@ -149,6 +183,43 @@ interface HealthcareContextProps {
         createdAt?: string | null;
         updatedAt?: string | null;
     }>;
+    bookAppointment: (
+        professionalId: string,
+        date: string,
+        duration?: number,
+        notes?: string,
+        type?: 'physical' | 'virtual'
+    ) => Promise<Appointment>;
+
+    getMyAppointments: (filters?: {
+        status?: string;
+        type?: string;
+        startDate?: string;
+        endDate?: string;
+        page?: number;
+        limit?: number;
+    }) => Promise<AppointmentsResponse>;
+
+    getMyBookings: (filters?: {
+        status?: string;
+        type?: string;
+        upcoming?: boolean;
+        page?: number;
+        limit?: number;
+    }) => Promise<AppointmentsResponse>;
+
+    updateBooking: (
+        appointmentId: string,
+        updates: Partial<{ date: string; duration: number; notes: string; type: 'physical' | 'virtual' }>
+    ) => Promise<Appointment>;
+
+    cancelBooking: (appointmentId: string) => Promise<void>;
+
+    updateAppointmentStatus: (appointmentId: string, status: 'confirmed' | 'rejected' | 'completed' | 'cancelled') => Promise<Appointment>;
+
+    getAppointmentById: (appointmentId: string) => Promise<Appointment>; // for professional
+    getBookingById: (appointmentId: string) => Promise<Appointment>;     // for patient
+    // ------------------------------------
 }
 
 export const HealthcareContext = createContext<HealthcareContextProps | undefined>(undefined);
@@ -426,7 +497,151 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // Add to HealthcareContext interface and implementation
+    /** Book a new appointment (patient side) */
+    const bookAppointment = async (
+        professionalId: string,
+        date: string,
+        duration: number = 60,
+        notes?: string,
+        type: 'physical' | 'virtual' = 'physical'
+    ): Promise<Appointment> => {
+        try {
+            const appointment = await apiFetch<Appointment>(`/healthcare/professionals/${professionalId}/book`, {
+                method: 'POST',
+                body: { date, duration, notes, type }
+            });
+
+            showAlert({ message: 'Booking request sent! Awaiting confirmation.', type: 'success' });
+            return appointment;
+        } catch (err: any) {
+            handleError('Failed to book appointment', err);
+            throw err;
+        }
+    };
+
+    /** Get professional's appointments */
+    const getMyAppointments = async (filters = {}) => {
+        try {
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) params.append(key, value.toString());
+            });
+
+            const response = await apiFetch<AppointmentsResponse>(
+                `/healthcare/professionals/appointments/my?${params.toString()}`
+            );
+
+            return response;
+        } catch (err: any) {
+            handleError('Failed to load your appointments', err);
+            throw err;
+        }
+    };
+
+    /** Get patient's bookings */
+    const getMyBookings = async (
+        filters?: {
+            status?: string;
+            type?: string;
+            upcoming?: boolean;
+            page?: number;
+            limit?: number;
+        }
+    ): Promise<AppointmentsResponse> => {
+        try {
+            // Apply default: upcoming=true if not provided
+            const effectiveFilters = { upcoming: true, ...filters };
+
+            const params = new URLSearchParams();
+            Object.entries(effectiveFilters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) params.append(key, String(value));
+            });
+
+            const response = await apiFetch<AppointmentsResponse>(
+                `/healthcare/bookings/my?${params.toString()}`
+            );
+
+            return response;
+        } catch (err: any) {
+            handleError('Failed to load your bookings', err);
+            throw err;
+        }
+    };
+
+    /** Update a pending booking (patient side) */
+    const updateBooking = async (
+        appointmentId: string,
+        updates: Partial<{ date: string; duration: number; notes: string; type: 'physical' | 'virtual' }>
+    ): Promise<Appointment> => {
+        try {
+            const appointment = await apiFetch<Appointment>(`/healthcare/bookings/${appointmentId}`, {
+                method: 'PUT',
+                body: updates
+            });
+
+            showAlert({ message: 'Booking updated successfully', type: 'success' });
+            return appointment;
+        } catch (err: any) {
+            handleError('Failed to update booking', err);
+            throw err;
+        }
+    };
+
+    /** Cancel a booking (patient side) */
+    const cancelBooking = async (appointmentId: string): Promise<void> => {
+        try {
+            await apiFetch(`/healthcare/bookings/${appointmentId}`, {
+                method: 'DELETE'
+            });
+
+            showAlert({ message: 'Booking cancelled successfully', type: 'info' });
+        } catch (err: any) {
+            handleError('Failed to cancel booking', err);
+            throw err;
+        }
+    };
+
+    /** Update appointment status (professional side) */
+    const updateAppointmentStatus = async (
+        appointmentId: string,
+        status: 'confirmed' | 'rejected' | 'completed' | 'cancelled'
+    ): Promise<Appointment> => {
+        try {
+            const appointment = await apiFetch<Appointment>(`/healthcare/professionals/appointments/${appointmentId}/status`, {
+                method: 'PUT',
+                body: { status }
+            });
+
+            showAlert({ message: `Appointment ${status} successfully`, type: 'success' });
+            return appointment;
+        } catch (err: any) {
+            handleError('Failed to update appointment status', err);
+            throw err;
+        }
+    };
+
+    /** Get single appointment details (professional view) */
+    const getAppointmentById = async (appointmentId: string): Promise<Appointment> => {
+        try {
+            const appointment = await apiFetch<Appointment>(`/healthcare/professionals/appointments/${appointmentId}`);
+            return appointment;
+        } catch (err: any) {
+            handleError('Failed to load appointment details', err);
+            throw err;
+        }
+    };
+
+    /** Get single booking details (patient view) */
+    const getBookingById = async (appointmentId: string): Promise<Appointment> => {
+        try {
+            const booking = await apiFetch<Appointment>(`/healthcare/bookings/${appointmentId}`);
+            return booking;
+        } catch (err: any) {
+            handleError('Failed to load booking details', err);
+            throw err;
+        }
+    };
+
 
     return (
         <HealthcareContext.Provider
@@ -442,6 +657,14 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
                 updateProfessionalProfile,
                 clearSelectedProfessional,
                 getUserProfessionalRating,
+                bookAppointment,
+                getMyAppointments,
+                getMyBookings,
+                updateBooking,
+                cancelBooking,
+                updateAppointmentStatus,
+                getAppointmentById,
+                getBookingById,
             }}
         >
             {children}

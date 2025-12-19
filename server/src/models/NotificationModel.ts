@@ -29,7 +29,7 @@ const NotificationSchema = new Schema<INotification>({
   },
   type: {
     type: String,
-    enum: [
+     enum: [
       'system',
       'message',
       'appointment',
@@ -38,7 +38,12 @@ const NotificationSchema = new Schema<INotification>({
       'medical',
       'certification_update',
       'certification_verification',
-      'profile_update'
+      'profile_update',
+      'general_announcement',
+      'booking_request', 
+      'booking_updated',
+      'booking_cancelled', 
+      'booking_status_changed',
     ],
     required: true,
   },

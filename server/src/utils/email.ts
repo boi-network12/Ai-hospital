@@ -52,3 +52,5 @@ export const sendOtpEmail = async (to: string, otp: string): Promise<void> => {
     html,
   });
 };
+
+// for every email create a different file for it like this one

@@ -10,7 +10,12 @@ export type NotificationType =
   | 'medical'
   | 'certification_update'
   | 'certification_verification'
-  | 'profile_update';
+  | 'profile_update'
+  | 'general_announcement'
+  | 'booking_request'
+  | 'booking_updated'
+  | 'booking_cancelled'
+  | 'booking_status_changed';
 
 export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 

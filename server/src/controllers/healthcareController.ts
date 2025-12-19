@@ -4,9 +4,12 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 import * as healthcareService from '../services/healthcareService';
 import * as ratingService from '../services/ratingService';
 import * as tipService from '../services/tipService';
+import * as notificationService from '../services/notificationService';
 import Rating from '../models/RatingModel';
 import { Types } from 'mongoose';
 import User from '../models/UserModel';
+import Appointment from "../models/AppointmentModel";
+import { sendBookingRequestEmail } from '../utils/emailBookingRequest';
 
 interface UpdateRatingData {
     rating: number;
@@ -182,6 +185,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
     }
 };
 
+/* ---------- Helper: Update professional stats (reused) ---------- */
 const updateProfessionalStats = async (professionalId: string) => {
     try {
         const stats = await Rating.aggregate([
@@ -198,12 +202,19 @@ const updateProfessionalStats = async (professionalId: string) => {
         if (stats.length > 0) {
             const updateData: any = {
                 $set: {
-                    // Use the correct path from your User schema
                     'healthcareProfile.averageRating': Math.round(stats[0].averageRating * 10) / 10,
                     'healthcareProfile.totalRatings': stats[0].totalRatings
                 }
             };
-
+            await User.findByIdAndUpdate(professionalId, updateData);
+        } else {
+            // No ratings left, reset to defaults
+            const updateData: any = {
+                $set: {
+                    'healthcareProfile.averageRating': 0,
+                    'healthcareProfile.totalRatings': 0
+                }
+            };
             await User.findByIdAndUpdate(professionalId, updateData);
         }
     } catch (error) {
@@ -246,6 +257,42 @@ export const getProfessionalRatings = async (req: Request, res: Response) => {
 
         res.json(ratings);
     } catch (error: any) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+/* ---------- Delete rating ---------- */
+export const deleteRating = async (req: AuthRequest, res: Response) => {
+    try {
+        const { ratingId } = req.params;
+        const userId = req.user._id;
+
+        // Find rating
+        const rating = await Rating.findOne({
+            _id: ratingId,
+            userId: new Types.ObjectId(userId)
+        });
+
+        if (!rating) {
+            return res.status(404).json({ 
+                message: 'Rating not found or unauthorized' 
+            });
+        }
+
+        const professionalId = rating.professionalId;
+        
+        // Delete the rating
+        await Rating.deleteOne({ _id: ratingId });
+
+        // Update professional stats
+        await updateProfessionalStats(professionalId.toString());
+
+        res.json({
+            message: 'Rating deleted successfully',
+            ratingId
+        });
+    } catch (error: any) {
+        console.error('Delete rating error:', error);
         res.status(400).json({ message: error.message });
     }
 };
@@ -308,5 +355,496 @@ export const updateProfessionalRating = async (req: AuthRequest, res: Response) 
         res.status(400).json({ 
             message: error.message || 'Failed to update rating' 
         });
+    }
+};
+
+/* ---------- Helper: Clean up expired appointments ---------- */
+const cleanupExpiredAppointments = async () => {
+    try {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        
+        // Delete appointments older than 24 hours with 'pending' or 'cancelled' status
+        const result = await Appointment.deleteMany({
+            date: { $lt: twentyFourHoursAgo },
+            status: { $in: ['pending', 'cancelled', 'rejected'] }
+        });
+
+        if (result.deletedCount > 0) {
+            console.log(`Cleaned up ${result.deletedCount} expired appointments`);
+        }
+    } catch (error) {
+        console.error('Cleanup appointments error:', error);
+    }
+};
+
+/** ------------------ book appointments ---------------- */
+export const bookAppointment = async (req: AuthRequest, res: Response) => {
+    const { professionalId } = req.params;
+    const { date, duration = 60, notes, type = 'physical' } = req.body;
+
+    if (type !== 'physical') {
+        return res.status(400).json({ message: 'Only physical appointments are supported at this time.' });
+    }
+
+    const appointmentDate = new Date(date);
+    const endDate = new Date(appointmentDate.getTime() + duration * 60000); // Add duration to calculate endDate
+
+    const day = appointmentDate.getDay();
+    const hours = appointmentDate.getHours();
+    const minutes = appointmentDate.getMinutes();
+
+    // Validate: Mon–Fri, 8:00–16:30
+    if (day < 1 || day > 5) {
+        return res.status(400).json({ message: 'Physical sessions only available Monday to Friday' });
+    }
+    const timeInMinutes = hours * 60 + minutes;
+    if (timeInMinutes < 480 || timeInMinutes >= 990) {
+        return res.status(400).json({ message: 'Physical sessions available 8:00 AM – 4:30 PM only' });
+    }
+
+    // Check for conflicting appointments
+    const conflicting = await Appointment.findOne({
+        professionalId,
+        date: { $gte: appointmentDate, $lt: new Date(appointmentDate.getTime() + duration * 60000) },
+        status: { $in: ['pending', 'confirmed'] }
+    });
+
+    if (conflicting) {
+        return res.status(409).json({ message: 'This time slot is already booked or pending' });
+    }
+
+    // Create appointment with endDate
+    let appointment = await Appointment.create({
+        patientId: req.user._id,
+        professionalId,
+        type,
+        date: appointmentDate,
+        endDate: endDate, // Add this line
+        duration,
+        notes,
+    });
+
+    // Populate with proper typing
+    appointment = await appointment.populate([
+        { path: 'patientId', select: 'name profile.avatar phoneNumber' },
+        { path: 'professionalId', select: 'name email' }
+    ]);
+
+    // Send notification + email
+    try {
+        await notificationService.sendNotification({
+            userId: new Types.ObjectId(professionalId),
+            type: 'booking_request',
+            title: 'New Physical Booking Request',
+            message: `${(appointment.patientId as any).name} wants to book a physical session on ${appointmentDate.toLocaleString()}`,
+            priority: 'high',
+            actionUrl: '/appointments',
+            data: { appointmentId: appointment._id }
+        });
+
+        await sendBookingRequestEmail(
+            (appointment.professionalId as any).email,
+            (appointment.patientId as any).name,
+            appointmentDate,
+            duration
+        );
+    } catch (err) {
+        console.error('Failed to notify professional:', err);
+    }
+
+    res.status(201).json({
+        appointment: {
+            ...appointment.toObject(),
+            id: appointment._id.toString()
+        },
+        message: 'Booking request sent! Awaiting confirmation.'
+    });
+};
+
+/* ---------- Get healthcare professional's appointments ---------- */
+export const getMyAppointments = async (req: AuthRequest, res: Response) => {
+    try {
+        const { status, type, startDate, endDate, page = 1, limit = 20 } = req.query;
+        const professionalId = req.user._id;
+
+        const query: any = { professionalId: new Types.ObjectId(professionalId) };
+
+        // Filter by status if provided
+        if (status) {
+            query.status = status;
+        }
+
+        // Filter by type if provided
+        if (type) {
+            query.type = type;
+        }
+
+        // Filter by date range if provided
+        if (startDate || endDate) {
+            query.date = {};
+            if (startDate) {
+                query.date.$gte = new Date(startDate as string);
+            }
+            if (endDate) {
+                query.date.$lte = new Date(endDate as string);
+            }
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        // Get appointments
+        const appointments = await Appointment.find(query)
+            .populate('patientId', 'name profile.avatar phoneNumber email')
+            .sort({ date: 1 })
+            .skip(skip)
+            .limit(Number(limit))
+            .lean();
+
+        // Get total count for pagination
+        const total = await Appointment.countDocuments(query);
+
+        // Clean up expired appointments (optional - can be moved to cron job)
+        await cleanupExpiredAppointments();
+
+        res.json({
+            appointments,
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit))
+        });
+    } catch (error: any) {
+        console.error('Get appointments error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+/* ---------- Patient: Get my bookings ---------- */
+export const getMyBookings = async (req: AuthRequest, res: Response) => {
+    try {
+        const { status, type, upcoming = 'true', page = 1, limit = 20 } = req.query;
+        const patientId = req.user._id;
+
+        const query: any = { patientId: new Types.ObjectId(patientId) };
+
+        // Filter by status if provided
+        if (status) {
+            query.status = status;
+        } else if (upcoming === 'true') {
+            // Default: show upcoming appointments
+            query.date = { $gte: new Date() };
+            query.status = { $in: ['pending', 'confirmed'] };
+        }
+
+        // Filter by type if provided
+        if (type) {
+            query.type = type;
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const appointments = await Appointment.find(query)
+            .populate('professionalId', 'name profile.avatar profile.specialization healthcareProfile')
+            .sort({ date: 1 })
+            .skip(skip)
+            .limit(Number(limit))
+            .lean();
+        
+        // Map _id to id for frontend consistency
+        const formattedAppointments = appointments.map(apt => ({
+            ...apt,
+            id: apt._id.toString(),  // ← Add this
+            // optionally delete _id if you don't want both
+            // delete apt._id;
+        }));
+        
+        const total = await Appointment.countDocuments(query);
+
+        res.json({
+            appointments: formattedAppointments,
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit))
+        });
+    } catch (error: any) {
+        console.error('Get bookings error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+/* ---------- Patient: Update booking ---------- */
+export const updateBooking = async (req: AuthRequest, res: Response) => {
+    try {
+        const { appointmentId } = req.params;
+        const { date, duration, notes, type } = req.body;
+        const patientId = req.user._id;
+
+        // Find appointment
+        const appointment = await Appointment.findOne({
+            _id: appointmentId,
+            patientId: new Types.ObjectId(patientId)
+        });
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+        }
+
+        // Only allow updates for pending appointments
+        if (appointment.status !== 'pending') {
+            return res.status(400).json({ 
+                message: `Cannot update appointment with status: ${appointment.status}` 
+            });
+        }
+
+        // Validate new date if provided
+        if (date) {
+            const newDate = new Date(date);
+            const day = newDate.getDay();
+            const hours = newDate.getHours();
+            const minutes = newDate.getMinutes();
+            const timeInMinutes = hours * 60 + minutes;
+
+            // Validate: Mon–Fri, 8:00–16:30
+            if (day < 1 || day > 5) {
+                return res.status(400).json({ 
+                    message: 'Physical sessions only available Monday to Friday' 
+                });
+            }
+            if (timeInMinutes < 480 || timeInMinutes >= 990) {
+                return res.status(400).json({ 
+                    message: 'Physical sessions available 8:00 AM – 4:30 PM only' 
+                });
+            }
+
+            appointment.date = newDate;
+        }
+
+        // Update other fields
+        if (duration !== undefined) {
+            appointment.duration = duration;
+            // Update endDate when duration changes
+            const endDate = new Date(appointment.date.getTime() + appointment.duration * 60000);
+            appointment.endDate = endDate;
+        }
+
+        if (notes !== undefined) appointment.notes = notes;
+        if (type !== undefined) appointment.type = type;
+
+        appointment.updatedAt = new Date();
+
+        await appointment.save();
+
+        // Notify professional about update
+        try {
+            await notificationService.sendNotification({
+                userId: appointment.professionalId,
+                type: 'booking_updated',
+                title: 'Booking Updated',
+                message: `Patient has updated their booking for ${appointment.date.toLocaleString()}`,
+                priority: 'medium',
+                actionUrl: '/appointments',
+                data: { appointmentId: appointment._id }
+            });
+        } catch (err) {
+            console.error('Failed to send notification:', err);
+        }
+
+        res.json({
+            appointment: {
+                ...appointment.toObject(),
+                id: appointment._id.toString()
+            },
+            message: 'Booking updated successfully'
+        });
+    } catch (error: any) {
+        console.error('Update booking error:', error);
+        res.status(400).json({ message: error.message });
+    }
+};
+
+/* ---------- Patient: Delete/cancel booking ---------- */
+export const cancelBooking = async (req: AuthRequest, res: Response) => {
+    try {
+        const { appointmentId } = req.params;
+        const patientId = req.user._id;
+
+        // Find appointment
+        const appointment = await Appointment.findOne({
+            _id: appointmentId,
+            patientId: new Types.ObjectId(patientId)
+        });
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+        }
+
+        // Only allow cancellation for pending or confirmed appointments
+        if (!['pending', 'confirmed'].includes(appointment.status)) {
+            return res.status(400).json({ 
+                message: `Cannot cancel appointment with status: ${appointment.status}` 
+            });
+        }
+
+        const oldStatus = appointment.status;
+        appointment.status = 'cancelled';
+        appointment.updatedAt = new Date();
+
+        await appointment.save();
+
+        // Notify professional about cancellation
+        try {
+            await notificationService.sendNotification({
+                userId: appointment.professionalId,
+                type: 'booking_cancelled',
+                title: 'Booking Cancelled',
+                message: `Patient has cancelled their booking for ${appointment.date.toLocaleString()}`,
+                priority: 'medium',
+                actionUrl: '/appointments',
+                data: { 
+                    appointmentId: appointment._id,
+                    oldStatus,
+                    cancelledAt: new Date()
+                }
+            });
+        } catch (err) {
+            console.error('Failed to send notification:', err);
+        }
+
+        res.json({
+            message: 'Booking cancelled successfully',
+            appointmentId: appointment._id.toString()
+        });
+    } catch (error: any) {
+        console.error('Cancel booking error:', error);
+        res.status(400).json({ message: error.message });
+    }
+};
+
+/* ---------- Professional: Update appointment status ---------- */
+export const updateAppointmentStatus = async (req: AuthRequest, res: Response) => {
+    try {
+        const { appointmentId } = req.params;
+        const { status } = req.body;
+        const professionalId = req.user._id;
+
+        // Validate status
+        const validStatuses = ['confirmed', 'rejected', 'completed', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ 
+                message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+            });
+        }
+
+        // Find appointment
+        const appointment = await Appointment.findOne({
+            _id: appointmentId,
+            professionalId: new Types.ObjectId(professionalId)
+        });
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+        }
+
+        const oldStatus = appointment.status;
+        appointment.status = status;
+        appointment.updatedAt = new Date();
+
+        await appointment.save();
+
+        // Notify patient about status change
+        try {
+            let notificationMessage = '';
+            switch (status) {
+                case 'confirmed':
+                    notificationMessage = `Your appointment has been confirmed for ${appointment.date.toLocaleString()}`;
+                    break;
+                case 'rejected':
+                    notificationMessage = `Your appointment request has been rejected`;
+                    break;
+                case 'completed':
+                    notificationMessage = `Your appointment has been marked as completed`;
+                    break;
+                case 'cancelled':
+                    notificationMessage = `Your appointment has been cancelled by the professional`;
+                    break;
+            }
+
+            await notificationService.sendNotification({
+                userId: appointment.patientId,
+                type: 'booking_status_changed',
+                title: 'Appointment Status Updated',
+                message: notificationMessage,
+                priority: 'medium',
+                actionUrl: '/bookings',
+                data: { 
+                    appointmentId: appointment._id,
+                    oldStatus,
+                    newStatus: status,
+                    updatedAt: new Date()
+                }
+            });
+        } catch (err) {
+            console.error('Failed to send notification:', err);
+        }
+
+        res.json({
+            appointment: {
+                ...appointment.toObject(),
+                id: appointment._id.toString()
+            },
+            message: `Appointment ${status} successfully`
+        });
+    } catch (error: any) {
+        console.error('Update appointment status error:', error);
+        res.status(400).json({ message: error.message });
+    }
+};
+
+/* ---------- Professional: Get appointment by ID ---------- */
+export const getAppointmentById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { appointmentId } = req.params;
+        const professionalId = req.user._id;
+
+        const appointment = await Appointment.findOne({
+            _id: appointmentId,
+            professionalId: new Types.ObjectId(professionalId)
+        })
+        .populate('patientId', 'name profile.avatar phoneNumber email profile.dateOfBirth profile.gender')
+        .lean();
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found or unauthorized' });
+        }
+
+        res.json(appointment);
+    } catch (error: any) {
+        console.error('Get appointment error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+/* ---------- Patient: Get booking by ID ---------- */
+export const getBookingById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { appointmentId } = req.params;
+        const patientId = req.user._id;
+
+        const appointment = await Appointment.findOne({
+            _id: appointmentId,
+            patientId: new Types.ObjectId(patientId)
+        })
+        .populate('professionalId', 'name profile.avatar profile.specialization healthcareProfile profile.department')
+        .lean();
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Booking not found or unauthorized' });
+        }
+
+        res.json(appointment);
+    } catch (error: any) {
+        console.error('Get booking error:', error);
+        res.status(500).json({ message: error.message });
     }
 };

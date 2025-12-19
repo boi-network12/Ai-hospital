@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Modal,
     TextInput,
+    TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -38,16 +39,169 @@ import { HealthcareProfessional } from '@/types/auth.d';
 import { RefreshControl } from 'react-native-gesture-handler';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useToast } from '@/Hooks/useToast.d';
-import { debounce } from 'lodash';
+
+const CommentModal = ({
+  visible,
+  onClose,
+  tempComment,
+  setTempComment,
+  isUpdatingRating,
+  tempRating,
+  onSubmitRating,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  tempComment: string;
+  setTempComment: (text: string) => void;
+  isUpdatingRating: boolean;
+  tempRating: number;
+  onSubmitRating: (rating: number, comment?: string) => Promise<void>;
+}) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (withComment: boolean) => {
+    try {
+      setIsSubmitting(true);
+      await onSubmitRating(
+        tempRating,
+        withComment ? (tempComment || undefined) : undefined
+      );
+      onClose();
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <View key={i} style={modalStyles.starContainer}>
+          <StarIcon 
+            width={hp(3.2)} 
+            height={hp(3.2)} 
+            fill={i <= tempRating ? "#FFC107" : "transparent"}
+            stroke={i <= tempRating ? "#FFC107" : "#ddd"}
+            strokeWidth={1.5}
+          />
+        </View>
+      );
+    }
+    return stars;
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={modalStyles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={modalStyles.container}>
+              {/* Header */}
+              <View style={modalStyles.header}>
+                <View style={modalStyles.headerIcon}>
+                  <StarIcon width={hp(2.5)} height={hp(2.5)} fill="#FFC107" />
+                </View>
+                <Text style={modalStyles.title}>
+                  {isUpdatingRating ? 'Update Your Review' : 'Rate this Professional'}
+                </Text>
+                <Text style={modalStyles.subtitle}>
+                  {isUpdatingRating 
+                    ? 'Edit your rating and feedback' 
+                    : `You rated ${tempRating} out of 5 stars`
+                  }
+                </Text>
+              </View>
+
+              {/* Stars Display */}
+              <View style={modalStyles.starsRow}>
+                {renderStars()}
+              </View>
+
+              {/* Comment Input */}
+              <View style={modalStyles.inputContainer}>
+                <Text style={modalStyles.inputLabel}>
+                  Share your experience (optional)
+                </Text>
+                <TextInput
+                  style={modalStyles.input}
+                  multiline
+                  numberOfLines={5}
+                  placeholder="What was your experience like? Was there anything particular that stood out?"
+                  value={tempComment}
+                  onChangeText={setTempComment}
+                  autoFocus={true}
+                  blurOnSubmit={false}
+                  editable={!isSubmitting}
+                  textAlignVertical="top"
+                  placeholderTextColor="#999"
+                />
+                <Text style={modalStyles.charHint}>
+                  {tempComment.length}/500 characters
+                </Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={modalStyles.buttonContainer}>
+                <TouchableOpacity
+                  style={[modalStyles.button, modalStyles.secondaryButton]}
+                  onPress={onClose}
+                  disabled={isSubmitting}
+                >
+                  <Text style={modalStyles.secondaryButtonText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[modalStyles.button, modalStyles.primaryButton]}
+                  onPress={() => handleSubmit(true)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={modalStyles.primaryButtonText}>
+                      {isUpdatingRating ? 'Update Review' : 'Submit Review'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Skip Option */}
+              <TouchableOpacity
+                style={modalStyles.skipButton}
+                onPress={() => handleSubmit(false)}
+                disabled={isSubmitting}
+              >
+                <Text style={modalStyles.skipButtonText}>
+                  {isUpdatingRating ? 'Update rating only' : 'Submit rating only'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
 
 export default function MedicalProfessionalProfile() {
     const { professionalId } = useLocalSearchParams();
+    const { bookAppointment } = useHealthcare();
+    const [bookingLoading, setBookingLoading] = useState(false);
+
     const router = useRouter();
     const {
         healthcare,
         getProfessionalProfile,
         rateProfessional,
-        tipProfessional,
         getUserProfessionalRating,
         getProfessionalRatings
     } = useHealthcare();
@@ -70,9 +224,6 @@ export default function MedicalProfessionalProfile() {
     const [tempRating, setTempRating] = useState(0);
     const [tempComment, setTempComment] = useState('');
     const [isUpdatingRating, setIsUpdatingRating] = useState(false);
-    const [showTipModal, setShowTipModal] = useState(false);
-    const [tipAmount, setTipAmount] = useState('10');
-    const [tipMessage, setTipMessage] = useState('');
     const [recentRatings, setRecentRatings] = useState<any[]>([]);
     const [loadingRatings, setLoadingRatings] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
@@ -196,8 +347,50 @@ export default function MedicalProfessionalProfile() {
         router.push(`/chat/${professionalId}`);
     };
 
-    const handleScheduleAppointment = () => {
-        router.push(`/appointment/book/${professionalId}`);
+    const handleBookNow = async () => {
+        if (!professionalId || !professional) return;
+
+        try {
+            setBookingLoading(true);
+
+            let proposedDate = new Date();
+            proposedDate.setDate(proposedDate.getDate() + 3); // Start: 3 days from now
+            proposedDate.setHours(10, 0, 0, 0); // Set time to 10:00 AM
+
+            // Get day of week: 0 = Sunday, 6 = Saturday
+            const dayOfWeek = proposedDate.getDay();
+
+            if (dayOfWeek === 0) { // Sunday → move to next Monday
+                proposedDate.setDate(proposedDate.getDate() + 1);
+            } else if (dayOfWeek === 6) { // Saturday → move to next Monday
+                proposedDate.setDate(proposedDate.getDate() + 2);
+            }
+            // If it's Friday and we want to avoid close to weekend, optional extra skip
+            // else if (dayOfWeek === 5) { proposedDate.setDate(proposedDate.getDate() + 3); } // to Monday
+
+            // Final appointment details
+            const appointmentDateISO = proposedDate.toISOString();
+
+            await bookAppointment(
+                professionalId as string,
+                appointmentDateISO,
+                60,
+                "General consultation",
+                "physical"
+            );
+
+            showAlert({
+                message: "Booking request sent successfully! Awaiting confirmation.",
+                type: "success"
+            });
+        } catch (err: any) {
+            showAlert({
+                message: err.message || "Failed to book appointment",
+                type: "error"
+            });
+        } finally {
+            setBookingLoading(false);
+        }
     };
 
     const handleRatingUpdate = async (rating: number, comment?: string) => {
@@ -232,77 +425,10 @@ export default function MedicalProfessionalProfile() {
         }
     };
 
-    const handleCommentChange = debounce((text: string) => {
-        setTempComment(text);
-    }, 100);
-
-    const CommentModal = () => (
-        <Modal
-            visible={showCommentModal}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setShowCommentModal(false)}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>
-                        {isUpdatingRating ? 'Update Comment' : 'Add a Comment (Optional)'}
-                    </Text>
-                    
-                    <TextInput
-                        style={styles.commentInput}
-                        multiline
-                        numberOfLines={4}
-                        placeholder="Share your experience (optional)..."
-                        value={tempComment}
-                        onChangeText={handleCommentChange}
-                        autoFocus={true}
-                        onBlur={(e) => {
-                            // Ensure the latest text is captured on blur
-                        }}
-                    />
-                    
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                            style={[styles.modalButton, styles.cancelButton]}
-                            onPress={() => setShowCommentModal(false)}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                            style={[styles.modalButton, styles.skipButton]}
-                            onPress={async () => {
-                                setShowCommentModal(false);
-                                await handleRatingUpdate(tempRating, undefined);
-                            }}
-                        >
-                            <Text style={styles.skipButtonText}>
-                                {isUpdatingRating ? 'Update Without Comment' : 'Skip Comment'}
-                            </Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                            style={[styles.modalButton, styles.submitButton]}
-                            onPress={async () => {
-                                setShowCommentModal(false);
-                                await handleRatingUpdate(tempRating, tempComment || undefined);
-                            }}
-                        >
-                            <Text style={styles.submitButtonText}>
-                                {isUpdatingRating ? 'Update' : 'Submit'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-
-
-    const renderInteractiveStars = (rating: number = 0, interactive: boolean = true) => {
+    const renderInteractiveStars = (rating: number = 0, interactive: boolean = true, isUserRating: boolean = false) => {
         const stars = [];
-        const currentRating = userRating.hasRated ? userRating.rating : rating;
+        // FIX: Use the passed rating for non-user ratings, userRating.rating only for user's own rating
+        const currentRating = isUserRating ? userRating.rating : rating;
         
         for (let i = 1; i <= 5; i++) {
             stars.push(
@@ -857,11 +983,18 @@ export default function MedicalProfessionalProfile() {
 
                     <TouchableOpacity 
                         style={[styles.actionButton, styles.appointmentButton]} 
-                        onPress={handleScheduleAppointment}
+                        onPress={handleBookNow}
+                        disabled={bookingLoading}
                         activeOpacity={0.8}
                     >
-                        <CalendarIcon width={hp(2.5)} height={hp(2.5)} fill="#fff" />
-                        <Text style={styles.actionText}>Book</Text>
+                        {bookingLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <CalendarIcon width={hp(2.5)} height={hp(2.5)} fill="#fff" />
+                        )}
+                        <Text style={styles.actionText}>
+                            {bookingLoading ? "Booking..." : "Book Now"}
+                        </Text>
                     </TouchableOpacity>
 
                 </View>
@@ -880,7 +1013,15 @@ export default function MedicalProfessionalProfile() {
             </ScrollView>
 
             {/* Modals */}
-            <CommentModal />
+            <CommentModal
+                visible={showCommentModal}
+                onClose={() => setShowCommentModal(false)}
+                tempComment={tempComment}
+                setTempComment={setTempComment}
+                isUpdatingRating={isUpdatingRating}
+                tempRating={tempRating}
+                onSubmitRating={handleRatingUpdate}
+            />
         </SafeAreaView>
     );
 }
@@ -994,13 +1135,13 @@ const styles = StyleSheet.create({
         marginBottom: hp(1),
     },
     rating: {
-        fontSize: hp(1.9),
+        fontSize: hp(1.5),
         fontWeight: '600',
         marginLeft: wp(1.5),
         color: '#333',
     },
     ratingCount: {
-        fontSize: hp(1.6),
+        fontSize: hp(1.5),
         color: '#999',
         marginLeft: wp(1),
     },
@@ -1014,7 +1155,7 @@ const styles = StyleSheet.create({
         marginTop: hp(0.5),
     },
     hourlyRateText: {
-        fontSize: hp(1.6),
+        fontSize: hp(1.35),
         color: '#28a745',
         fontWeight: '600',
         marginLeft: wp(1),
@@ -1042,10 +1183,6 @@ const styles = StyleSheet.create({
     appointmentButton: {
         backgroundColor: '#6f42c1',
         shadowColor: '#6f42c1',
-    },
-    tipButton: {
-        backgroundColor: '#28a745',
-        shadowColor: '#28a745',
     },
     actionText: {
         color: '#fff',
@@ -1087,11 +1224,6 @@ const styles = StyleSheet.create({
         marginHorizontal: wp(4),
         marginBottom: hp(2),
         borderRadius: hp(1.5),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
     },
     statItem: {
         alignItems: 'center',
@@ -1122,11 +1254,6 @@ const styles = StyleSheet.create({
         marginBottom: hp(2),
         padding: hp(2.5),
         borderRadius: hp(1.5),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
     },
     sectionTitle: {
         fontSize: hp(2.1),
@@ -1334,25 +1461,6 @@ const styles = StyleSheet.create({
         marginTop: hp(0.5),
         marginBottom: hp(1),
     },
-    userRatingContainer: {
-        alignItems: 'center',
-    },
-    ratingDisplay: {
-        flexDirection: 'row',
-        marginBottom: hp(1),
-    },
-    ratedText: {
-        fontSize: hp(1.7),
-        color: '#666',
-        textAlign: 'center',
-        marginBottom: hp(1),
-        fontWeight: '500',
-    },
-    ratingDate: {
-        fontSize: hp(1.4),
-        color: '#888',
-        fontStyle: 'italic',
-    },
     editCommentButton: {
         marginTop: hp(1),
         padding: hp(1),
@@ -1440,125 +1548,6 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         paddingVertical: hp(2),
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: wp(5),
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderRadius: hp(2),
-        padding: hp(3),
-        width: '100%',
-        maxWidth: wp(90),
-    },
-    modalTitle: {
-        fontSize: hp(2.2),
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: hp(2),
-        textAlign: 'center',
-    },
-    commentInput: {
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: hp(1),
-        padding: hp(1.5),
-        fontSize: hp(1.6),
-        minHeight: hp(10),
-        marginBottom: hp(2),
-        textAlignVertical: 'top',
-    },
-    tipAmountContainer: {
-        marginBottom: hp(2),
-    },
-    tipLabel: {
-        fontSize: hp(1.6),
-        color: '#666',
-        marginBottom: hp(0.8),
-        fontWeight: '500',
-    },
-    amountInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: hp(1),
-        paddingHorizontal: hp(1.5),
-    },
-    amountInput: {
-        flex: 1,
-        fontSize: hp(2),
-        paddingVertical: hp(1.5),
-        paddingLeft: wp(2),
-    },
-    quickAmounts: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: hp(2),
-    },
-    quickAmountButton: {
-        backgroundColor: '#f0f0f0',
-        paddingHorizontal: wp(3),
-        paddingVertical: hp(1),
-        borderRadius: hp(1),
-        minWidth: wp(15),
-        alignItems: 'center',
-    },
-    quickAmountText: {
-        fontSize: hp(1.6),
-        color: '#333',
-        fontWeight: '500',
-    },
-    messageContainer: {
-        marginBottom: hp(2),
-    },
-    messageInput: {
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: hp(1),
-        padding: hp(1.5),
-        fontSize: hp(1.6),
-        minHeight: hp(8),
-        textAlignVertical: 'top',
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    modalButton: {
-        flex: 1,
-        paddingVertical: hp(1.5),
-        borderRadius: hp(1),
-        alignItems: 'center',
-        marginHorizontal: wp(1),
-    },
-    cancelButton: {
-        backgroundColor: '#f0f0f0',
-    },
-    skipButton: {
-        backgroundColor: '#6c757d',
-    },
-    submitButton: {
-        backgroundColor: '#8089ff',
-    },
-    cancelButtonText: {
-        color: '#666',
-        fontSize: hp(1.6),
-        fontWeight: '600',
-    },
-    skipButtonText: {
-        color: '#fff',
-        fontSize: hp(1.6),
-        fontWeight: '600',
-    },
-    submitButtonText: {
-        color: '#fff',
-        fontSize: hp(1.6),
-        fontWeight: '600',
-    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -1623,4 +1612,153 @@ const styles = StyleSheet.create({
         fontSize: hp(1.9),
         fontWeight: '500',
     },
+});
+
+// Modal-specific styles
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: wp(5),
+  },
+  container: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: wp(90),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  header: {
+    padding: hp(3),
+    alignItems: 'center',
+    backgroundColor: '#f8f9ff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef0ff',
+  },
+  headerIcon: {
+    width: hp(5),
+    height: hp(5),
+    borderRadius: hp(2.5),
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: hp(1.5),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  title: {
+    fontSize: hp(2.3),
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: hp(0.5),
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: hp(1.6),
+    color: '#666',
+    textAlign: 'center',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingVertical: hp(2),
+    backgroundColor: '#fff',
+  },
+  starContainer: {
+    padding: wp(1),
+    marginHorizontal: wp(0.5),
+  },
+  inputContainer: {
+    paddingHorizontal: hp(3),
+    paddingTop: hp(1),
+    paddingBottom: hp(2),
+  },
+  inputLabel: {
+    fontSize: hp(1.7),
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: hp(1),
+  },
+  input: {
+    borderWidth: 1.5,
+    borderColor: '#e1e5e9',
+    borderRadius: 12,
+    paddingHorizontal: hp(2),
+    paddingVertical: hp(1.8),
+    fontSize: hp(1.6),
+    minHeight: hp(12),
+    backgroundColor: '#fcfdff',
+    color: '#333',
+  },
+  charHint: {
+    fontSize: hp(1.3),
+    color: '#999',
+    textAlign: 'right',
+    marginTop: hp(0.5),
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: hp(3),
+    paddingVertical: hp(2),
+    backgroundColor: '#fafbfd',
+    borderTopWidth: 1,
+    borderTopColor: '#eef0ff',
+    gap: wp(2),
+  },
+  button: {
+    flex: 1,
+    paddingVertical: hp(1.6),
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#8089ff',
+    shadowColor: '#8089ff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e1e5e9',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: hp(1.7),
+    fontWeight: '600',
+  },
+  secondaryButtonText: {
+    color: '#666',
+    fontSize: hp(1.7),
+    fontWeight: '500',
+  },
+  skipButton: {
+    paddingVertical: hp(1.5),
+    paddingHorizontal: hp(3),
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eef0ff',
+  },
+  skipButtonText: {
+    color: '#8089ff',
+    fontSize: hp(1.5),
+    fontWeight: '500',
+  },
 });

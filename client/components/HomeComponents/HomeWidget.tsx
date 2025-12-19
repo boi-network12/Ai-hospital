@@ -337,7 +337,6 @@ const styles = StyleSheet.create({
     width: wp(42),
     borderWidth: 0.5,
     borderColor: '#eee',
-    height: hp(20),
     borderRadius: hp(1),
     padding: hp(1.5),
     alignItems: 'flex-start',
