@@ -30,25 +30,29 @@ export default function CalendarPage() {
   const [newDateTime, setNewDateTime] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState<'date' | 'time' | null>(null);
 
-  // Fetch bookings
-  useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        setLoading(true);
-        const response = await getMyBookings({
-          page: 1,
-          limit: 100,
-        });
-        setAppointments(response.appointments);
-      } catch (err) {
-        console.error('Failed to load bookings:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Fetch bookings function
+  const fetchBookings = useCallback(async (showLoader = true) => {
+    try {
+      if (showLoader) setLoading(true);
+      const response = await getMyBookings({
+        page: 1,
+        limit: 100,
+      });
+      setAppointments(response.appointments);
+    } catch (err) {
+      console.error('Failed to load bookings:', err);
+      showAlert({
+        message: 'Failed to load appointments',
+        type: 'error',
+      });
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  }, [getMyBookings, showAlert]);
 
+  useEffect(() => {
     fetchBookings();
-  }, [getMyBookings]);
+  }, [fetchBookings])
 
   const refreshAppointments = async () => {
     try {

@@ -22,6 +22,9 @@ export const adminCreateUser = async (data: {
     state?: string;
     country?: string;
   };
+  specialization?: string;
+  licenseNumber?: string;
+  issuedCountry?: string;
 }) => {
   const exists = await User.findOne({ email: data.email });
   if (exists) throw new Error('Email already registered');
@@ -37,11 +40,20 @@ export const adminCreateUser = async (data: {
     profile: {
       gender: data.gender ?? 'Prefer not to say',
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+      specialization: data.specialization ?? '',
       location: {
         city: data.location?.city ?? '',
         state: data.location?.state ?? '',
         country: data.location?.country ?? '',
       },
+    },
+    roleStatus: {
+      isActive: true,
+      approvedByAdmin: true,
+      approvalDate: new Date(),
+      verifiedLicense: true,
+      licenseNumber: data.licenseNumber ?? '',
+      issuedCountry: data.issuedCountry ?? '',
     },
   });
 

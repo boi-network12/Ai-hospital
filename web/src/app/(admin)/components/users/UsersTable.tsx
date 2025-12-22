@@ -105,7 +105,6 @@ export const UsersTable = ({ onViewProfile, onUpdateUser }: Props) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     try {
       await deleteUser(userId);
-      toast.success('User deleted');
     } catch (error: any) {
       console.error('Delete error:', error);
       toast.error(error.message || 'Failed to delete user');

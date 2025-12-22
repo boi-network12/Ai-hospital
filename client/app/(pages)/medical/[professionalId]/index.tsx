@@ -470,6 +470,18 @@ export default function MedicalProfessionalProfile() {
         return stars;
     };
 
+    const renderBio = () => {
+    const bio = professional?.healthcareProfile?.bio;
+    if (!bio) return null;
+
+    return (
+        <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About {professional?.name}</Text>
+        <Text style={styles.bioText}>{bio}</Text>
+        </View>
+    );
+    };
+
     const renderStatsSection = () => {
         if (!professional) return null;
         
@@ -551,13 +563,17 @@ export default function MedicalProfessionalProfile() {
 
     const renderEducation = () => {
         const education = professional?.healthcareProfile?.education || [];
-        if (education.length === 0) return null;
-        
+        const certifications = professional?.healthcareProfile?.certifications || [];
+
+        if (education.length === 0 && certifications.length === 0) return null;
+
         return (
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Education</Text>
-                {education.map((edu, index) => (
-                    <View key={index} style={styles.educationItem}>
+                <Text style={styles.sectionTitle}>Education & Credentials</Text>
+
+                {/* Education Items */}
+                {education.length > 0 && education.map((edu, index) => (
+                    <View key={`edu-${index}`} style={styles.educationItem}>
                         <BookOpenIcon width={hp(2)} height={hp(2)} fill="#666" />
                         <View style={styles.educationDetails}>
                             <Text style={styles.educationDegree}>{edu.degree}</Text>
@@ -566,6 +582,45 @@ export default function MedicalProfessionalProfile() {
                         </View>
                     </View>
                 ))}
+
+                {/* Certifications (License Info) */}
+                {certifications.length > 0 && (
+                    <>
+                        <Text style={styles.credentialsSubtitle}>Professional Licenses</Text>
+                        {certifications.map((cert, index) => (
+                            <View key={`cert-${index}`} style={styles.certificationItem}>
+                                <AwardIcon width={hp(2)} height={hp(2)} fill="#28a745" />
+                                <View style={styles.certificationDetails}>
+                                    <Text style={styles.certificationType}>{cert.licenseType}</Text>
+                                    <Text style={styles.certificationNumber}>
+                                        License #: {cert.licenseNumber || 'Not provided'}
+                                    </Text>
+                                    <Text style={styles.certificationAuthority}>
+                                        Issued by: {cert.issuingAuthority || 'Unknown authority'}
+                                    </Text>
+                                    {cert.issueDate && (
+                                        <Text style={styles.certificationDate}>
+                                            Issued: {new Date(cert.issueDate).getFullYear()}
+                                        </Text>
+                                    )}
+                                    <Text style={[
+                                        styles.certificationStatus,
+                                        { 
+                                            color: cert.verificationStatus === 'verified' ? '#28a745' : 
+                                                cert.verificationStatus === 'pending' ? '#ffc107' : '#dc3545'
+                                        }
+                                    ]}>
+                                        Status: {cert.verificationStatus.charAt(0).toUpperCase() + cert.verificationStatus.slice(1)}
+                                    </Text>
+                                </View>
+                            </View>
+                        ))}
+                    </>
+                )}
+
+                {education.length === 0 && certifications.length === 0 && (
+                    <Text style={styles.noDataText}>No education or license information available.</Text>
+                )}
             </View>
         );
     };
@@ -743,28 +798,29 @@ export default function MedicalProfessionalProfile() {
         );
     };
     
+    const tabs = ['overview', 'services', 'education', 'availability', 'reviews'] as const;
     const renderTabs = () => (
-        <View style={styles.tabsContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['overview', 'services', 'education', 'availability', 'reviews'].map((tab) => (
-                    <TouchableOpacity
-                        key={tab}
-                        style={[
-                            styles.tabButton,
-                            activeTab === tab && styles.activeTabButton
-                        ]}
-                        onPress={() => setActiveTab(tab)}
-                    >
-                        <Text style={[
-                            styles.tabText,
-                            activeTab === tab && styles.activeTabText
-                        ]}>
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-        </View>
+    <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {tabs.map((tab) => (
+            <TouchableOpacity
+            key={tab}
+            style={[
+                styles.tabButton,
+                activeTab === tab && styles.activeTabButton
+            ]}
+            onPress={() => setActiveTab(tab)}
+            >
+            <Text style={[
+                styles.tabText,
+                activeTab === tab && styles.activeTabText
+            ]}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </Text>
+            </TouchableOpacity>
+        ))}
+        </ScrollView>
+    </View>
     );
 
     const renderTabContent = () => {
@@ -813,26 +869,11 @@ export default function MedicalProfessionalProfile() {
                 return (
                     <>
                         {renderStatsSection()}
-                        {professional?.healthcareProfile?.bio && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>About</Text>
-                                <Text style={styles.bio}>{professional.healthcareProfile.bio}</Text>
-                            </View>
-                        )}
-                        {professional?.healthcareProfile?.specializations && 
-                         professional.healthcareProfile.specializations.length > 0 && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>Specializations</Text>
-                                <View style={styles.specializations}>
-                                    {professional.healthcareProfile.specializations.map((spec, index) => (
-                                        <View key={index} style={styles.specItem}>
-                                            <Text style={styles.specName}>{spec.name}</Text>
-                                            <Text style={styles.specExp}>{spec.yearsOfExperience} years</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
+
+                        {/* Bio */}
+                        {renderBio()}
+
+                        {/* Contact Info */}
                         {renderContactInfo()}
                     </>
                 );
@@ -920,54 +961,69 @@ export default function MedicalProfessionalProfile() {
                 keyboardShouldPersistTaps="handled"
             >
                 {/* Profile Header */}
+                {/* Enhanced Profile Header */}
                 <View style={styles.profileHeader}>
-                    <View style={styles.avatarContainer}>
-                        {professional.profile?.avatar ? (
-                            <Image
-                                source={{ uri: professional.profile.avatar }}
-                                style={styles.avatar}
-                            />
-                        ) : (
-                            <View style={styles.avatarPlaceholder}>
-                                <Text style={styles.avatarText}>
-                                    {professional.name?.charAt(0).toUpperCase()}
-                                </Text>
-                            </View>
-                        )}
-                        {professional.healthcareProfile?.isVerified && (
-                            <View style={styles.verifiedBadge}>
-                                <VerifiedIcon width={hp(1.5)} height={hp(1.5)} fill="#fff" />
-                            </View>
-                        )}
-                    </View>
-
-                    <Text style={styles.name}>{professional.name}</Text>
-                    <Text style={styles.role}>
-                        {professional.role === "doctor" ? "Medical Doctor" : 
-                         professional.role === "nurse" ? "Registered Nurse" : 
-                         professional.role === "hospital" ? "Hospital" : professional.role}
-                    </Text>
-
-                    <View style={styles.ratingContainer}>
-                        <StarIcon width={hp(2)} height={hp(2)} fill="#FFC107" />
-                        <Text style={styles.rating}>
-                            {professional.healthcareProfile?.stats?.averageRating?.toFixed(1) || "0.0"}
-                        </Text>
-                        <Text style={styles.ratingCount}>
-                            ({professional.healthcareProfile?.stats?.totalRatings || 0} ratings)
+                <View style={styles.avatarContainer}>
+                    {professional.profile?.avatar ? (
+                    <Image
+                        source={{ uri: professional.profile.avatar }}
+                        style={styles.avatar}
+                    />
+                    ) : (
+                    <View style={styles.avatarPlaceholder}>
+                        <Text style={styles.avatarText}>
+                        {professional.name?.charAt(0).toUpperCase()}
                         </Text>
                     </View>
-
-                    {professional.healthcareProfile?.hourlyRate !== undefined && 
-                    professional.healthcareProfile?.hourlyRate !== null && 
-                    !isNaN(professional.healthcareProfile?.hourlyRate) && (
-                        <View style={styles.hourlyRateContainer}>
-                            <DollarIcon width={hp(1.8)} height={hp(1.8)} fill="#28a745" />
-                            <Text style={styles.hourlyRateText}>
-                                ${professional.healthcareProfile.hourlyRate}/hour
-                            </Text>
-                        </View>
                     )}
+                    {professional.healthcareProfile?.isVerified && (
+                    <View style={styles.verifiedBadge}>
+                        <VerifiedIcon width={hp(1.8)} height={hp(1.8)} fill="#fff" />
+                    </View>
+                    )}
+                </View>
+
+                <Text style={styles.name}>{professional.name}</Text>
+
+                <Text style={styles.roleAndSpecialization}>
+                    {professional?.role
+                        ? professional.role === "doctor"
+                        ? "Medical Doctor"
+                        : professional.role === "nurse"
+                        ? "Registered Nurse"
+                        : professional.role === "hospital"
+                        ? "Hospital"
+                        : (professional.role as string).charAt(0).toUpperCase() + (professional.role as string).slice(1)
+                        : ""
+                    }
+                    {professional?.profile?.specialization &&
+                        ` • ${professional.profile.specialization.charAt(0).toUpperCase() +
+                        professional.profile.specialization.slice(1)}`
+                    }
+                </Text>
+
+                <View style={styles.ratingContainer}>
+                    <StarIcon width={hp(2.2)} height={hp(2.2)} fill="#FFC107" />
+                    <Text style={styles.rating}>
+                    {professional.healthcareProfile?.stats?.averageRating?.toFixed(1) || "0.0"}
+                    </Text>
+                    <Text style={styles.ratingCount}>
+                    ({professional.healthcareProfile?.stats?.totalRatings || 0} reviews)
+                    </Text>
+                </View>
+
+                {/* Prominent Hourly Rate Card */}
+                {professional.healthcareProfile?.hourlyRate !== undefined && 
+                professional.healthcareProfile?.hourlyRate !== null && 
+                !isNaN(professional.healthcareProfile?.hourlyRate) && (
+                    <View style={styles.hourlyRateBadge}>
+                        <DollarIcon width={hp(2.8)} height={hp(2.8)} fill="#28a745" />
+                        <Text style={styles.hourlyRateAmount}>
+                            ${professional.healthcareProfile.hourlyRate}
+                        </Text>
+                        <Text style={styles.hourlyRateLabel}>/hour</Text>
+                    </View>
+                )}
                 </View>
 
                 {/* Quick Actions */}
@@ -1031,6 +1087,75 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f8f9fa',
     },
+    rateCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: wp(4),
+    marginBottom: hp(2),
+    padding: hp(3),
+    borderRadius: hp(2),
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: wp(3),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#eee',
+    },
+    rateAmount: {
+    fontSize: hp(4.5),
+    fontWeight: 'bold',
+    color: '#28a745',
+    },
+    rateLabel: {
+    fontSize: hp(1.8),
+    color: '#666',
+    marginTop: hp(0.5),
+    },
+    bioText: {
+    fontSize: hp(1.8),
+    lineHeight: hp(2.6),
+    color: '#444',
+    paddingHorizontal: wp(1),
+    },
+    chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: hp(1),
+    marginTop: hp(1),
+    },
+    chip: {
+    backgroundColor: 'rgba(128, 137, 255, 0.15)',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1.2),
+    borderRadius: hp(3),
+    borderWidth: 1,
+    borderColor: 'rgba(128, 137, 255, 0.3)',
+    },
+    chipText: {
+    fontSize: hp(1.7),
+    color: '#8089ff',
+    fontWeight: '600',
+    },
+    languageChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9ff',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1.2),
+    borderRadius: hp(3),
+    borderWidth: 1,
+    borderColor: '#e0e0ff',
+    gap: wp(2),
+    },
+    languageChipText: {
+    fontSize: hp(1.7),
+    color: '#8089ff',
+    fontWeight: '600',
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1040,6 +1165,25 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderBottomWidth: 0.5,
         borderBottomColor: '#e9ecef',
+    },
+    credentialsSubtitle: {
+        fontSize: hp(1.8),
+        fontWeight: '600',
+        color: '#444',
+        marginTop: hp(2),
+        marginBottom: hp(1),
+    },
+    certificationDate: {
+        fontSize: hp(1.4),
+        color: '#666',
+        marginBottom: hp(0.3),
+    },
+    noDataText: {
+        fontSize: hp(1.6),
+        color: '#999',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        paddingVertical: hp(2),
     },
     backButton: {
         padding: hp(0.5),
@@ -1068,6 +1212,36 @@ const styles = StyleSheet.create({
     avatarContainer: {
         position: 'relative',
         marginBottom: hp(2),
+    },
+    roleAndSpecialization: {
+        fontSize: hp(2),
+        color: '#8089ff',
+        fontWeight: '600',
+        marginBottom: hp(1.5),
+        textAlign: 'center',
+    },
+    hourlyRateBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'center',
+        backgroundColor: 'rgba(40, 167, 69, 0.12)',
+        paddingHorizontal: wp(2),
+        paddingVertical: hp(0.5),
+        borderRadius: hp(3),
+        marginTop: hp(1.5),
+        borderWidth: 1,
+        borderColor: 'rgba(40, 167, 69, 0.3)',
+        gap: wp(1),
+    },
+    hourlyRateAmount: {
+        fontSize: hp(1.8),
+        fontWeight: 'bold',
+        color: '#28a745',
+    },
+    hourlyRateLabel: {
+        fontSize: hp(1.4),
+        color: '#28a745',
+        fontWeight: '500',
     },
     avatar: {
         width: hp(14),

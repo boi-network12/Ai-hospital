@@ -304,3 +304,16 @@ export const getProfessionalProfile = async (professionalId: string) => {
         }))
     };
 };
+
+export const incrementProfessionalCompletedCount = async (professionalId: string) => {
+  await User.findByIdAndUpdate(
+    professionalId,
+    {
+      $inc: {
+        'healthcareProfile.stats.totalConsultations': 1,
+        'healthcareProfile.stats.totalCompletedConsultations': 1,
+      },
+    },
+    { new: true }
+  );
+};

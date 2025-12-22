@@ -25,7 +25,7 @@ export interface Appointment {
     notes?: string;
     createdAt: string;
     updatedAt: string;
-    // populated fields
+    endDate?: string;
     patient?: {
         name: string;
         profile?: { avatar?: string };
@@ -37,6 +37,46 @@ export interface Appointment {
         profile?: { avatar?: string; specialization?: string };
         healthcareProfile?: any;
     };
+}
+
+interface PastAppointment {
+  id: string;
+  patientId: any;
+  professionalId: any;
+  type: 'virtual' | 'physical';
+  date: string;
+  endDate?: string;
+  duration: number;
+  status: 'completed' | 'cancelled' | 'rejected';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  patient?: {
+    name: string;
+    profile?: { avatar?: string };
+    phoneNumber?: string;
+    email?: string;
+  };
+  professional?: {
+    name: string;
+    profile?: { 
+      avatar?: string; 
+      specialization?: string;
+      department?: string;
+    };
+    healthcareProfile?: {
+      averageRating?: number;
+      totalRatings?: number;
+    };
+  };
+}
+
+interface PastAppointmentsResponse {
+  appointments: PastAppointment[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 interface AppointmentsResponse {
@@ -60,6 +100,12 @@ interface HealthcareState {
     };
 }
 
+interface HealthcareState {
+  // ... existing state
+  pastAppointments: PastAppointment[];
+  recentPastAppointment: PastAppointment | null;
+  pastAppointmentsLoading: boolean;
+}
 
 type Action =
     | { type: 'SET_PROFESSIONALS'; payload: HealthcareProfessional[] }
@@ -73,6 +119,9 @@ type Action =
     | { type: 'UPDATE_PROFESSIONAL'; payload: HealthcareProfessional }
     | { type: 'UPDATE_CACHE'; payload: { professionals: Map<string, HealthcareProfessional[]>; lastFetch: number } }
     | { type: 'UPDATE_RATING'; payload: { id: string; rating: Partial<IRating> } }
+    | { type: 'SET_RECENT_PAST_APPOINTMENT'; payload: PastAppointment | null }
+    | { type: 'SET_PAST_APPOINTMENTS'; payload: PastAppointment[] }
+    | { type: 'SET_PAST_APPOINTMENTS_LOADING'; payload: boolean }
     | { type: 'RESET' };
 
 const initialState: HealthcareState = {
@@ -94,7 +143,10 @@ const initialState: HealthcareState = {
     cache: {
         professionals: new Map(),
         lastFetch: 0
-    }
+    },
+    pastAppointments: [],
+    recentPastAppointment: null,
+    pastAppointmentsLoading: false,
 };
 
 const generateCacheKey = (filters: Partial<ProfessionalsFilter>): string => {
@@ -122,6 +174,12 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
             return { ...state, loading: action.payload };
         case 'SET_FILTERS':
             return { ...state, filters: { ...state.filters, ...action.payload } };
+        case 'SET_RECENT_PAST_APPOINTMENT':
+             return { ...state, recentPastAppointment: action.payload };
+        case 'SET_PAST_APPOINTMENTS':
+            return { ...state, pastAppointments: action.payload };
+        case 'SET_PAST_APPOINTMENTS_LOADING':
+            return { ...state, pastAppointmentsLoading: action.payload };
         case 'SET_RATINGS':
             return { ...state, ratings: action.payload };
         case 'SET_TIPS':
@@ -157,6 +215,7 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
                         : rating
                 )
             };
+            
         case 'RESET':
             return initialState;
         default:
@@ -218,8 +277,22 @@ interface HealthcareContextProps {
     updateAppointmentStatus: (appointmentId: string, status: 'confirmed' | 'rejected' | 'completed' | 'cancelled') => Promise<Appointment>;
 
     getAppointmentById: (appointmentId: string) => Promise<Appointment>; // for professional
-    getBookingById: (appointmentId: string) => Promise<Appointment>;     // for patient
-    // ------------------------------------
+    getBookingById: (appointmentId: string) => Promise<Appointment>;    
+    getRecentPastAppointment: () => Promise<PastAppointment | null>;
+    getPastAppointments: (filters?: {
+        page?: number;
+        limit?: number;
+        type?: string;
+        professionalId?: string;
+        patientId?: string;
+        startDate?: string;
+        endDate?: string;
+    }) => Promise<PastAppointmentsResponse>;
+    
+    // State for past appointments
+    pastAppointments: PastAppointment[];
+    recentPastAppointment: PastAppointment | null;
+    pastAppointmentsLoading: boolean;
 }
 
 export const HealthcareContext = createContext<HealthcareContextProps | undefined>(undefined);
@@ -617,8 +690,8 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         } catch (err: any) {
             handleError('Failed to update appointment status', err);
             throw err;
-        }
-    };
+            }
+        };
 
     /** Get single appointment details (professional view) */
     const getAppointmentById = async (appointmentId: string): Promise<Appointment> => {
@@ -642,6 +715,50 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    /* ---------- Get recent past appointment ---------- */
+    const getRecentPastAppointment = useCallback(async (): Promise<PastAppointment | null> => {
+    try {
+        dispatch({ type: 'SET_PAST_APPOINTMENTS_LOADING', payload: true });
+        
+        const response = await apiFetch<{ appointment: PastAppointment | null }>(
+        '/healthcare/appointments/past/recent'
+        );
+        
+        dispatch({ type: 'SET_RECENT_PAST_APPOINTMENT', payload: response.appointment });
+        return response.appointment;
+    } catch (err: any) {
+        console.error('Failed to load recent past appointment:', err);
+        return null;
+    } finally {
+        dispatch({ type: 'SET_PAST_APPOINTMENTS_LOADING', payload: false });
+    }
+    }, []);
+
+    /* ---------- Get all past appointments ---------- */
+    const getPastAppointments = useCallback(async (filters = {}): Promise<PastAppointmentsResponse> => {
+    try {
+        dispatch({ type: 'SET_PAST_APPOINTMENTS_LOADING', payload: true });
+        
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            params.append(key, value.toString());
+        }
+        });
+        
+        const response = await apiFetch<PastAppointmentsResponse>(
+        `/healthcare/appointments/past?${params.toString()}`
+        );
+        
+        dispatch({ type: 'SET_PAST_APPOINTMENTS', payload: response.appointments });
+        return response;
+    } catch (err: any) {
+        handleError('Failed to load past appointments', err);
+        throw err;
+    } finally {
+        dispatch({ type: 'SET_PAST_APPOINTMENTS_LOADING', payload: false });
+    }
+    }, [handleError]);
 
     return (
         <HealthcareContext.Provider
@@ -665,6 +782,11 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
                 updateAppointmentStatus,
                 getAppointmentById,
                 getBookingById,
+                getRecentPastAppointment,
+                getPastAppointments,
+                pastAppointments: healthcare.pastAppointments,
+                recentPastAppointment: healthcare.recentPastAppointment,
+                pastAppointmentsLoading: healthcare.pastAppointmentsLoading
             }}
         >
             {children}

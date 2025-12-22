@@ -138,6 +138,7 @@ export interface IProfile {
   specialization?: string;
   department?: string;
   bio?: string;
+  specialization?: string;
 }
 
 export interface IEmergencyContact {

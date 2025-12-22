@@ -31,5 +31,9 @@ router.get('/bookings/:appointmentId', verifyToken, healthcareCtrl.getBookingByI
 router.put('/bookings/:appointmentId', verifyToken, healthcareCtrl.updateBooking);
 router.delete('/bookings/:appointmentId', verifyToken, healthcareCtrl.cancelBooking);
 
+// Past appointments for patient
+router.get('/appointments/past/recent', verifyToken, healthcareCtrl.getRecentPastAppointment);
+router.get('/appointments/past', verifyToken, healthcareCtrl.getPastAppointments);
+
 export default router;
  

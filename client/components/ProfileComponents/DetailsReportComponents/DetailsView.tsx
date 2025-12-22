@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import GemIcon from "@/assets/Svgs/gem.svg"
 import EmergencyIcon from "@/assets/Svgs/cross.svg"
 import StethoscopeIcon from "@/assets/Svgs/stethoscope.svg"
@@ -10,6 +10,8 @@ import { Image } from 'expo-image'
 import AvatarImg from "@/assets/images/avatar.png";
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash'
 import { User } from '@/types/auth'
+import { useHealthcare } from '@/context/HealthContext'
+import { router } from 'expo-router'
 
 const blurhash = BLUR_HASH_PLACEHOLDER
 
@@ -19,6 +21,20 @@ interface DetailsViewProps {
 
 export default function DetailsView({ user }: DetailsViewProps) {
   const location = user?.profile?.location;
+  const { getRecentPastAppointment, recentPastAppointment, pastAppointmentsLoading } = useHealthcare();
+
+  const [loadingRecent, setLoadingRecent] = useState(true);
+
+  useEffect(() => {
+    const fetchRecent = async () => {
+      setLoadingRecent(true);
+      await getRecentPastAppointment()
+      setLoadingRecent(false);
+    };
+
+    fetchRecent();
+  }, [getRecentPastAppointment]);
+
 
   const addressDetail = location
     ? [location.city, location.state, location.country]
@@ -46,17 +62,6 @@ export default function DetailsView({ user }: DetailsViewProps) {
         { label: "Relationship", value: user?.emergencyContact?.relationship ? user?.emergencyContact?.relationship : "!" },
         { label: "Phone no", value: user?.emergencyContact?.phoneNumber ? user?.emergencyContact?.phoneNumber : "!" },
       ],
-    },
-  ]
-
-  const subBoxContentDisplay = [
-    {
-        icon: CalenderIcon,
-        text: "sunday, 2nd March 2026"
-    },
-    {
-        icon: ClockIcon,
-        text: "08.00"
     },
   ]
 
@@ -98,39 +103,73 @@ export default function DetailsView({ user }: DetailsViewProps) {
                 <Text style={styles.headerTitleText}>Passed Appointments</Text>
             </View>
 
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/passed-appointments")}
+            >
                 <Text style={styles.displayContentText}>View All</Text>
             </TouchableOpacity>
           </View>
           {/*  */}
           <View style={styles.boxContent}>
-            {/*  */}
-            <View style={styles.boxDetailsDisplay}>
+          {pastAppointmentsLoading || loadingRecent ? (
+            <Text style={{ textAlign: 'center', color: '#999', padding: hp(2) }}>
+              Loading recent appointment...
+            </Text>
+          ) : recentPastAppointment ? (
+            <>
+              {/* Doctor/Patient details */}
+              <View style={styles.boxDetailsDisplay}>
                 <Image
-                   placeholder={blurhash}
-                   source={AvatarImg}
-                   style={styles.avatarImg}
+                  placeholder={blurhash}
+                  source={
+                    recentPastAppointment.professional?.profile?.avatar
+                      ? { uri: recentPastAppointment.professional.profile.avatar }
+                      : AvatarImg
+                  }
+                  style={styles.avatarImg}
                 />
-                <View style={{}}>
-                    <Text style={styles.nameText}>Dr. Inara Isani</Text>
-                    <Text style={styles.problemSolve}>heart Surgeon, Delhi</Text>
+                <View>
+                  <Text style={styles.nameText}>
+                    Dr. {recentPastAppointment.professional?.name || 'Unknown'}
+                  </Text>
+                  <Text style={styles.problemSolve}>
+                    {recentPastAppointment.professional?.profile?.specialization || 'Specialist'}
+                    {recentPastAppointment.professional?.profile?.department ? `, ${recentPastAppointment.professional.profile.department}` : ''}
+                  </Text>
                 </View>
-            </View>
-            {/*  */}
-            <View style={styles.subBoxContent}>
-                {subBoxContentDisplay.map((item, index) => {
-                    const Icon = item.icon;
-                    return (
-                        <View key={index} style={styles.subBoxDisplay}>
-                            {Icon && (
-                                <Icon width={hp(2)} height={hp(2)} color="#8089ff" />
-                            )}
-                            <Text style={styles.subBoxDisplayText}>{item.text}</Text>
-                        </View>
-                    )
-                })}
-            </View>
-          </View>
+              </View>
+
+              {/* Date and Time */}
+              <View style={styles.subBoxContent}>
+                <View style={styles.subBoxDisplay}>
+                  <CalenderIcon width={hp(2)} height={hp(2)} color="#8089ff" />
+                  <Text style={styles.subBoxDisplayText}>
+                    {new Date(recentPastAppointment.date).toLocaleDateString('en-GB', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+
+                <View style={styles.subBoxDisplay}>
+                  <ClockIcon width={hp(2)} height={hp(2)} color="#8089ff" />
+                  <Text style={styles.subBoxDisplayText}>
+                    {new Date(recentPastAppointment.date).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <Text style={{ textAlign: 'center', color: '#999', padding: hp(2) }}>
+              No past appointments found
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   )

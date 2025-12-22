@@ -49,6 +49,7 @@ export interface IRoleStatus {
   approvedByAdmin?: boolean;
   verifiedLicense?: boolean;
   licenseNumber?: string;
+  issuedCountry?: string;
   approvalDate?: string;
   adminNote?: string; 
 }

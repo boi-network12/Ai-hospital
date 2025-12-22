@@ -57,6 +57,7 @@ export interface IHealthcareSpecialization {
 
 export interface IProfessionalStats {
   totalConsultations: number;
+  totalCompletedConsultations: number;
   averageRating: number;
   totalRatings: number;
   totalTips: number;
@@ -117,6 +118,7 @@ export interface IRoleStatus {
   approvedByAdmin?: boolean;
   verifiedLicense?: boolean;
   licenseNumber?: string;
+  issuedCountry?: string;
   approvalDate?: Date | null;
 }
 

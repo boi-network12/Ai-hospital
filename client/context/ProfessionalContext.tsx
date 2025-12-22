@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useReducer, ReactNode, useCallback } from 'react';
 import { apiFetch } from '@/Utils/api';
-import { User, IHealthcareCertification, IHealthcareSpecialization, IRating, ITip } from '@/types/auth.d';
+import { User, IHealthcareCertification, IRating, ITip } from '@/types/auth.d';
 import { useAuth } from '@/Hooks/authHook.d';
 import { useToast } from '@/Hooks/useToast.d';
 
@@ -85,7 +85,12 @@ function professionalReducer(state: ProfessionalState, action: Action): Professi
 interface ProfessionalContextProps {
     professional: ProfessionalState;
     fetchProfessionalProfile: () => Promise<void>;
-    updateProfessionalDetails: (data: Partial<User['healthcareProfile']>) => Promise<void>;
+    updateProfessionalDetails: (
+        data: Partial<User['healthcareProfile']> & {
+            specialization?: string;
+            department?: string;
+        }
+    ) => Promise<void>;
     addCertification: (certification: Omit<IHealthcareCertification, 'id' | 'verificationStatus'>) => Promise<void>;
     updateCertification: (certificationId: string, updates: Partial<IHealthcareCertification>) => Promise<void>;
     updateAvailability: (available: boolean) => Promise<void>;
@@ -103,11 +108,11 @@ export const ProfessionalProvider = ({ children }: { children: ReactNode }) => {
     const { auth } = useAuth()!;
     const { showAlert } = useToast();
 
-    const handleError = (title: string, err: any) => {
+    const handleError = useCallback((title: string, err: any) => {
         const msg = err?.message || 'Something went wrong';
         showAlert({ message: `${title}: ${msg}`, type: 'error' });
         throw err;
-    };
+    }, [showAlert]);
 
     /* ---------- Check if user is healthcare professional ---------- */
     const isHealthcareProfessional = useCallback(() => {
@@ -140,17 +145,8 @@ export const ProfessionalProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             dispatch({ type: 'SET_LOADING', payload: false });
         }
-    }, [isHealthcareProfessional, auth.user]);
+    }, [isHealthcareProfessional, auth.user, handleError]);
 
-    /* ---------- Fetch certifications ---------- */
-    const fetchCertifications = async () => {
-        try {
-            const certifications = await apiFetch<IHealthcareCertification[]>('/user/me/certifications');
-            dispatch({ type: 'SET_CERTIFICATIONS', payload: certifications });
-        } catch (err: any) {
-            handleError('Failed to load certifications', err);
-        }
-    };
 
     /* ---------- Get professional ratings ---------- */
     const getProfessionalRatings = async (page: number = 1, limit: number = 10) => {
@@ -177,11 +173,23 @@ export const ProfessionalProvider = ({ children }: { children: ReactNode }) => {
     };
 
     /* ---------- Update professional details ---------- */
-    const updateProfessionalDetails = async (data: Partial<User['healthcareProfile']>) => {
+    const updateProfessionalDetails = async (data: Partial<User['healthcareProfile']> & {
+        specialization?: string;
+        department?: string;
+    }) => {
         try {
+            const mapToDotted = (input: typeof data) => ({
+                ...(input.bio !== undefined && { 'healthcareProfile.bio': input.bio }),
+                ...(input.hourlyRate !== undefined && { 'healthcareProfile.hourlyRate': input.hourlyRate }),
+                ...(input.services !== undefined && { 'healthcareProfile.services': input.services }),
+                ...(input.languages !== undefined && { 'healthcareProfile.languages': input.languages }),
+                ...(input.specialization !== undefined && { 'profile.specialization': input.specialization }),
+                ...(input.department !== undefined && { 'profile.department': input.department }),
+            });
+
             const updatedProfile = await apiFetch<User>('/user/me/professional-profile', {
                 method: 'PATCH',
-                body: data
+                body: mapToDotted(data)
             });
 
             dispatch({ type: 'UPDATE_PROFILE', payload: updatedProfile });

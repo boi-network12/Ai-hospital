@@ -176,6 +176,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       state?: string;
       country?: string;
     };
+    specialization?: string;
+    licenseNumber?: string;
+    issuedCountry?: string;
   }): Promise<User> => {
     ensureAdmin();
     const user = await apiFetch<User>('/admin/users', {

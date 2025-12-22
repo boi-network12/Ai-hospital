@@ -8,6 +8,7 @@ import {
     Image,
     Animated,
     useWindowDimensions,
+    RefreshControl,
 } from "react-native";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from "react-native-responsive-screen";
 import { HealthcareProfessional } from "@/types/auth.d";
@@ -17,12 +18,15 @@ import LocationPinIcon from "@/assets/Svgs/locate.svg";
 import ClockIcon from "@/assets/Svgs/clock.svg";
 import VerifiedIcon from "@/assets/Svgs/badge-check.svg";
 import { useRouter } from "expo-router";
+import StethoscopeIcon from "@/assets/Svgs/stethoscope.svg"
 
 interface ProfessionalsListProps {
     professionals: HealthcareProfessional[];
+    refreshing?: boolean;           // ← New prop
+    onRefresh?: () => void;         // ← New prop
 }
 
-export default function ProfessionalsList({ professionals }: ProfessionalsListProps) {
+export default function ProfessionalsList({ professionals, refreshing = false, onRefresh }: ProfessionalsListProps) {
     const router = useRouter();
     const { width } = useWindowDimensions();
     const isTablet = width > 768;
@@ -41,7 +45,7 @@ export default function ProfessionalsList({ professionals }: ProfessionalsListPr
                 })
             )
         ).start();
-    }, [professionals]);
+    }, [professionals, animationValues]);
 
     const handleProfessionalPress = (professional: HealthcareProfessional) => {
         router.push(`/medical/${professional.id}`);
@@ -105,6 +109,14 @@ export default function ProfessionalsList({ professionals }: ProfessionalsListPr
                         </Text>
                     </View>
 
+                    {/* Specialization */}
+                    <View style={styles.infoRow}>
+                        <StethoscopeIcon width={hp(1.5)} height={hp(1.5)} />
+                        <Text style={styles.location} numberOfLines={1}>
+                            {item.profile?.specialization || "Doctor"}
+                        </Text>
+                    </View>
+
                     {/* Availability */}
                     <View style={styles.infoRow}>
                         <ClockIcon width={hp(1.5)} height={hp(1.5)} fill="#6B7280" />
@@ -130,8 +142,21 @@ export default function ProfessionalsList({ professionals }: ProfessionalsListPr
             key={numColumns}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+                styles.listContent,
+                professionals.length === 0 && { flex: 1 }
+            ]}
             columnWrapperStyle={styles.columnWrapper}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={["#4F46E5"]}        
+                    tintColor="#4F46E5"        
+                    title="Refreshing..."      
+                    titleColor="#6B7280"        
+                />
+            }
         />
     );
 }

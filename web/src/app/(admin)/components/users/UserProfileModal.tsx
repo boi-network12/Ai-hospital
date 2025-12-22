@@ -10,6 +10,7 @@ import {
   Calendar,
   MapPin,
   CheckCircle,
+  Globe,
 } from 'lucide-react';
 import { RoleBadge } from '../users/ui/Rolebadges';
 
@@ -90,6 +91,21 @@ export const UserProfileModal = ({ user, onClose }: Props) => {
                 <p className="text-gray-500 flex items-center gap-1">
                   <Phone className="w-4 h-4" aria-hidden="true" />
                   {user.phoneNumber}
+                </p>
+              )}
+            </div>
+
+            <div>
+
+              <p className="text-gray-500 flex items-center gap-1">
+                <Globe className="w-4 h-4" aria-hidden="true" />
+                Issued Country: {user.roleStatus?.issuedCountry}
+              </p>
+
+              {user.phoneNumber && (
+                <p className="text-gray-500 flex items-center gap-1">
+                  <Phone className="w-4 h-4" aria-hidden="true" />
+                  License No: {user.roleStatus?.licenseNumber}
                 </p>
               )}
             </div>

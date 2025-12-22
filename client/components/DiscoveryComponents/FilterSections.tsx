@@ -1,6 +1,6 @@
 // components/DiscoveryComponents/FilterSections.tsx
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { heightPercentageToDP as hp } from "react-native-responsive-screen";
 
 interface FilterSectionsProps {
@@ -19,7 +19,8 @@ export default function FilterSections({ onFilterChange, currentFilters }: Filte
     "cardiologist",
     "neurologist",
     "orthopedic",
-    "psychiatrist"
+    "psychiatrist",
+    "midwife"
   ];
 
   const roles = ["all", "doctor", "nurse"];
@@ -28,10 +29,10 @@ export default function FilterSections({ onFilterChange, currentFilters }: Filte
   const ratings = ["all", "4.5+", "4.0+", "3.5+", "3.0+"];
 
   const [selectedFilters, setSelectedFilters] = useState({
-    specialization: currentFilters.specialization || "all",
-    role: currentFilters.role || "all",
-    gender: currentFilters.gender || "all",
-    availability: currentFilters.availability || "all",
+    specialization: currentFilters.specialization || "",
+    role: currentFilters.role || "",
+    gender: currentFilters.gender || "",
+    availability: currentFilters.availability || "",
     minRating: currentFilters.minRating || 0,
   });
 
@@ -40,9 +41,9 @@ export default function FilterSections({ onFilterChange, currentFilters }: Filte
   }, [selectedFilters]);
 
   const updateFilter = (category: string, value: string | number) => {
-    setSelectedFilters(prev => ({
+  setSelectedFilters(prev => ({
       ...prev,
-      [category]: value
+      [category]: category === 'minRating' ? (value === 'all' ? 0 : value) : (value === 'all' ? '' : value)
     }));
   };
 
@@ -54,7 +55,7 @@ export default function FilterSections({ onFilterChange, currentFilters }: Filte
           <TouchableOpacity
             key={item}
             activeOpacity={0.8}
-            onPress={() => updateFilter(category, item === 'all' ? '' : item)}
+            onPress={() => updateFilter(category, item)}
             style={[
               styles.filterItem,
               (selectedValue === item || (item === 'all' && !selectedValue)) && styles.activeFilterItem,

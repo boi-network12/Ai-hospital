@@ -152,6 +152,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.name || ''}
                                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label="User name input"
                                 />
                             </div>
 
@@ -162,6 +163,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.phoneNumber || ''}
                                     onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='phone number'
                                 />
                             </div>
 
@@ -171,6 +173,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.role || 'user'}
                                     onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='role'
                                 >
                                     <option value="user">User</option>
                                     <option value="nurse">Nurse</option>
@@ -196,6 +199,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.profile?.dateOfBirth || ''}
                                     onChange={(e) => handleProfileChange('dateOfBirth', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='date of birth'
                                 />
                             </div>
 
@@ -205,6 +209,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.profile?.gender || 'Prefer not to say'}
                                     onChange={(e) => handleProfileChange('gender', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='gender'
                                 >
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
@@ -250,6 +255,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.profile?.location?.city || ''}
                                     onChange={(e) => handleLocationChange('city', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label="City"
                                 />
                             </div>
 
@@ -260,6 +266,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.profile?.location?.state || ''}
                                     onChange={(e) => handleLocationChange('state', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label="State"
                                 />
                             </div>
 
@@ -270,6 +277,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.profile?.location?.country || ''}
                                     onChange={(e) => handleLocationChange('country', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label="Country"
                                 />
                             </div>
                         </div>
@@ -289,6 +297,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                         value={form.profile?.specialization || ''}
                                         onChange={(e) => handleProfileChange('specialization', e.target.value)}
                                         className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        aria-label="Specialization"
                                     />
                                 </div>
 
@@ -299,6 +308,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                         value={form.profile?.department || ''}
                                         onChange={(e) => handleProfileChange('department', e.target.value)}
                                         className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        aria-label="Department"
                                     />
                                 </div>
 
@@ -329,6 +339,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.emergencyContact?.name || ''}
                                     onChange={(e) => handleEmergencyContactChange('name', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='emergency name'
                                 />
                             </div>
 
@@ -350,6 +361,7 @@ export const UpdateUserModal = ({ user, isOpen, onClose, onSuccess }: Props) => 
                                     value={form.emergencyContact?.phoneNumber || ''}
                                     onChange={(e) => handleEmergencyContactChange('phoneNumber', e.target.value)}
                                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    aria-label='emergency phone'
                                 />
                             </div>
                         </div>

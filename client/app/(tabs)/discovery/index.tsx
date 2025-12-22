@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Text, StyleSheet, PermissionsAndroid, Platform, Alert, View } from 'react-native'
+import { Text, StyleSheet, Alert, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Modalize } from 'react-native-modalize'
 import { Portal } from 'react-native-portalize'
@@ -10,12 +10,10 @@ import DiscoveryHeader from '@/components/Headers/DiscoveryHeader'
 import FilterSections from '@/components/DiscoveryComponents/FilterSections'
 import { useUser } from '@/Hooks/userHooks.d'
 import { useHealthcare } from '@/context/HealthContext'
-import { useProfessional } from '@/context/ProfessionalContext'
 
 // Helper
 import {
   getLocationWithPermission,
-  getDefaultLocation,
   type LocationData,
   setUserProfileLocation,
   getFallbackLocation
@@ -27,8 +25,8 @@ export default function DiscoveryPage() {
   const { user } = useUser();
   const { showAlert } = useToast();
   const { healthcare, fetchProfessionals, updateFilters } = useHealthcare();
-  const { } = useProfessional();
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Modal reference
   const modalizeRef = useRef<Modalize>(null)
@@ -78,20 +76,64 @@ export default function DiscoveryPage() {
     setIsDetectingLocation(false);
   }, [fetchProfessionals, isInitialized, showAlert]);
 
+  const handleRefresh = useCallback(async () => {
+  setRefreshing(true);
+
+  try {
+    // Use current location or fallback
+    const currentLoc = location || getFallbackLocation();
+
+    await fetchProfessionals({
+      city: currentLoc.city,
+      state: currentLoc.state,
+      country: currentLoc.country,
+      ...(currentLoc.latitude && currentLoc.longitude && 
+        currentLoc.latitude !== 0 && currentLoc.longitude !== 0 && {
+          latitude: currentLoc.latitude,
+          longitude: currentLoc.longitude,
+          maxDistance: 50,
+        }),
+      // Include current filters if you want to preserve them
+      // ...healthcare.filtersBackend, // assuming you store transformed filters, or reconstruct
+    });
+  } catch {
+    showAlert({ message: 'Failed to refresh professionals', type: 'error' });
+  } finally {
+    setRefreshing(false);
+  }
+}, [location, fetchProfessionals, showAlert]);
+
   // Handle filter changes
+  // DiscoveryPage.tsx
   const handleFilterChange = async (filters: any) => {
     updateFilters(filters);
+    
+    // Transform filters to match backend schema
+    const backendFilters = {
+      ...(filters.role && { role: filters.role }),
+      ...(filters.specialization && { 'profile.specialization': filters.specialization }),
+      ...(filters.gender && { 'profile.gender': filters.gender }),
+      ...(filters.availability && { 
+        'healthcareProfile.availability.isAvailable': filters.availability === 'available' 
+      }),
+      ...(filters.minRating > 0 && { 
+        'healthcareProfile.stats.averageRating': { $gte: filters.minRating }
+      }),
+    };
+
     await fetchProfessionals({
-      ...healthcare.filters,
-      ...filters,
+      ...backendFilters,
       ...(location && {
         city: location.city,
         state: location.state,
         country: location.country,
-        ...(location.latitude && location.longitude && {
-          latitude: location.latitude,
-          longitude: location.longitude
-        })
+        // Only add coordinates if they're not default [0, 0]
+        ...(location.latitude && location.longitude && 
+          location.latitude !== 0 && location.longitude !== 0 && {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            maxDistance: 50
+          })
       })
     });
   };
@@ -115,6 +157,8 @@ export default function DiscoveryPage() {
           longitude: currentLocation.longitude,
           maxDistance: 50
         });
+
+        refreshing && setRefreshing(false);
 
         showAlert({ message: 'Location updated successfully!', type: 'success' });
       } else {
@@ -147,18 +191,20 @@ export default function DiscoveryPage() {
   }, [initializeLocationAndFetch, isInitialized]);
 
   const renderContent = () => {
-    if (healthcare.loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Finding healthcare professionals near you...</Text>
-        </View>
-      );
-    }
+    if (healthcare.loading && !refreshing) {  
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Finding healthcare professionals near you...</Text>
+      </View>
+    );
+  }
 
     if (healthcare.professionals.length > 0) {
       return (
         <ProfessionalsList
           professionals={healthcare.professionals}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
         />
       );
     }

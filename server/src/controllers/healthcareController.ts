@@ -5,7 +5,9 @@ import * as healthcareService from '../services/healthcareService';
 import * as ratingService from '../services/ratingService';
 import * as tipService from '../services/tipService';
 import * as notificationService from '../services/notificationService';
+import * as  appointmentService from '../services/appointmentService';
 import Rating from '../models/RatingModel';
+import { notifyBothParties } from "../services/emailService";
 import { Types } from 'mongoose';
 import User from '../models/UserModel';
 import Appointment from "../models/AppointmentModel";
@@ -360,21 +362,20 @@ export const updateProfessionalRating = async (req: AuthRequest, res: Response) 
 
 /* ---------- Helper: Clean up expired appointments ---------- */
 const cleanupExpiredAppointments = async () => {
-    try {
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        
-        // Delete appointments older than 24 hours with 'pending' or 'cancelled' status
-        const result = await Appointment.deleteMany({
-            date: { $lt: twentyFourHoursAgo },
-            status: { $in: ['pending', 'cancelled', 'rejected'] }
-        });
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-        if (result.deletedCount > 0) {
-            console.log(`Cleaned up ${result.deletedCount} expired appointments`);
-        }
-    } catch (error) {
-        console.error('Cleanup appointments error:', error);
+    const result = await Appointment.deleteMany({
+      date: { $lt: thirtyDaysAgo },
+      status: { $in: ['pending', 'rejected'] } // Only cleanup stale requests
+    });
+
+    if (result.deletedCount > 0) {
+      console.log(`Cleaned up ${result.deletedCount} stale pending/rejected appointments`);
     }
+  } catch (error) {
+    console.error('Cleanup appointments error:', error);
+  }
 };
 
 /** ------------------ book appointments ---------------- */
@@ -746,11 +747,49 @@ export const updateAppointmentStatus = async (req: AuthRequest, res: Response) =
             return res.status(404).json({ message: 'Appointment not found or unauthorized' });
         }
 
+        
         const oldStatus = appointment.status;
         appointment.status = status;
         appointment.updatedAt = new Date();
 
         await appointment.save();
+
+        if (status === 'completed' && oldStatus !== 'completed') {
+        // Only increment when it actually becomes completed (avoid double-counting)
+            try {
+                await healthcareService.incrementProfessionalCompletedCount(appointment.professionalId.toString());
+            } catch (err) {
+                console.error('Failed to increment completed consultations count:', err);
+                // Don't fail the whole request
+            }
+        }
+
+        const patient = await User.findById(appointment.patientId)
+             .select('email name')
+             .lean();
+
+        const professional = await User.findById(appointment.professionalId)
+            .select('email name')
+            .lean();
+
+        await notifyBothParties({
+            appointmentId: appointment._id.toString(),
+            date: appointment.date,
+            duration: appointment.duration,
+            type: appointment.type,
+            notes: appointment.notes,
+            patientName: patient?.name || 'Patient',
+            patientEmail: patient?.email,
+            professionalName: professional?.name || 'Professional',
+            professionalEmail: professional?.email,
+            status,
+            oldStatus,
+            actionUrl: `${process.env.APP_URL}/${
+            req.user._id.toString() === appointment.patientId.toString() 
+                ? 'bookings' 
+                : 'appointments'
+            }/${appointment._id.toString()}`
+        });
 
         // Notify patient about status change
         try {
@@ -847,4 +886,61 @@ export const getBookingById = async (req: AuthRequest, res: Response) => {
         console.error('Get booking error:', error);
         res.status(500).json({ message: error.message });
     }
+};
+
+/* ---------- Get recent past appointment ---------- */
+export const getRecentPastAppointment = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role === 'user' ? 'patient' : 'professional';
+
+    const appointment = await appointmentService.getRecentPastAppointment(
+      userId.toString(),
+      userRole
+    );
+
+    res.json({
+      appointment,
+      message: appointment 
+        ? 'Recent past appointment found' 
+        : 'No past appointments found'
+    });
+  } catch (error: any) {
+    console.error('Get recent past appointment error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* ---------- Get all past appointments ---------- */
+export const getPastAppointments = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role === 'user' ? 'patient' : 'professional';
+    const {
+      page = 1,
+      limit = 20,
+      type,
+      professionalId,
+      patientId,
+      startDate,
+      endDate
+    } = req.query;
+
+    const result = await appointmentService.getPastAppointments({
+      userId: userId.toString(),
+      userRole,
+      page: Number(page),
+      limit: Number(limit),
+      type: type as string,
+      professionalId: professionalId as string,
+      patientId: patientId as string,
+      startDate: startDate ? new Date(startDate as string) : undefined,
+      endDate: endDate ? new Date(endDate as string) : undefined
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Get past appointments error:', error);
+    res.status(500).json({ message: error.message });
+  }
 };

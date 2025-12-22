@@ -5,6 +5,7 @@ import { heightPercentageToDP as hp } from "react-native-responsive-screen"
 import { Image } from 'expo-image';
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
 import NotIcon from "@/assets/Svgs/bell.svg";
+import AppointmentsIcon from "@/assets/Svgs/calendar-search.svg";
 import MiddleDisplay from '@/components/HomeComponents/MiddleDisplay';
 import { _MiddleDisplayContent } from '@/constants/ResolveDisplay';
 import HomeWidget from '@/components/HomeComponents/HomeWidget';
@@ -22,6 +23,7 @@ export default function HomePage() {
   const { user } = useUser();
   const hydration = useHydrationData();
 
+  const isProfessional = user?.role === "doctor" || user?.role === "nurse" || user?.role === "hospital";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,9 +46,16 @@ export default function HomePage() {
             </Text>
           </View>
 
-          <TouchableOpacity onPress={() => router.push("/notifications")}>
-            <NotIcon width={hp(2.5)} height={hp(3)} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: hp(2) }}>
+            <TouchableOpacity onPress={() => router.push("/notifications")}>
+               <NotIcon width={hp(2.5)} height={hp(3)} />
+            </TouchableOpacity>
+            {isProfessional && (
+                <TouchableOpacity onPress={() => router.push("/appointments")}>
+                  <AppointmentsIcon width={hp(2.5)} height={hp(3)} />
+                </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* for the middle View */}

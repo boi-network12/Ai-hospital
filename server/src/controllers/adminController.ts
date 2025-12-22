@@ -15,7 +15,10 @@ export const createUser = async (req: AuthRequest, res: Response) => {
     role,
     gender,
     dateOfBirth,
-    location
+    location,
+    specialization,
+    licenseNumber,
+    issuedCountry,
   } = req.body;
   if (!email || !password || !name || !role || !location) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -29,7 +32,10 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       role: role as UserRole,
       gender,
       dateOfBirth,
-      location
+      location,
+      specialization,
+      licenseNumber,
+      issuedCountry,
     });
     res.status(201).json(user);
   } catch (e: any) {

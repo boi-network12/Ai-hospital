@@ -15,51 +15,57 @@ import ContactIcon from "@/assets/Svgs/message-square.svg";
 import EmailIcon from "@/assets/Svgs/mail.svg";
 import LaptopIcon from "@/assets/Svgs/laptop.svg";
 import { useAuth } from '@/Hooks/authHook.d';
+import { useUser } from '@/Hooks/userHooks.d';
 
-// Define your settings sections and items
-const SETTINGS_DATA = [
-  {
-    title: 'Account',
-    items: [
-      { label: 'Profile Details', icon: UserIcon, router: "/settings/profile-details" },
-      { label: 'Change Email', icon: EmailIcon, router: "/settings/email-change" },
-    ],
-  },
-  {
-    title: 'Security',
-    items: [
-      { label: 'Devices', icon: LaptopIcon, router: "/settings/devices" },
-      { label: 'Change Password', icon: LockIcon, router: "/settings/change-password" },
-    ],
-  },
-  {
-    title: 'Notifications',
-    items: [
-      { label: 'Notification Settings', icon: BellIcon, router: "/settings/notification" },
-    ],
-  },
-  {
-    title: 'Personalization',
-    items: [
-      { label: 'Language', icon: LangIcon, router: "/settings/language" },
-      // { label: 'Theme', icon: LangIcon, router: "/settings/theme" },
-    ],
-  },
-  {
-    title: 'About the App',
-    items: [
-      { label: 'App Info', icon: InfoIcon, router: "/settings/app-info" },
-      { label: 'Share App', icon: ShareIcon, router: "/settings/share" },
-      { label: 'Contact Support', icon: ContactIcon, router: "/settings/contact-support" },
-    ],
-  },
-];
+
 
 
 export default function SettingsPages() {
   const router = useRouter();
+  const { user } = useUser();
   const { logout } = useAuth()
 
+  const ROLE_LOGIC = user?.role === 'doctor' || user?.role === 'nurse';
+
+  // Define your settings sections and items
+const SETTINGS_DATA = [
+    {
+      title: 'Account',
+      items: [
+        { label: 'Profile Details', icon: UserIcon, router: "/settings/profile-details" },
+        ...(ROLE_LOGIC ? [{ label: 'Professional Updates', icon: UserIcon, router: "/settings/professional-updates" }] : []),
+        { label: 'Change Email', icon: EmailIcon, router: "/settings/email-change" },
+      ],
+    },
+    {
+      title: 'Security',
+      items: [
+        { label: 'Devices', icon: LaptopIcon, router: "/settings/devices" },
+        { label: 'Change Password', icon: LockIcon, router: "/settings/change-password" },
+      ],
+    },
+    {
+      title: 'Notifications',
+      items: [
+        { label: 'Notification Settings', icon: BellIcon, router: "/settings/notification" },
+      ],
+    },
+    {
+      title: 'Personalization',
+      items: [
+        { label: 'Language', icon: LangIcon, router: "/settings/language" },
+        // { label: 'Theme', icon: LangIcon, router: "/settings/theme" },
+      ],
+    },
+    {
+      title: 'About the App',
+      items: [
+        { label: 'App Info', icon: InfoIcon, router: "/settings/app-info" },
+        { label: 'Share App', icon: ShareIcon, router: "/settings/share" },
+        { label: 'Contact Support', icon: ContactIcon, router: "/settings/contact-support" },
+      ],
+    },
+  ];
 
   return (
     <SafeAreaView style={{ backgroundColor: "#fff", flex: 1 }}>

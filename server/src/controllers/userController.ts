@@ -230,36 +230,75 @@ export const getProfessionalProfile = async (req: AuthReq, res: Response) => {
 /* ---------- Update professional profile ---------- */
 export const updateProfessionalProfile = async (req: AuthReq, res: Response) => {
   try {
+    // Check if user is a healthcare professional
+    if (!['doctor', 'nurse'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only doctors and nurses can update professional profile' });
+    }
+
     const allowedUpdates = [
       'profile.specialization',
       'profile.department',
-      'profile.bio',
+      'profile.bio',                   // allowed, but we'll handle it specially
       'healthcareProfile.bio',
       'healthcareProfile.hourlyRate',
       'healthcareProfile.services',
-      'healthcareProfile.languages'
+      'healthcareProfile.languages',
     ];
 
     const updates: any = {};
-    Object.keys(req.body).forEach(key => {
+    let syncBio = false;
+
+    Object.keys(req.body).forEach((key) => {
       if (allowedUpdates.includes(key)) {
-        updates[key] = req.body[key];
+        // Special handling for bio: if healthcareProfile.bio is provided, sync it to profile.bio
+        if (key === 'healthcareProfile.bio') {
+          updates['healthcareProfile.bio'] = req.body[key];
+          updates['profile.bio'] = req.body[key]; // Sync to general profile bio
+          syncBio = true;
+        } 
+        // Direct copy for other fields
+        else if (key !== 'profile.bio') { // avoid double-setting if only profile.bio was sent
+          updates[key] = req.body[key];
+        }
       }
     });
+
+    // If only profile.bio was sent (without healthcareProfile.bio), we can optionally sync it forward too
+    // But your request specifies "from healthcareProfile", so we prioritize that direction.
+    // However, to prevent inconsistency, if profile.bio is sent directly, we can update both.
+
+    if (req.body['profile.bio'] && !req.body['healthcareProfile.bio']) {
+      updates['profile.bio'] = req.body['profile.bio'];
+      updates['healthcareProfile.bio'] = req.body['profile.bio']; // optional: sync both ways
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: 'No valid fields to update' });
     }
 
+    // Validate hourlyRate is a positive number (in dollars)
+    if ('healthcareProfile.hourlyRate' in updates) {
+      const rate = Number(updates['healthcareProfile.hourlyRate']);
+      if (isNaN(rate) || rate < 0) {
+        return res.status(400).json({ message: 'hourlyRate must be a non-negative number (in USD)' });
+      }
+      updates['healthcareProfile.hourlyRate'] = rate;
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
-      { $set: updates, updatedAt: new Date() },
+      { $set: { ...updates, updatedAt: new Date() } },
       { new: true, runValidators: true }
     ).select('-password -sessions.token');
 
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     res.json(updatedUser);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    console.error('Error updating professional profile:', error);
+    res.status(500).json({ message: error.message || 'Failed to update professional profile' });
   }
 };
 

@@ -30,6 +30,14 @@ const AppointmentSchema = new Schema<IAppointment>({
 
 AppointmentSchema.index({ professionalId: 1, date: 1 });
 AppointmentSchema.index({ patientId: 1, date: 1 });
-AppointmentSchema.index({ endDate: 1 }, { expireAfterSeconds: 0 });
+AppointmentSchema.index(
+  { status: 1, date: 1 },
+  { 
+    expireAfterSeconds: 30 * 24 * 60 * 60, // 30 days
+    partialFilterExpression: { 
+      status: { $in: ['pending', 'rejected'] } 
+    }
+  }
+);
 
 export default mongoose.model<IAppointment>('Appointment', AppointmentSchema);

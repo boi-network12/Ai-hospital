@@ -32,6 +32,7 @@ const UserSchema = new Schema<IUser>({
     approvedByAdmin: { type: Boolean, default: false },
     verifiedLicense: { type: Boolean, default: false },
     licenseNumber: { type: String, default: '' },
+    issuedCountry: { type: String, default: '' },
     approvalDate: { type: Date, default: null },
   },
   profile: {
@@ -110,6 +111,7 @@ const UserSchema = new Schema<IUser>({
        averageRating: { type: Number, default: 0 },
         totalRatings: { type: Number, default: 0 },
         totalConsultations: { type: Number, default: 0 },
+        totalCompletedConsultations: { type: Number, default: 0 },
         responseTime: { type: Number, default: 0 },
         acceptanceRate: { type: Number, default: 0 }
     },
@@ -176,6 +178,27 @@ UserSchema.pre('save', function (next) {
       approvalDate: null,
     };
   }
+  this.updatedAt = new Date();
+  next();
+});
+
+UserSchema.pre('save', function (next) {
+  // Ensure roleStatus exists
+  if (!this.roleStatus) {
+    this.roleStatus = {
+      isActive: false,
+      approvedByAdmin: false,
+      verifiedLicense: false,
+      licenseNumber: '',
+      issuedCountry: '',
+      approvalDate: null,
+    };
+  }
+
+  // Special case: if role is 'admin' or created by admin flow → auto-approve
+  // We'll handle auto-approval in service layer instead (more reliable)
+  // But keep basic defaults
+
   this.updatedAt = new Date();
   next();
 });
