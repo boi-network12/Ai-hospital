@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator, Modal, Alert, Platform } from 'react-native';
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
@@ -23,6 +23,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -31,9 +32,11 @@ export default function CalendarPage() {
   const [showPicker, setShowPicker] = useState<'date' | 'time' | null>(null);
 
   // Fetch bookings function
-  const fetchBookings = useCallback(async (showLoader = true) => {
+  const fetchBookings = useCallback(async (showLoader = true, isPullToRefresh = false) => {
     try {
-      if (showLoader) setLoading(true);
+      if (showLoader && !isPullToRefresh) setLoading(true);
+      if (isPullToRefresh) setRefreshing(true);
+      
       const response = await getMyBookings({
         page: 1,
         limit: 100,
@@ -46,22 +49,33 @@ export default function CalendarPage() {
         type: 'error',
       });
     } finally {
-      if (showLoader) setLoading(false);
+      if (showLoader && !isPullToRefresh) setLoading(false);
+      if (isPullToRefresh) setRefreshing(false);
     }
   }, [getMyBookings, showAlert]);
 
   useEffect(() => {
     fetchBookings();
-  }, [fetchBookings])
+  }, [fetchBookings]);
 
-  const refreshAppointments = async () => {
+  // Add this function for pull-to-refresh
+  const onRefresh = useCallback(() => {
+    fetchBookings(false, true);
+  }, [fetchBookings]);
+
+  // Update refreshAppointments to use fetchBookings
+  const refreshAppointments = useCallback(async () => {
     try {
       const response = await getMyBookings({ page: 1, limit: 100 });
       setAppointments(response.appointments);
     } catch (err) {
       console.error('Refresh failed:', err);
+      showAlert({
+        message: 'Failed to refresh appointments',
+        type: 'error',
+      });
     }
-  };
+  }, [getMyBookings, showAlert]);
 
   // Group appointments by date
   const appointmentsByDate = useMemo<Record<string, Appointment[]>>(() => {
@@ -292,14 +306,33 @@ export default function CalendarPage() {
 
       {dayAppointments.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No appointments on this day</Text>
-        </View>
+        <Text style={styles.emptyText}>No appointments on this day</Text>
+        
+        {/* Add a refresh button when no appointments */}
+        <TouchableOpacity 
+          onPress={onRefresh} 
+          style={styles.refreshButton}
+        >
+          <Text style={styles.refreshButtonText}>Pull down to refresh</Text>
+        </TouchableOpacity>
+      </View>
       ) : (
         <FlatList
           data={dayAppointments}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#8089ff']} // iOS only
+              tintColor="#8089ff" // iOS only
+              title="Refreshing appointments..." // iOS only
+              titleColor="#8089ff" 
+              progressBackgroundColor="#ffffff"
+            />
+          }
           renderItem={({ item }) => {
             const time = new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const dateStr = new Date(item.date).toISOString().split('T')[0].replace(/-/g, '/');
@@ -465,4 +498,16 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: hp(1.8), color: '#666' },
   confirmBtn: { padding: hp(1.5), backgroundColor: '#8089ff', borderRadius: hp(1), flex: 1, marginLeft: hp(1), alignItems: 'center' },
   confirmBtnText: { fontSize: hp(1.8), color: '#fff', fontWeight: '600' },
+  refreshButton: {
+    marginTop: hp(2),
+    paddingHorizontal: hp(2),
+    paddingVertical: hp(1),
+    backgroundColor: '#f0f0f0',
+    borderRadius: hp(1),
+  },
+  refreshButtonText: {
+    fontSize: hp(1.6),
+    color: '#8089ff',
+    fontFamily: 'Roboto-Medium',
+  },
 });

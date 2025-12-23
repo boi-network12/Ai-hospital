@@ -1,5 +1,5 @@
 // app/medical/[professionalId].tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -16,6 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { formatDistanceToNow } from 'date-fns';
+// Add these imports at the top
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Calendar, DateData } from 'react-native-calendars';
 
 // Icons
 import StarIcon from "@/assets/Svgs/star.svg";
@@ -192,10 +195,653 @@ const CommentModal = ({
   );
 };
 
+// Helper function to get day name from day index
+const getDayName = (dayIndex: number) => {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return days[dayIndex];
+};
+
+// Add this function to find the next available slot
+const findNextAvailableSlot = (
+  availability: any,
+  duration: number = 60,
+  preferredDate?: Date
+): Date => {
+  let proposedDate = preferredDate || new Date();
+  
+  // Add buffer of at least 1 hour from now
+  proposedDate.setHours(proposedDate.getHours() + 1);
+  
+  // Ensure it's a working day (check professional's schedule)
+  for (let i = 0; i < 30; i++) { // Check up to 30 days ahead
+    const dayOfWeek = proposedDate.getDay();
+    const dayName = getDayName(dayOfWeek);
+    
+    // Check if professional has schedule for this day
+    const daySchedule = availability?.schedule?.find((s: any) => 
+      s.day.toLowerCase() === dayName.toLowerCase()
+    );
+    
+    if (!daySchedule || !daySchedule.slots || daySchedule.slots.length === 0) {
+      proposedDate.setDate(proposedDate.getDate() + 1);
+      proposedDate.setHours(8, 0, 0, 0); // Reset to start of day
+      continue;
+    }
+    
+    // Check all slots for this day
+    for (const slot of daySchedule.slots) {
+      const [startHour, startMin] = slot.start.split(':').map(Number);
+      const [endHour, endMin] = slot.end.split(':').map(Number);
+      
+      let currentHour = startHour;
+      let currentMin = startMin;
+      
+      // Generate slots every 30 minutes within this time block
+      while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+        const slotStart = new Date(proposedDate);
+        slotStart.setHours(currentHour, currentMin, 0, 0);
+        
+        const slotEnd = new Date(slotStart);
+        slotEnd.setMinutes(slotStart.getMinutes() + duration);
+        
+        // Check if the slot is available (in the future and fits within the working hours)
+        const slotEndHour = slotEnd.getHours();
+        const slotEndMin = slotEnd.getMinutes();
+        
+        // Check if the slot ends within the working hours
+        const fitsInSlot = (slotEndHour < endHour) || 
+                          (slotEndHour === endHour && slotEndMin <= endMin);
+        
+        if (slotStart > new Date() && fitsInSlot) {
+          return slotStart;
+        }
+        
+        // Move to next 30-minute interval
+        currentMin += 30;
+        if (currentMin >= 60) {
+          currentHour += 1;
+          currentMin -= 60;
+        }
+      }
+    }
+    
+    // Move to next day
+    proposedDate.setDate(proposedDate.getDate() + 1);
+    proposedDate.setHours(8, 0, 0, 0);
+  }
+  
+  // Fallback: Return next available slot or current date + 1 hour
+  const fallbackDate = new Date();
+  fallbackDate.setHours(fallbackDate.getHours() + 1);
+  return fallbackDate;
+};
+
+// Add this modal component before the main component
+const BookingModal = ({
+  visible,
+  onClose,
+  professional,
+  onSubmitBooking,
+  loading,
+  availability,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  professional: HealthcareProfessional | null;
+  onSubmitBooking: (date: Date, duration: number, type: string, mode: string) => Promise<void>;
+  loading: boolean;
+  availability?: any;
+}) => {
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1); // Tomorrow as default
+    date.setHours(10, 0, 0, 0); // 10:00 AM default
+    return date;
+  });
+  const { showAlert } = useToast();
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [duration, setDuration] = useState(60); // Default 60 minutes
+  const [appointmentType, setAppointmentType] = useState('consultation');
+  const [mode, setMode] = useState('physical');
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [filteredSlots, setFilteredSlots] = useState<string[]>([]);
+  
+  const appointmentTypes = [
+    { id: 'consultation', label: 'Consultation' },
+    { id: 'followup', label: 'Follow-up' },
+    { id: 'emergency', label: 'Emergency' },
+    { id: 'routine', label: 'Routine Checkup' },
+  ];
+  
+  const consultationModes = [
+    { id: 'physical', label: 'In-person' },
+    { id: 'virtual', label: 'Virtual' },
+    { id: 'phone', label: 'Phone Call' },
+  ];
+  
+  const durations = [
+    { minutes: 30, label: '30 min' },
+    { minutes: 60, label: '1 hour' },
+    { minutes: 90, label: '1.5 hours' },
+    { minutes: 120, label: '2 hours' },
+  ];
+
+  // Generate available slots based on professional's schedule
+  const generateTimeSlots = useCallback(() => {
+    if (!availability || !availability.schedule) {
+      // Default slots if no schedule available
+      return generateDefaultSlots();
+    }
+    
+    const dayOfWeek = selectedDate.getDay();
+    const dayName = getDayName(dayOfWeek);
+    const daySchedule = availability.schedule.find((s: any) => 
+      s.day.toLowerCase() === dayName.toLowerCase()
+    );
+    
+    if (!daySchedule || !daySchedule.slots || daySchedule.slots.length === 0) {
+      return generateDefaultSlots();
+    }
+    
+    const slots: string[] = [];
+    
+    // Process all time blocks for this day
+    daySchedule.slots.forEach((slot: any) => {
+      const [startHour, startMin] = slot.start.split(':').map(Number);
+      const [endHour, endMin] = slot.end.split(':').map(Number);
+      
+      let currentHour = startHour;
+      let currentMin = startMin;
+      
+      // Generate slots every 30 minutes, but ensure they don't exceed the end time
+      while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+        // Format time as HH:MM
+        const timeStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        slots.push(timeStr);
+        
+        // Add 30 minutes for next slot
+        currentMin += 30;
+        if (currentMin >= 60) {
+          currentHour += 1;
+          currentMin -= 60;
+        }
+      }
+    });
+    
+    return slots;
+  }, [availability, selectedDate]);
+
+  const generateDefaultSlots = () => {
+    const slots: string[] = [];
+    for (let hour = 9; hour <= 17; hour++) {
+      for (let min = 0; min < 60; min += 30) {
+        if (hour === 17 && min > 0) break; // End at 5 PM
+        const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        slots.push(timeStr);
+      }
+    }
+    return slots;
+  };
+
+  // Filter slots based on duration - only show slots that can accommodate the full duration
+  const filterSlotsByDuration = useCallback((slots: string[]) => {
+    if (!availability || !availability.schedule) return slots;
+    
+    const dayOfWeek = selectedDate.getDay();
+    const dayName = getDayName(dayOfWeek);
+    const daySchedule = availability.schedule.find((s: any) => 
+      s.day.toLowerCase() === dayName.toLowerCase()
+    );
+    
+    if (!daySchedule || !daySchedule.slots) return slots;
+    
+    return slots.filter(slot => {
+      const [hours, minutes] = slot.split(':').map(Number);
+      const slotStart = new Date(selectedDate);
+      slotStart.setHours(hours, minutes, 0, 0);
+      
+      const slotEnd = new Date(slotStart);
+      slotEnd.setMinutes(slotStart.getMinutes() + duration);
+      
+      // Check if this slot fits within any available time block
+      return daySchedule.slots.some((timeBlock: any) => {
+        const [blockStartHour, blockStartMin] = timeBlock.start.split(':').map(Number);
+        const [blockEndHour, blockEndMin] = timeBlock.end.split(':').map(Number);
+        
+        const slotEndHour = slotEnd.getHours();
+        const slotEndMin = slotEnd.getMinutes();
+        
+        // Check if slot ends within the time block
+        return (slotEndHour < blockEndHour) || 
+               (slotEndHour === blockEndHour && slotEndMin <= blockEndMin);
+      });
+    });
+  }, [availability, selectedDate, duration]);
+
+  const isDateDisabled = (date: DateData) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(date.dateString);
+    selected.setHours(0, 0, 0, 0);
+    
+    // Disable past dates
+    if (selected < today) return true;
+    
+    // Check if date is within next 90 days
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 90);
+    if (selected > maxDate) return true;
+    
+    // Check if professional is available on this day
+    if (!availability || !availability.schedule) return false; // Changed from true to false to allow clicking
+    
+    const dayName = getDayName(selected.getDay());
+    const daySchedule = availability.schedule.find((s: any) => 
+      s.day.toLowerCase() === dayName.toLowerCase()
+    );
+    
+    // Only disable if there's no schedule for this day
+    return !daySchedule || !daySchedule.slots || daySchedule.slots.length === 0;
+  };
+
+  const handleDateChange = (date: Date) => {
+    setSelectedDate(date);
+    const slots = generateTimeSlots();
+    setAvailableSlots(slots);
+    const filtered = filterSlotsByDuration(slots);
+    setFilteredSlots(filtered);
+    setSelectedSlot('');
+  };
+
+  const handleTimeSelect = (slot: string) => {
+    setSelectedSlot(slot);
+    const [hours, minutes] = slot.split(':').map(Number);
+    const newDate = new Date(selectedDate);
+    newDate.setHours(hours, minutes, 0, 0);
+    setSelectedDate(newDate);
+  };
+
+  const handleDurationChange = (newDuration: number) => {
+    setDuration(newDuration);
+    const filtered = filterSlotsByDuration(availableSlots);
+    setFilteredSlots(filtered);
+    
+    // If current selected slot is no longer valid, clear it
+    if (selectedSlot && !filtered.includes(selectedSlot)) {
+      setSelectedSlot('');
+    }
+  };
+
+  const validateTimeSlot = (slot: string) => {
+    const [hours, minutes] = slot.split(':').map(Number);
+    const slotStart = new Date(selectedDate);
+    slotStart.setHours(hours, minutes, 0, 0);
+    
+    const slotEnd = new Date(slotStart);
+    slotEnd.setMinutes(slotStart.getMinutes() + duration);
+    
+    // Check if professional has schedule for this day
+    const dayOfWeek = selectedDate.getDay();
+    const dayName = getDayName(dayOfWeek);
+    const daySchedule = availability?.schedule?.find((s: any) => 
+      s.day.toLowerCase() === dayName.toLowerCase()
+    );
+    
+    if (!daySchedule || !daySchedule.slots) {
+      return false;
+    }
+    
+    // Check if the slot fits within any of the available time blocks
+    return daySchedule.slots.some((timeBlock: any) => {
+      const [blockStartHour, blockStartMin] = timeBlock.start.split(':').map(Number);
+      const [blockEndHour, blockEndMin] = timeBlock.end.split(':').map(Number);
+      
+      const slotStartHour = slotStart.getHours();
+      const slotStartMin = slotStart.getMinutes();
+      const slotEndHour = slotEnd.getHours();
+      const slotEndMin = slotEnd.getMinutes();
+      
+      // Convert all times to minutes for easier comparison
+      const slotStartTotal = slotStartHour * 60 + slotStartMin;
+      const slotEndTotal = slotEndHour * 60 + slotEndMin;
+      const blockStartTotal = blockStartHour * 60 + blockStartMin;
+      const blockEndTotal = blockEndHour * 60 + blockEndMin;
+      
+      // Check if the entire appointment fits within this time block
+      return slotStartTotal >= blockStartTotal && slotEndTotal <= blockEndTotal;
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedSlot) {
+      showAlert({ message: 'Please select a time slot', type: 'warning' });
+      return;
+    }
+    
+    // Validate that the selected time fits within professional's schedule
+    // if (!validateTimeSlot(selectedSlot)) {
+    //   showAlert({ 
+    //     message: `This ${duration}-minute appointment doesn't fit within the professional's available hours. Please select a shorter duration or a different time.`, 
+    //     type: 'error' 
+    //   });
+    //   return;
+    // }
+    
+    await onSubmitBooking(selectedDate, duration, appointmentType, mode);
+  };
+
+  // Initialize available slots on mount
+  useEffect(() => {
+    const slots = generateTimeSlots();
+    setAvailableSlots(slots);
+    const filtered = filterSlotsByDuration(slots);
+    setFilteredSlots(filtered);
+  }, [selectedDate, availability, generateTimeSlots, filterSlotsByDuration]);
+
+  const markedDates = {
+    [selectedDate.toISOString().split('T')[0]]: {
+      selected: true,
+      selectedColor: '#8089ff',
+      selectedTextColor: '#fff',
+    },
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={bookingModalStyles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={bookingModalStyles.container}>
+              {/* Header */}
+              <View style={bookingModalStyles.header}>
+                <TouchableOpacity onPress={onClose} style={bookingModalStyles.closeButton}>
+                  <BackIcon width={hp(2)} height={hp(2)} />
+                </TouchableOpacity>
+                <Text style={bookingModalStyles.title}>Book Appointment</Text>
+                <View style={bookingModalStyles.headerRight} />
+              </View>
+
+              <ScrollView 
+                style={bookingModalStyles.content}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Professional Info */}
+                <View style={bookingModalStyles.professionalInfo}>
+                  <View style={bookingModalStyles.avatarContainer}>
+                    {professional?.profile?.avatar ? (
+                      <Image
+                        source={{ uri: professional.profile.avatar }}
+                        style={bookingModalStyles.avatar}
+                      />
+                    ) : (
+                      <View style={bookingModalStyles.avatarPlaceholder}>
+                        <Text style={bookingModalStyles.avatarText}>
+                          {professional?.name?.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={bookingModalStyles.professionalDetails}>
+                    <Text style={bookingModalStyles.professionalName}>
+                      {professional?.name}
+                    </Text>
+                    <Text style={bookingModalStyles.professionalRole}>
+                      {professional?.role}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Calendar */}
+                <View style={bookingModalStyles.section}>
+                  <Text style={bookingModalStyles.sectionTitle}>Select Date</Text>
+                  <Calendar
+                    current={selectedDate.toISOString().split('T')[0]}
+                    minDate={new Date().toISOString().split('T')[0]}
+                    maxDate={new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    onDayPress={(day: DateData) => {
+                      if (!isDateDisabled(day)) {
+                        const newDate = new Date(day.dateString);
+                        newDate.setHours(selectedDate.getHours(), selectedDate.getMinutes());
+                        handleDateChange(newDate);
+                      }
+                    }}
+                    markedDates={markedDates}
+                    theme={{
+                      selectedDayBackgroundColor: '#8089ff',
+                      todayTextColor: '#8089ff',
+                      arrowColor: '#8089ff',
+                      textDisabledColor: '#ddd',
+                    }}
+                    disableAllTouchEventsForDisabledDays={false} // Changed to false to allow clicking
+                  />
+                </View>
+
+                {/* Time Slots */}
+                <View style={bookingModalStyles.section}>
+                  <Text style={bookingModalStyles.sectionTitle}>Select Time</Text>
+                  <View style={bookingModalStyles.timeSlotsContainer}>
+                    {filteredSlots.length > 0 ? (
+                      <>
+                        <Text style={bookingModalStyles.slotsInfo}>
+                          Available slots for {duration} minutes:
+                        </Text>
+                        <View style={bookingModalStyles.timeSlotsGrid}>
+                          {filteredSlots.map((slot, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              style={[
+                                bookingModalStyles.timeSlot,
+                                selectedSlot === slot && bookingModalStyles.selectedTimeSlot
+                              ]}
+                              onPress={() => handleTimeSelect(slot)}
+                            >
+                              <Text style={[
+                                bookingModalStyles.timeSlotText,
+                                selectedSlot === slot && bookingModalStyles.selectedTimeSlotText
+                              ]}>
+                                {slot}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        {selectedSlot && (
+                          <View style={bookingModalStyles.selectedTimeContainer}>
+                            <ClockIcon width={hp(2)} height={hp(2)} fill="#8089ff" />
+                            <Text style={bookingModalStyles.selectedTimeText}>
+                              Selected: {selectedSlot} ({duration} min)
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    ) : (
+                      <View style={bookingModalStyles.noSlotsContainer}>
+                        <ClockIcon width={hp(4)} height={hp(4)} fill="#ccc" />
+                        <Text style={bookingModalStyles.noSlotsText}>
+                          No available {duration}-minute slots for this date
+                        </Text>
+                        <Text style={bookingModalStyles.noSlotsSubtext}>
+                          Try a shorter duration or select another date
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Duration */}
+                <View style={bookingModalStyles.section}>
+                  <Text style={bookingModalStyles.sectionTitle}>Duration</Text>
+                  <View style={bookingModalStyles.durationContainer}>
+                    {durations.map((dur) => (
+                      <TouchableOpacity
+                        key={dur.minutes}
+                        style={[
+                          bookingModalStyles.durationButton,
+                          duration === dur.minutes && bookingModalStyles.selectedDurationButton
+                        ]}
+                        onPress={() => handleDurationChange(dur.minutes)}
+                      >
+                        <Text style={[
+                          bookingModalStyles.durationButtonText,
+                          duration === dur.minutes && bookingModalStyles.selectedDurationButtonText
+                        ]}>
+                          {dur.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {filteredSlots.length === 0 && availableSlots.length > 0 && (
+                    <View style={bookingModalStyles.warningContainer}>
+                      <Text style={bookingModalStyles.warningText}>
+                        ⚠️ No slots available for {duration} minutes. Try 30 or 60 minutes.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Appointment Type */}
+                <View style={bookingModalStyles.section}>
+                  <Text style={bookingModalStyles.sectionTitle}>Appointment Type</Text>
+                  <View style={bookingModalStyles.typeContainer}>
+                    {appointmentTypes.map((type) => (
+                      <TouchableOpacity
+                        key={type.id}
+                        style={[
+                          bookingModalStyles.typeButton,
+                          appointmentType === type.id && bookingModalStyles.selectedTypeButton
+                        ]}
+                        onPress={() => setAppointmentType(type.id)}
+                      >
+                        <Text style={[
+                          bookingModalStyles.typeButtonText,
+                          appointmentType === type.id && bookingModalStyles.selectedTypeButtonText
+                        ]}>
+                          {type.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Consultation Mode */}
+                <View style={bookingModalStyles.section}>
+                  <Text style={bookingModalStyles.sectionTitle}>Consultation Mode</Text>
+                  <View style={bookingModalStyles.modeContainer}>
+                    {consultationModes.map((modeItem) => (
+                      <TouchableOpacity
+                        key={modeItem.id}
+                        style={[
+                          bookingModalStyles.modeButton,
+                          mode === modeItem.id && bookingModalStyles.selectedModeButton
+                        ]}
+                        onPress={() => setMode(modeItem.id)}
+                      >
+                        <Text style={[
+                          bookingModalStyles.modeButtonText,
+                          mode === modeItem.id && bookingModalStyles.selectedModeButtonText
+                        ]}>
+                          {modeItem.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Price Estimate */}
+                {professional?.healthcareProfile?.hourlyRate && (
+                  <View style={bookingModalStyles.priceContainer}>
+                    <Text style={bookingModalStyles.priceLabel}>Estimated Cost:</Text>
+                    <View style={bookingModalStyles.priceValueContainer}>
+                      <DollarIcon width={hp(2)} height={hp(2)} fill="#28a745" />
+                      <Text style={bookingModalStyles.priceValue}>
+                        ${(professional.healthcareProfile.hourlyRate * (duration / 60)).toFixed(2)}
+                      </Text>
+                    </View>
+                    <Text style={bookingModalStyles.priceNote}>
+                      *Final amount may vary based on additional services
+                    </Text>
+                  </View>
+                )}
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  style={[
+                    bookingModalStyles.submitButton,
+                    (!selectedSlot || loading) && bookingModalStyles.submitButtonDisabled
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={!selectedSlot || loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <CalendarIcon width={hp(2)} height={hp(2)} fill="#fff" />
+                      <Text style={bookingModalStyles.submitButtonText}>
+                        Confirm Booking
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Note */}
+                <View style={bookingModalStyles.noteContainer}>
+                  <Text style={bookingModalStyles.noteText}>
+                    ℹ️ Your booking request will be sent to the professional for confirmation. 
+                    You&apos;ll receive a notification once it&apos;s confirmed.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              {/* Date/Time Pickers */}
+              {showDatePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={new Date()}
+                  maximumDate={new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)}
+                  onChange={(event, date) => {
+                    setShowDatePicker(false);
+                    if (date) {
+                      handleDateChange(date);
+                    }
+                  }}
+                />
+              )}
+
+              {showTimePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event, date) => {
+                    setShowTimePicker(false);
+                    if (date) {
+                      handleDateChange(date);
+                    }
+                  }}
+                />
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
 export default function MedicalProfessionalProfile() {
     const { professionalId } = useLocalSearchParams();
     const { bookAppointment } = useHealthcare();
     const [bookingLoading, setBookingLoading] = useState(false);
+    const [showBookingModal, setShowBookingModal] = useState(false);
 
     const router = useRouter();
     const {
@@ -347,51 +993,77 @@ export default function MedicalProfessionalProfile() {
         router.push(`/chat/${professionalId}`);
     };
 
-    const handleBookNow = async () => {
-        if (!professionalId || !professional) return;
 
-        try {
-            setBookingLoading(true);
-
-            let proposedDate = new Date();
-            proposedDate.setDate(proposedDate.getDate() + 3); // Start: 3 days from now
-            proposedDate.setHours(10, 0, 0, 0); // Set time to 10:00 AM
-
-            // Get day of week: 0 = Sunday, 6 = Saturday
-            const dayOfWeek = proposedDate.getDay();
-
-            if (dayOfWeek === 0) { // Sunday → move to next Monday
-                proposedDate.setDate(proposedDate.getDate() + 1);
-            } else if (dayOfWeek === 6) { // Saturday → move to next Monday
-                proposedDate.setDate(proposedDate.getDate() + 2);
-            }
-            // If it's Friday and we want to avoid close to weekend, optional extra skip
-            // else if (dayOfWeek === 5) { proposedDate.setDate(proposedDate.getDate() + 3); } // to Monday
-
-            // Final appointment details
-            const appointmentDateISO = proposedDate.toISOString();
-
-            await bookAppointment(
-                professionalId as string,
-                appointmentDateISO,
-                60,
-                "General consultation",
-                "physical"
-            );
-
-            showAlert({
-                message: "Booking request sent successfully! Awaiting confirmation.",
-                type: "success"
-            });
-        } catch (err: any) {
-            showAlert({
-                message: err.message || "Failed to book appointment",
-                type: "error"
-            });
-        } finally {
-            setBookingLoading(false);
-        }
+    const handleBookNow = () => {
+        if (!professional) return;
+        setShowBookingModal(true);
     };
+
+    // New function to handle booking submission
+  const handleBookingSubmit = async (
+    date: Date, 
+    duration: number, 
+    type: string, 
+    mode: string
+  ) => {
+    try {
+      setBookingLoading(true);
+      
+      // Find next available slot if the selected time is in the past
+      let appointmentDate = date;
+      if (appointmentDate <= new Date()) {
+        appointmentDate = findNextAvailableSlot(
+          professional?.healthcareProfile?.availability,
+          duration,
+          date
+        );
+        
+        showAlert({
+          message: "Selected time was in the past. Adjusted to next available slot.",
+          type: "info"
+        });
+      }
+      
+      await bookAppointment(
+        professionalId as string,
+        appointmentDate.toISOString(),
+        duration,
+        type,
+        mode as "physical" | "virtual"
+      );
+      
+      showAlert({
+        message: "Booking request sent successfully! Awaiting confirmation.",
+        type: "success"
+      });
+      
+      setShowBookingModal(false);
+    } catch (err: any) {
+      // If there's a conflict, find next available slot
+      if (err.message?.includes('conflict') || err.message?.includes('unavailable')) {
+        const nextSlot = findNextAvailableSlot(
+          professional?.healthcareProfile?.availability,
+          duration,
+          date
+        );
+        
+        showAlert({
+          message: `Time slot unavailable. Next available: ${nextSlot.toLocaleString()}`,
+          type: "warning"
+        });
+        
+        // Auto-select the next available slot
+        // You could also update the modal with this time
+      } else {
+        showAlert({
+          message: err.message || "Failed to book appointment",
+          type: "error"
+        });
+      }
+    } finally {
+      setBookingLoading(false);
+    }
+  };
 
     const handleRatingUpdate = async (rating: number, comment?: string) => {
         try {
@@ -1078,6 +1750,17 @@ export default function MedicalProfessionalProfile() {
                 tempRating={tempRating}
                 onSubmitRating={handleRatingUpdate}
             />
+
+            {/*  */}
+            <BookingModal
+                visible={showBookingModal}
+                onClose={() => setShowBookingModal(false)}
+                professional={professional}
+                onSubmitBooking={handleBookingSubmit}
+                loading={bookingLoading}
+                availability={professional?.healthcareProfile?.availability}
+            />
+
         </SafeAreaView>
     );
 }
@@ -1934,5 +2617,306 @@ const modalStyles = StyleSheet.create({
     color: '#8089ff',
     fontSize: hp(1.5),
     fontWeight: '500',
+  },
+});
+
+const bookingModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  container: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: hp(90),
+    minHeight: hp(70),
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  closeButton: {
+    padding: hp(0.5),
+  },
+  title: {
+    fontSize: hp(2),
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerRight: {
+    width: hp(3),
+  },
+  content: {
+    paddingHorizontal: wp(4),
+    paddingBottom: hp(4),
+  },
+  professionalInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    marginBottom: hp(1),
+  },
+  avatarContainer: {
+    marginRight: wp(3),
+  },
+  avatar: {
+    width: hp(5),
+    height: hp(5),
+    borderRadius: hp(2.5),
+  },
+  avatarPlaceholder: {
+    width: hp(5),
+    height: hp(5),
+    borderRadius: hp(2.5),
+    backgroundColor: '#8089ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: hp(1.8),
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  professionalDetails: {
+    flex: 1,
+  },
+  professionalName: {
+    fontSize: hp(1.8),
+    fontWeight: '600',
+    color: '#333',
+  },
+  professionalRole: {
+    fontSize: hp(1.4),
+    color: '#666',
+  },
+  section: {
+    marginBottom: hp(2),
+  },
+  sectionTitle: {
+    fontSize: hp(1.7),
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: hp(1),
+  },
+  timeSlotsContainer: {
+    marginTop: hp(1),
+  },
+  slotsInfo: {
+    fontSize: hp(1.4),
+    color: '#666',
+    marginBottom: hp(1),
+  },
+  timeSlotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: wp(2),
+  },
+  timeSlot: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    minWidth: wp(20),
+    alignItems: 'center',
+  },
+  selectedTimeSlot: {
+    backgroundColor: '#8089ff',
+    borderColor: '#8089ff',
+  },
+  timeSlotText: {
+    fontSize: hp(1.6),
+    color: '#666',
+  },
+  selectedTimeSlotText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  selectedTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f4ff',
+    padding: hp(1.5),
+    borderRadius: 8,
+    marginTop: hp(1.5),
+  },
+  selectedTimeText: {
+    fontSize: hp(1.6),
+    color: '#8089ff',
+    fontWeight: '600',
+    marginLeft: wp(2),
+  },
+  noSlotsContainer: {
+    alignItems: 'center',
+    paddingVertical: hp(3),
+  },
+  noSlotsText: {
+    fontSize: hp(1.7),
+    color: '#666',
+    marginTop: hp(1),
+    fontWeight: '500',
+  },
+  noSlotsSubtext: {
+    fontSize: hp(1.5),
+    color: '#999',
+    marginTop: hp(0.5),
+  },
+  durationContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: wp(2),
+  },
+  durationButton: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  selectedDurationButton: {
+    backgroundColor: '#8089ff',
+    borderColor: '#8089ff',
+  },
+  durationButtonText: {
+    fontSize: hp(1.6),
+    color: '#666',
+  },
+  selectedDurationButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  warningContainer: {
+    backgroundColor: '#fff3cd',
+    padding: hp(1.5),
+    borderRadius: 8,
+    marginTop: hp(1.5),
+    borderWidth: 1,
+    borderColor: '#ffeaa7',
+  },
+  warningText: {
+    fontSize: hp(1.4),
+    color: '#856404',
+    lineHeight: hp(1.8),
+  },
+  typeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: wp(2),
+  },
+  typeButton: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  selectedTypeButton: {
+    backgroundColor: '#8089ff',
+    borderColor: '#8089ff',
+  },
+  typeButtonText: {
+    fontSize: hp(1.6),
+    color: '#666',
+  },
+  selectedTypeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  modeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: wp(2),
+  },
+  modeButton: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  selectedModeButton: {
+    backgroundColor: '#8089ff',
+    borderColor: '#8089ff',
+  },
+  modeButtonText: {
+    fontSize: hp(1.6),
+    color: '#666',
+  },
+  selectedModeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  priceContainer: {
+    backgroundColor: '#f8f9ff',
+    padding: hp(2),
+    borderRadius: 12,
+    marginVertical: hp(2),
+    borderWidth: 1,
+    borderColor: '#eef0ff',
+  },
+  priceLabel: {
+    fontSize: hp(1.6),
+    color: '#666',
+    marginBottom: hp(0.5),
+  },
+  priceValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: hp(0.5),
+  },
+  priceValue: {
+    fontSize: hp(2.5),
+    fontWeight: 'bold',
+    color: '#28a745',
+    marginLeft: wp(1),
+  },
+  priceNote: {
+    fontSize: hp(1.3),
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8089ff',
+    paddingVertical: hp(2),
+    borderRadius: 12,
+    marginTop: hp(2),
+    gap: wp(2),
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: hp(1.8),
+    fontWeight: '600',
+  },
+  noteContainer: {
+    marginTop: hp(2),
+    padding: hp(1.5),
+    backgroundColor: '#fff8e1',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+  },
+  noteText: {
+    fontSize: hp(1.4),
+    color: '#856404',
+    lineHeight: hp(2),
   },
 });

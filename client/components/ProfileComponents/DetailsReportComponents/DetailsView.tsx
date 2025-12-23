@@ -42,6 +42,7 @@ export default function DetailsView({ user }: DetailsViewProps) {
         .join(", ")
     : null;
 
+    const PLACEHOLDER = "Not Provided";
 
   // ✅ Step 1: Define the data structure
   const sections = [
@@ -49,18 +50,18 @@ export default function DetailsView({ user }: DetailsViewProps) {
       title: "personal information",
       icon: GemIcon,
       data: [
-        { label: "Address", value: user?.profile?.location ? addressDetail : null },
-        { label: "Blood Group", value: user?.profile?.bloodGroup ? user?.profile?.bloodGroup : null },
-        { label: "Phone no", value: user?.phoneNumber ? user?.phoneNumber : "+--------" },
+        { label: "Address", value: user?.profile?.location ? addressDetail : PLACEHOLDER },
+        { label: "Blood Group", value: user?.profile?.bloodGroup ? user?.profile?.bloodGroup : PLACEHOLDER },
+        { label: "Phone no", value: user?.phoneNumber ? user?.phoneNumber : PLACEHOLDER },
       ],
     },
     {
       title: "emergency contact",
       icon: EmergencyIcon,
       data: [
-        { label: "Name", value: user?.emergencyContact?.name ? user?.emergencyContact?.name : "!" },
-        { label: "Relationship", value: user?.emergencyContact?.relationship ? user?.emergencyContact?.relationship : "!" },
-        { label: "Phone no", value: user?.emergencyContact?.phoneNumber ? user?.emergencyContact?.phoneNumber : "!" },
+        { label: "Name", value: user?.emergencyContact?.name ? user?.emergencyContact?.name : PLACEHOLDER },
+        { label: "Relationship", value: user?.emergencyContact?.relationship ? user?.emergencyContact?.relationship : PLACEHOLDER },
+        { label: "Phone no", value: user?.emergencyContact?.phoneNumber ? user?.emergencyContact?.phoneNumber : PLACEHOLDER },
       ],
     },
   ]

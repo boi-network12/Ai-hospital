@@ -87,7 +87,9 @@ export interface IHealthcareProfile {
   hospitalAffiliation?: string;
   isOnline: boolean;
   isVerified?: boolean;
-  lastActive: string; // ISO date
+  lastActive: string; 
+  experienceYears?: number;
+  isVerified?: boolean;
 }
 
 /* ======================== RATING & TIP TYPES ======================== */

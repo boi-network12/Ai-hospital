@@ -98,13 +98,10 @@ interface HealthcareState {
         professionals: Map<string, HealthcareProfessional[]>;
         lastFetch: number;
     };
-}
-
-interface HealthcareState {
-  // ... existing state
-  pastAppointments: PastAppointment[];
-  recentPastAppointment: PastAppointment | null;
-  pastAppointmentsLoading: boolean;
+    isFiltered?: boolean;
+    pastAppointments: PastAppointment[];
+    recentPastAppointment: PastAppointment | null;
+    pastAppointmentsLoading: boolean;
 }
 
 type Action =
@@ -122,6 +119,7 @@ type Action =
     | { type: 'SET_RECENT_PAST_APPOINTMENT'; payload: PastAppointment | null }
     | { type: 'SET_PAST_APPOINTMENTS'; payload: PastAppointment[] }
     | { type: 'SET_PAST_APPOINTMENTS_LOADING'; payload: boolean }
+    | { type: 'SET_FILTERED_PROFESSIONALS'; payload: HealthcareProfessional[] }
     | { type: 'RESET' };
 
 const initialState: HealthcareState = {
@@ -218,6 +216,12 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
             
         case 'RESET':
             return initialState;
+        case 'SET_FILTERED_PROFESSIONALS': 
+             return {
+                  ...state,
+                  professionals: action.payload,
+                  isFiltered: true
+             }
         default:
             return state;
     }

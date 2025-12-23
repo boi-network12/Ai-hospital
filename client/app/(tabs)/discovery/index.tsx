@@ -7,7 +7,7 @@ import { heightPercentageToDP as hp } from 'react-native-responsive-screen'
 
 // 🧩 Components
 import DiscoveryHeader from '@/components/Headers/DiscoveryHeader'
-import FilterSections from '@/components/DiscoveryComponents/FilterSections'
+import FilterSections, { ProfessionalFilters } from '@/components/DiscoveryComponents/FilterSections'
 import { useUser } from '@/Hooks/userHooks.d'
 import { useHealthcare } from '@/context/HealthContext'
 
@@ -105,38 +105,49 @@ export default function DiscoveryPage() {
 
   // Handle filter changes
   // DiscoveryPage.tsx
-  const handleFilterChange = async (filters: any) => {
-    updateFilters(filters);
-    
-    // Transform filters to match backend schema
-    const backendFilters = {
-      ...(filters.role && { role: filters.role }),
-      ...(filters.specialization && { 'profile.specialization': filters.specialization }),
-      ...(filters.gender && { 'profile.gender': filters.gender }),
-      ...(filters.availability && { 
-        'healthcareProfile.availability.isAvailable': filters.availability === 'available' 
-      }),
-      ...(filters.minRating > 0 && { 
-        'healthcareProfile.stats.averageRating': { $gte: filters.minRating }
-      }),
-    };
+  const handleFilterChange = useCallback(async (filters: ProfessionalFilters) => {
+    try {
+      // Check if filters actually changed
+      if (JSON.stringify(filters) === JSON.stringify(healthcare.filters)) {
+        return;
+      }
 
-    await fetchProfessionals({
-      ...backendFilters,
-      ...(location && {
-        city: location.city,
-        state: location.state,
-        country: location.country,
-        // Only add coordinates if they're not default [0, 0]
-        ...(location.latitude && location.longitude && 
-          location.latitude !== 0 && location.longitude !== 0 && {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            maxDistance: 50
-          })
-      })
-    });
-  };
+      // Update local filters
+      updateFilters(filters);
+      
+      // Transform filters to backend schema
+      const backendFilters = {
+        ...(filters.role && { role: filters.role }),
+        ...(filters.specialization && { 'profile.specialization': filters.specialization }),
+        ...(filters.gender && { 'profile.gender': filters.gender }),
+        ...(filters.availability !== null && { 
+          'healthcareProfile.availability.isAvailable': filters.availability 
+        }),
+        ...(filters.minRating > 0 && { 
+          'healthcareProfile.stats.averageRating': { $gte: filters.minRating }
+        }),
+      };
+
+      await fetchProfessionals({
+        ...backendFilters,
+        ...(location && {
+          city: location.city,
+          state: location.state,
+          country: location.country,
+          ...(location.latitude && location.longitude && 
+            location.latitude !== 0 && location.longitude !== 0 && {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              maxDistance: 50
+            })
+        })
+      });
+    } catch (error) {
+      console.error('Error applying filters:', error);
+      showAlert({ message: 'Failed to apply filters', type: 'error' });
+    }
+  }, [healthcare.filters, updateFilters, fetchProfessionals, location, showAlert]);
+
 
   // Retry location permission
   const handleRetryLocation = async () => {
@@ -236,7 +247,7 @@ export default function DiscoveryPage() {
       <Portal>
         <Modalize
           ref={modalizeRef}
-          modalHeight={hp(70)} // 70% screen height
+          modalHeight={hp(75)} // 70% screen height
           handlePosition="inside"
           closeOnOverlayTap
           panGestureEnabled
@@ -245,7 +256,7 @@ export default function DiscoveryPage() {
         >
           <FilterSections
             onFilterChange={handleFilterChange}
-            currentFilters={healthcare.filters}
+            currentFilters={healthcare.filters as ProfessionalFilters}
           />
         </Modalize>
       </Portal>
