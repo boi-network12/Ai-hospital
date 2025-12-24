@@ -407,7 +407,6 @@ const BookingModal = ({
       
       // Check if this slot fits within any available time block
       return daySchedule.slots.some((timeBlock: any) => {
-        const [blockStartHour, blockStartMin] = timeBlock.start.split(':').map(Number);
         const [blockEndHour, blockEndMin] = timeBlock.end.split(':').map(Number);
         
         const slotEndHour = slotEnd.getHours();
@@ -474,60 +473,11 @@ const BookingModal = ({
     }
   };
 
-  const validateTimeSlot = (slot: string) => {
-    const [hours, minutes] = slot.split(':').map(Number);
-    const slotStart = new Date(selectedDate);
-    slotStart.setHours(hours, minutes, 0, 0);
-    
-    const slotEnd = new Date(slotStart);
-    slotEnd.setMinutes(slotStart.getMinutes() + duration);
-    
-    // Check if professional has schedule for this day
-    const dayOfWeek = selectedDate.getDay();
-    const dayName = getDayName(dayOfWeek);
-    const daySchedule = availability?.schedule?.find((s: any) => 
-      s.day.toLowerCase() === dayName.toLowerCase()
-    );
-    
-    if (!daySchedule || !daySchedule.slots) {
-      return false;
-    }
-    
-    // Check if the slot fits within any of the available time blocks
-    return daySchedule.slots.some((timeBlock: any) => {
-      const [blockStartHour, blockStartMin] = timeBlock.start.split(':').map(Number);
-      const [blockEndHour, blockEndMin] = timeBlock.end.split(':').map(Number);
-      
-      const slotStartHour = slotStart.getHours();
-      const slotStartMin = slotStart.getMinutes();
-      const slotEndHour = slotEnd.getHours();
-      const slotEndMin = slotEnd.getMinutes();
-      
-      // Convert all times to minutes for easier comparison
-      const slotStartTotal = slotStartHour * 60 + slotStartMin;
-      const slotEndTotal = slotEndHour * 60 + slotEndMin;
-      const blockStartTotal = blockStartHour * 60 + blockStartMin;
-      const blockEndTotal = blockEndHour * 60 + blockEndMin;
-      
-      // Check if the entire appointment fits within this time block
-      return slotStartTotal >= blockStartTotal && slotEndTotal <= blockEndTotal;
-    });
-  };
-
   const handleSubmit = async () => {
     if (!selectedSlot) {
       showAlert({ message: 'Please select a time slot', type: 'warning' });
       return;
     }
-    
-    // Validate that the selected time fits within professional's schedule
-    // if (!validateTimeSlot(selectedSlot)) {
-    //   showAlert({ 
-    //     message: `This ${duration}-minute appointment doesn't fit within the professional's available hours. Please select a shorter duration or a different time.`, 
-    //     type: 'error' 
-    //   });
-    //   return;
-    // }
     
     await onSubmitBooking(selectedDate, duration, appointmentType, mode);
   };

@@ -1,7 +1,7 @@
 // src/app/(tabs)/professional/AppointmentsPage.tsx
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,7 +43,7 @@ export default function ProfessionalAppointmentsPage() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const loadAppointments = async (refresh = false) => {
+  const loadAppointments = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setRefreshing(true);
@@ -63,16 +63,16 @@ export default function ProfessionalAppointmentsPage() {
 
       setHasMore(response.page < response.totalPages);
       if (!refresh) setPage(prev => prev + 1);
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Failed to load appointments');
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [page, getMyAppointments]);
 
   useEffect(() => {
     loadAppointments(true);
-  }, []);
+  }, [loadAppointments]);
 
   const handleStatusUpdate = async (appointmentId: string, status: 'confirmed' | 'rejected' | 'completed' | 'cancelled') => {
     const statusMessages = {
@@ -100,7 +100,7 @@ export default function ProfessionalAppointmentsPage() {
                 )
               );
               Alert.alert('Success', `Appointment ${status} successfully`);
-            } catch (err) {
+            } catch {
               Alert.alert('Error', 'Failed to update appointment status');
             }
           },
@@ -141,7 +141,7 @@ export default function ProfessionalAppointmentsPage() {
 
       setShowRescheduleModal(false);
       Alert.alert('Success', 'Appointment rescheduled successfully!');
-    } catch (err) {
+    } catch{
       Alert.alert('Error', 'Failed to reschedule appointment');
     }
   };

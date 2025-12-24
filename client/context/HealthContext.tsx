@@ -102,6 +102,7 @@ interface HealthcareState {
     pastAppointments: PastAppointment[];
     recentPastAppointment: PastAppointment | null;
     pastAppointmentsLoading: boolean;
+    pendingAppointmentsCount: number;
 }
 
 type Action =
@@ -145,6 +146,7 @@ const initialState: HealthcareState = {
     pastAppointments: [],
     recentPastAppointment: null,
     pastAppointmentsLoading: false,
+    pendingAppointmentsCount: 0
 };
 
 const generateCacheKey = (filters: Partial<ProfessionalsFilter>): string => {

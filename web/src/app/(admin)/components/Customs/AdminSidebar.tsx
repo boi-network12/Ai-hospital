@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   X, Home, Users, Settings, LogOut,
-  Activity, Server, Cpu, HardDrive, Clock
+  Activity, Server, Cpu, HardDrive, Clock,
+  BriefcaseMedical
 } from 'lucide-react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -38,6 +39,7 @@ export function AdminSidebar({
   const navItems = [
     { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
     { href: '/users', label: 'Users', icon: Users },
+    { href: '/medical-practitioners', label: 'Medical Practitioners', icon: BriefcaseMedical },
     { href: '/admin/settings', label: 'Settings', icon: Settings }
   ];
 

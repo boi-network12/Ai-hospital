@@ -1,11 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, ScrollView } from 'react-native'
 import React from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { heightPercentageToDP as hp } from "react-native-responsive-screen"
 import { Image } from 'expo-image';
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
-import NotIcon from "@/assets/Svgs/bell.svg";
-import AppointmentsIcon from "@/assets/Svgs/calendar-search.svg";
 import MiddleDisplay from '@/components/HomeComponents/MiddleDisplay';
 import { _MiddleDisplayContent } from '@/constants/ResolveDisplay';
 import HomeWidget from '@/components/HomeComponents/HomeWidget';
@@ -14,6 +12,10 @@ import { router } from 'expo-router';
 import NetworkLatencyDisplay from '@/config/NetworkLatencyDisplay';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useHydrationData } from '@/Hooks/useHydration.d';
+import { useNotification } from '@/Hooks/notificationHook.d';
+import { NotificationIcon } from '@/components/NotificationIcon/NotificationIcon';
+import { useHealthcare } from '@/context/HealthContext';
+import { AppointmentIconDot } from '@/components/AppointmentIcon/AppointmentIcon';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
 
@@ -22,6 +24,18 @@ const _middleDisplayContent = _MiddleDisplayContent;
 export default function HomePage() {
   const { user } = useUser();
   const hydration = useHydrationData();
+  const { healthcare } = useHealthcare()
+  const { unreadCount } = useNotification()
+
+   const getPendingAppointmentsCount = () => {
+    if (!isProfessional) return 0;
+    
+    // You could fetch pending appointments count from your API
+    // For now, we'll return a placeholder or use actual data if available
+    return healthcare.pendingAppointmentsCount || 0; // You'll need to add this to your state
+  };
+
+  const pendingAppointmentsCount = getPendingAppointmentsCount();
 
   const isProfessional = user?.role === "doctor" || user?.role === "nurse" || user?.role === "hospital";
 
@@ -47,13 +61,19 @@ export default function HomePage() {
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: hp(2) }}>
-            <TouchableOpacity onPress={() => router.push("/notifications")}>
-               <NotIcon width={hp(2.5)} height={hp(3)} />
-            </TouchableOpacity>
+             <NotificationIcon
+                unreadCount={unreadCount}
+                onPress={() => router.push("/notifications")}
+                size={hp(2.5)}
+                dotColor="#FF3B30" // Red dot
+              />
             {isProfessional && (
-                <TouchableOpacity onPress={() => router.push("/appointments")}>
-                  <AppointmentsIcon width={hp(2.5)} height={hp(3)} />
-                </TouchableOpacity>
+                  <AppointmentIconDot
+                    pendingCount={pendingAppointmentsCount}
+                    onPress={() => router.push("/appointments")}
+                    size={hp(2.5)}
+                    dotColor="#FF9500" // Orange for appointments
+                  />
             )}
           </View>
         </View>

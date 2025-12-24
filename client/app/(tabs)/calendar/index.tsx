@@ -343,43 +343,55 @@ export default function CalendarPage() {
             const isPending = item.status === 'pending';
 
             return (
+              // Inside the FlatList renderItem, update the appointmentCard section:
               <View style={styles.appointmentCard}>
+                {/* Doctor Avatar */}
                 <ExpoImage
                   source={avatar ? { uri: avatar } : AvatarImg}
                   style={styles.doctorAvatar}
                   transition={600}
                 />
-                <View style={styles.appointmentInfo}>
-                  <Text style={styles.doctorName}>{doctorName}</Text>
-                  <Text style={styles.doctorSpecialty}>{specialization}</Text>
-
-                  <View style={styles.timeRow}>
-                    <CalendarIcon width={hp(2)} height={hp(2)} color="#8089ff" />
-                    <Text style={styles.timeText}>{dateStr}</Text>
-                    <View style={{ width: hp(2) }} />
-                    <ClockIcon width={hp(2)} height={hp(2)} color="#8089ff" />
-                    <Text style={styles.timeText}>{time}</Text>
+                
+                {/* Main content wrapper */}
+                <View style={styles.contentWrapper}>
+                  {/* Top row with doctor info and actions */}
+                  <View style={styles.topRow}>
+                    <View style={styles.doctorInfo}>
+                      <Text style={styles.doctorName}>{doctorName}</Text>
+                      <Text style={styles.doctorSpecialty}>{specialization}</Text>
+                    </View>
+                    
+                    {/* Edit & Delete Icons - only for pending */}
+                    {isPending && (
+                      <View style={styles.actionIcons}>
+                        <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconButton}>
+                          <EditIcon width={hp(2.4)} height={hp(2.4)} color="#8089ff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleCancelBooking(item)} style={styles.iconButton}>
+                          <DeleteIcon width={hp(2.4)} height={hp(2.4)} color="#dc3545" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
-
-                  <Text style={styles.statusText}>
-                    Status:{' '}
-                    <Text style={{ fontWeight: '600', color: getStatusColor(item.status) }}>
-                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                  
+                  {/* Time and status section */}
+                  <View style={styles.bottomSection}>
+                    <View style={styles.timeRow}>
+                      <CalendarIcon width={hp(2)} height={hp(2)} color="#8089ff" />
+                      <Text style={styles.timeText}>{dateStr}</Text>
+                      <View style={{ width: hp(2) }} />
+                      <ClockIcon width={hp(2)} height={hp(2)} color="#8089ff" />
+                      <Text style={styles.timeText}>{time}</Text>
+                    </View>
+                    
+                    <Text style={styles.statusText}>
+                      Status:{' '}
+                      <Text style={{ fontWeight: '600', color: getStatusColor(item.status) }}>
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      </Text>
                     </Text>
-                  </Text>
-                </View>
-
-                {/* Edit & Delete Icons - only for pending */}
-                {isPending && (
-                  <View style={styles.actionIcons}>
-                    <TouchableOpacity onPress={() => openEditModal(item)} style={styles.iconButton}>
-                      <EditIcon width={hp(2.4)} height={hp(2.4)} color="#8089ff" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleCancelBooking(item)} style={styles.iconButton}>
-                      <DeleteIcon width={hp(2.4)} height={hp(2.4)} color="#dc3545" />
-                    </TouchableOpacity>
                   </View>
-                )}
+                </View>
               </View>
             );
           }}
@@ -445,59 +457,186 @@ const getStatusColor = (status: string) => {
   }
 };
 
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  calendarWrapper: { paddingHorizontal: hp(2), paddingTop: hp(2) },
-  monthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: hp(3) },
-  monthTitle: { fontFamily: 'Roboto-Bold', fontSize: hp(2), color: '#8089ff' },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: hp(0.5) },
-  weekDay: { width: `${100 / 7}%`, textAlign: 'center', fontFamily: 'Roboto-Medium', fontSize: hp(1.6), color: '#555' },
-  daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: `${100 / 7}%`, height: hp(6), justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  dayOtherMonth: { opacity: 0.3 },
-  daySelected: { backgroundColor: '#8089ff', borderRadius: hp(1) },
-  dayToday: { borderWidth: 1.5, borderColor: '#8089ff', borderRadius: hp(1) },
-  dayText: { fontSize: hp(1.9), color: '#222' },
-  dayTextOther: { color: '#aaa' },
-  dayTextSelected: { color: '#fff', fontWeight: '600' },
-  dayTextToday: { color: '#8089ff', fontWeight: '600' },
-  dot: { position: 'absolute', bottom: hp(0.8), width: hp(0.8), height: hp(0.8), borderRadius: hp(0.4), backgroundColor: '#8089ff' },
-  listHeader: { paddingHorizontal: hp(2), paddingVertical: hp(1.5) },
-  listTitle: { fontFamily: 'Roboto-Bold', fontSize: hp(1.9), color: '#444' },
-  listContent: { paddingHorizontal: hp(2), paddingBottom: hp(4) },
-  appointmentCard: {
+  // Container & Layout
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: hp(8),
+  },
+  
+  // Calendar Styles
+  calendarWrapper: {
+    paddingHorizontal: hp(2),
+    paddingTop: hp(2),
+  },
+  monthHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: hp(3),
+  },
+  monthTitle: {
+    fontFamily: 'Roboto-Bold',
+    fontSize: hp(2),
+    color: '#8089ff',
+  },
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: hp(0.5),
+  },
+  weekDay: {
+    width: `${100 / 7}%`,
+    textAlign: 'center',
+    fontFamily: 'Roboto-Medium',
+    fontSize: hp(1.6),
+    color: '#555',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  
+  // Day Cell Styles
+  dayCell: {
+    width: `${100 / 7}%`,
+    height: hp(6),
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  dayOtherMonth: {
+    opacity: 0.3,
+  },
+  daySelected: {
+    backgroundColor: '#8089ff',
+    borderRadius: hp(1),
+  },
+  dayToday: {
+    borderWidth: 1.5,
+    borderColor: '#8089ff',
+    borderRadius: hp(1),
+  },
+  dayText: {
+    fontSize: hp(1.9),
+    color: '#222',
+  },
+  dayTextOther: {
+    color: '#aaa',
+  },
+  dayTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  dayTextToday: {
+    color: '#8089ff',
+    fontWeight: '600',
+  },
+  dot: {
+    position: 'absolute',
+    bottom: hp(0.8),
+    width: hp(0.8),
+    height: hp(0.8),
+    borderRadius: hp(0.4),
+    backgroundColor: '#8089ff',
+  },
+  
+  // List & Header Styles
+  listHeader: {
+    paddingHorizontal: hp(2),
+    paddingVertical: hp(1.5),
+  },
+  listTitle: {
+    fontFamily: 'Roboto-Bold',
+    fontSize: hp(1.9),
+    color: '#444',
+  },
+  listContent: {
+    paddingHorizontal: hp(2),
+    paddingBottom: hp(4),
+  },
+  
+  // Appointment Card Styles
+  appointmentCard: {
     backgroundColor: '#fff',
     borderRadius: hp(1.2),
     padding: hp(1.5),
     marginBottom: hp(1.5),
     borderWidth: 0.7,
     borderColor: '#eee',
-    alignItems: 'center',
+    flexDirection: 'row',
   },
-  doctorAvatar: { width: hp(7), height: hp(7), borderRadius: hp(1.2), marginRight: hp(1.5) },
-  appointmentInfo: { flex: 1 },
-  doctorName: { fontFamily: 'Roboto-Bold', fontSize: hp(1.9), color: '#333' },
-  doctorSpecialty: { fontSize: hp(1.5), color: '#888', marginTop: hp(0.2) },
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: hp(1), gap: hp(0.8) },
-  timeText: { fontSize: hp(1.6), color: '#8089ff', fontWeight: '600' },
-  statusText: { marginTop: hp(1), fontSize: hp(1.5), color: '#666' },
-  actionIcons: { flexDirection: 'row', gap: hp(2), marginLeft: hp(1) },
-  iconButton: { padding: hp(0.8) },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: hp(8) },
-  emptyText: { fontSize: hp(2), color: '#777', fontFamily: 'Roboto-Medium' },
-
-  // Modal styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#fff', borderRadius: hp(2), padding: hp(3), width: '85%', alignItems: 'center' },
-  modalTitle: { fontSize: hp(2.2), fontWeight: 'bold', marginBottom: hp(2), color: '#333' },
-  pickerButton: { backgroundColor: '#f0f0f0', padding: hp(1.5), borderRadius: hp(1), marginVertical: hp(1), width: '100%', alignItems: 'center' },
-  pickerText: { fontSize: hp(1.9), color: '#333' },
-  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: hp(3) },
-  cancelBtn: { padding: hp(1.5), backgroundColor: '#ddd', borderRadius: hp(1), flex: 1, marginRight: hp(1), alignItems: 'center' },
-  cancelBtnText: { fontSize: hp(1.8), color: '#666' },
-  confirmBtn: { padding: hp(1.5), backgroundColor: '#8089ff', borderRadius: hp(1), flex: 1, marginLeft: hp(1), alignItems: 'center' },
-  confirmBtnText: { fontSize: hp(1.8), color: '#fff', fontWeight: '600' },
+  doctorAvatar: {
+    width: hp(7),
+    height: hp(7),
+    borderRadius: hp(1.2),
+    marginRight: hp(1.5),
+  },
+  contentWrapper: {
+    flex: 1,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: hp(1),
+  },
+  doctorInfo: {
+    flex: 1,
+    marginRight: hp(1),
+  },
+  doctorName: {
+    fontFamily: 'Roboto-Bold',
+    fontSize: hp(1.9),
+    color: '#333',
+  },
+  doctorSpecialty: {
+    fontSize: hp(1.5),
+    color: '#888',
+    marginTop: hp(0.2),
+  },
+  bottomSection: {
+    marginTop: hp(0.5),
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hp(0.8),
+  },
+  timeText: {
+    fontSize: hp(1.6),
+    color: '#8089ff',
+    fontWeight: '600',
+  },
+  statusText: {
+    marginTop: hp(1),
+    fontSize: hp(1.5),
+    color: '#666',
+  },
+  
+  // Action Icons
+  actionIcons: {
+    flexDirection: 'row',
+    gap: hp(1.5),
+    flexShrink: 0,
+  },
+  iconButton: {
+    padding: hp(0.8),
+  },
+  
+  // Empty State
+  emptyText: {
+    fontSize: hp(2),
+    color: '#777',
+    fontFamily: 'Roboto-Medium',
+  },
   refreshButton: {
     marginTop: hp(2),
     paddingHorizontal: hp(2),
@@ -509,5 +648,69 @@ const styles = StyleSheet.create({
     fontSize: hp(1.6),
     color: '#8089ff',
     fontFamily: 'Roboto-Medium',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: hp(2),
+    padding: hp(3),
+    width: '85%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: hp(2.2),
+    fontWeight: 'bold',
+    marginBottom: hp(2),
+    color: '#333',
+  },
+  pickerButton: {
+    backgroundColor: '#f0f0f0',
+    padding: hp(1.5),
+    borderRadius: hp(1),
+    marginVertical: hp(1),
+    width: '100%',
+    alignItems: 'center',
+  },
+  pickerText: {
+    fontSize: hp(1.9),
+    color: '#333',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: hp(3),
+  },
+  cancelBtn: {
+    padding: hp(1.5),
+    backgroundColor: '#ddd',
+    borderRadius: hp(1),
+    flex: 1,
+    marginRight: hp(1),
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: hp(1.8),
+    color: '#666',
+  },
+  confirmBtn: {
+    padding: hp(1.5),
+    backgroundColor: '#8089ff',
+    borderRadius: hp(1),
+    flex: 1,
+    marginLeft: hp(1),
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    fontSize: hp(1.8),
+    color: '#fff',
+    fontWeight: '600',
   },
 });

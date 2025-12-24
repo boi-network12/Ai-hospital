@@ -24,7 +24,7 @@ export default function TabLayout() {
 
       return () => clearTimeout(timer);
     }
-  }, [auth]);
+  }, [auth, showAlert]);
 
   return (
     <Tabs

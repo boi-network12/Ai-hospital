@@ -70,8 +70,29 @@ export interface User {
   isDeleted: boolean;
   deletedAt?: string | null;
   createdAt: string;
+  healthcareProfile?: IHealthcareProfile; 
   updatedAt: string;
 }
+
+export interface IHealthcareStats {
+  averageRating?: number;
+  totalConsultations?: number;
+  responseTime?: string;
+}
+
+export interface IHealthcareAvailability {
+  isAvailable: boolean;
+  // you can add schedule, working hours, etc. later
+}
+
+export interface IHealthcareProfile {
+  stats?: IHealthcareStats;
+  availability?: IHealthcareAvailability;
+  languages?: string[]
+  hourlyRate?: number;
+  services?: string[];
+}
+
 
 export type AuthState = {
   isReady: boolean;
