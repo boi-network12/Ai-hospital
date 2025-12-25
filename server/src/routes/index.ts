@@ -8,6 +8,7 @@ import adminRoutes from './adminRoutes';
 import notificationRoutes from './notificationRoutes';
 import healthcareRoutes from './healthcareRoutes';
 import hydrationRoutes from './hydrationRoutes';
+import careerRoutes from './careerRoutes';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use('/v1/admin', adminRoutes);
 router.use('/v1/notifications', notificationRoutes);
 router.use('/v1/healthcare', healthcareRoutes);
 router.use('/v1/hydration', hydrationRoutes); 
+router.use('/v1/career', careerRoutes);
 
 export default router;

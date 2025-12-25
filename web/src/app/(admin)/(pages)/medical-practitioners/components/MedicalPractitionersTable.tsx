@@ -20,18 +20,21 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  FileText
 } from 'lucide-react';
 
 interface Props {
   practitioners: User[];
   loading: boolean;
   onViewProfile: (user: User) => void;
+  onManageTax?: (user: User) => void;
 }
 
 export const MedicalPractitionersTable = ({
   practitioners,
   loading,
   onViewProfile,
+  onManageTax
 }: Props) => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'doctor' | 'nurse'>('all');
@@ -137,6 +140,9 @@ export const MedicalPractitionersTable = ({
                   Stats
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Tax Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Location
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -237,6 +243,36 @@ export const MedicalPractitionersTable = ({
                     </td>
 
                     <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        <div>
+                          <div className="text-sm">
+                            {practitioner.taxInfo?.hasTaxInfo ? (
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                practitioner.taxInfo.status === 'verified' 
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                                  : practitioner.taxInfo.status === 'pending'
+                                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                                  : practitioner.taxInfo.status === 'rejected'
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                              }`}>
+                                {practitioner.taxInfo.status || 'No Info'}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-500">Not Required</span>
+                            )}
+                          </div>
+                          {practitioner.taxInfo?.taxId && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              ID: {practitioner.taxInfo.taxId}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
                       {practitioner.profile?.location ? (
                         <div className="flex items-center gap-2 text-sm">
                           <MapPin className="w-4 h-4 text-gray-500" />
@@ -311,6 +347,19 @@ export const MedicalPractitionersTable = ({
                                 >
                                   <Eye className="w-4 h-4" />
                                   View Full Profile
+                                </button>
+                                
+                                <button
+                                  onClick={() => {
+                                    if (onManageTax) {
+                                      onManageTax(practitioner);
+                                    }
+                                    setDropdownOpen(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  Manage Tax Information
                                 </button>
                               </div>
                             </motion.div>

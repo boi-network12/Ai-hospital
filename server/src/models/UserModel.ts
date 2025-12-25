@@ -122,6 +122,89 @@ const UserSchema = new Schema<IUser>({
   isOnline: { type: Boolean, default: false },
   lastActive: { type: Date, default: Date.now },
   walletBalance: { type: Number, default: 0 },
+  // Tax information (optional - not all countries require this)
+  taxInfo: {
+    // Basic tax identification
+    hasTaxInfo: { type: Boolean, default: false },
+    taxId: { type: String, default: '', trim: true },
+    taxIdType: {
+      type: String,
+      enum: ['SSN', 'EIN', 'TIN', 'VAT', 'GST', 'PAN', 'NIF', 'ABN', 'CUIT', 'other', ''],
+      default: '',
+    },
+    
+    // Location for tax purposes
+    taxCountry: { type: String, default: '', trim: true },
+    taxState: { type: String, default: '', trim: true },
+    taxResidency: { type: String, default: '', trim: true },
+    
+    // Tax rates and exemptions
+    taxRate: { type: Number, default: 0, min: 0, max: 100 },
+    isTaxExempt: { type: Boolean, default: false },
+    exemptionReason: { type: String, default: '', trim: true },
+    exemptionCertificateId: { type: String, default: '', trim: true },
+    
+    // Business-specific fields (for hospitals, doctors with businesses)
+    businessName: { type: String, default: '', trim: true },
+    businessType: {
+      type: String,
+      enum: ['individual', 'sole_proprietorship', 'llc', 'corporation', 'partnership', 'non_profit', ''],
+      default: '',
+    },
+    businessRegistrationNumber: { type: String, default: '', trim: true },
+    
+    // Tax forms and compliance
+    taxFormPreference: {
+      type: String,
+      enum: ['1099', 'W-9', 'W-8BEN', 'W-8ECI', 'W-8IMY', 'W-8EXP', 'other', ''],
+      default: '',
+    },
+    taxTreatyBenefits: { type: Boolean, default: false },
+    treatyCountry: { type: String, default: '', trim: true },
+    treatyArticle: { type: String, default: '', trim: true },
+    
+    // Financial thresholds
+    annualEarningsThreshold: { type: Number, default: 0 },
+    taxWithholdingRate: { type: Number, default: 0, min: 0, max: 100 },
+    
+    // Documents
+    documents: [{
+      name: { type: String, required: true },
+      type: {
+        type: String,
+        enum: ['tax_id', 'exemption_certificate', 'business_registration', 'treaty_form', 'other'],
+        required: true
+      },
+      url: { type: String, required: true },
+      uploadedAt: { type: Date, default: Date.now },
+      verified: { type: Boolean, default: false },
+      verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      verifiedAt: { type: Date },
+      expiryDate: { type: Date },
+      notes: { type: String, default: '' }
+    }],
+    
+    // Verification
+    verified: { type: Boolean, default: false },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedAt: { type: Date },
+    lastVerified: { type: Date },
+    
+    // Status and notes
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected', 'expired', 'not_required'],
+      default: 'pending'
+    },
+    adminNotes: { type: String, default: '', trim: true },
+    lastTaxReportDate: { type: Date, default: null },
+    nextTaxReportDue: { type: Date, default: null },
+    
+    // Metadata
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+  },
+  //
   isVerified: {
     type: Boolean,
     default: false,
@@ -215,6 +298,12 @@ UserSchema.index({ "healthcareProfile.availability.isAvailable": -1 });
 UserSchema.index({ role: 1, isVerified: 1, "roleStatus.isActive": 1 });
 
 UserSchema.index({ passwordResetOtpExpires: 1 }, { expireAfterSeconds: 0 });
+
+// Add this to your existing indexes
+UserSchema.index({ 'taxInfo.status': 1 });
+UserSchema.index({ 'taxInfo.verified': 1 });
+UserSchema.index({ 'taxInfo.taxCountry': 1 });
+UserSchema.index({ 'taxInfo.hasTaxInfo': 1 });
 
 // this is all
 

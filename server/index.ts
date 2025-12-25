@@ -9,6 +9,7 @@ import connectDB from './src/config/db';
 import errorHandler from './src/middlewares/errorHandler';
 import apiRouter from './src/routes';
 import { cleanupInvalidRatings } from './src/utils/ratingCleanup';
+import { dateReminderMiddleware } from './src/middlewares/dateReminderMiddleware';
 
 const app = express();
 
@@ -43,6 +44,10 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api', apiRouter);
+
+
+// Date reminder middleware
+app.use(dateReminderMiddleware);
 
 // Error handler
 app.use(errorHandler);

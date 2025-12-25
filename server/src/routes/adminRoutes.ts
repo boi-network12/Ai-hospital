@@ -30,4 +30,12 @@ router.patch('/users/:userId/professional-details', adminCtrl.updateProfessional
 // Add this line with your other admin routes
 router.patch('/users/:userId/profile', adminCtrl.updateUserProfile);
 
+// Tax Information Management
+router.patch('/users/:userId/tax-info', adminCtrl.updateTaxInfo);
+router.post('/users/:userId/tax-documents', adminCtrl.uploadTaxDocument);
+router.delete('/users/:userId/tax-documents/:docId', adminCtrl.deleteTaxDocument);
+router.patch('/users/:userId/tax-verification', adminCtrl.verifyTaxInfo);
+router.get('/users/:userId/tax-info', adminCtrl.getTaxInfo);
+router.delete('/users/:userId/tax-info', adminCtrl.removeTaxInfo);
+
 export default router;

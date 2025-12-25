@@ -22,7 +22,7 @@ export default function Opportunities() {
   return (
     <DotBackgroundDemo>
       <HomeNav />
-
+;
       <main className="w-full min-h-screen pt-20">
         {/* Hero */}
         <section className="px-6 md:px-10 py-20">

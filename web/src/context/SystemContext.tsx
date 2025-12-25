@@ -48,6 +48,8 @@ export const SystemProvider = ({ children, userId }: { children: ReactNode; user
         } catch (e) {
           toast.error('Failed to load system stats');
           throw e;
+        } finally {
+          setLoading(false);
         }
     };
     fetchGlobal();

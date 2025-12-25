@@ -16,10 +16,12 @@ import {
   MapPin,
   Calendar
 } from 'lucide-react';
+import { TaxInformationModal } from '../../components/MedicalPractitionersComponents/TaxInformationModal';
 
 export default function MedicalPractitionersPage() {
   const { admin } = useAdmin();
   const [selectedPractitioner, setSelectedPractitioner] = useState<User | null>(null);
+  const [selectedTaxUser, setSelectedTaxUser] = useState<User | null>(null);
 
   // Filter users to show only doctors and nurses
   const medicalPractitioners = admin.users?.users?.filter(
@@ -38,11 +40,19 @@ export default function MedicalPractitionersPage() {
       (sum, p) => sum + (p.healthcareProfile?.stats?.totalConsultations || 0), 
       0
     ),
+    hasTaxInfo: medicalPractitioners.filter(p => p.taxInfo?.hasTaxInfo).length,
+    taxVerified: medicalPractitioners.filter(p => p.taxInfo?.status === 'verified').length,
+    taxPending: medicalPractitioners.filter(p => p.taxInfo?.status === 'pending').length,
   };
 
   const handleViewProfile = (user: User) => {
     setSelectedPractitioner(user);
   };
+
+   const handleManageTax = (user: User) => {
+    setSelectedTaxUser(user);
+  };
+
 
   return (
     <div className="space-y-6">
@@ -142,12 +152,23 @@ export default function MedicalPractitionersPage() {
         practitioners={medicalPractitioners}
         loading={admin.loadingUsers}
         onViewProfile={handleViewProfile}
+        onManageTax={handleManageTax}
       />
 
       {/* Profile Modal */}
       <MedicalPractitionerProfileModal
         practitioner={selectedPractitioner}
         onClose={() => setSelectedPractitioner(null)}
+      />
+
+      <TaxInformationModal
+        user={selectedTaxUser}
+        isOpen={!!selectedTaxUser}
+        onClose={() => setSelectedTaxUser(null)}
+        onSuccess={() => {
+          // You can refresh data here if needed
+          console.log('Tax info updated successfully');
+        }}
       />
     </div>
   );

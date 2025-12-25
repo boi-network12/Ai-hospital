@@ -14,6 +14,51 @@ export interface ILocation {
   };
 }
 
+export interface ITaxDocument {
+  name: string;
+  type: 'tax_id' | 'exemption_certificate' | 'business_registration' | 'treaty_form' | 'other';
+  url: string;
+  uploadedAt: Date;
+  verified: boolean;
+  verifiedBy?: Types.ObjectId;
+  verifiedAt?: Date;
+  expiryDate?: Date;
+  notes?: string;
+}
+
+export interface ITaxInfo {
+  hasTaxInfo?: boolean;
+  taxId?: string;
+  taxIdType?: 'SSN' | 'EIN' | 'TIN' | 'VAT' | 'GST' | 'PAN' | 'NIF' | 'ABN' | 'CUIT' | 'other' | '';
+  taxCountry?: string;
+  taxState?: string;
+  taxResidency?: string;
+  taxRate?: number;
+  isTaxExempt?: boolean;
+  exemptionReason?: string;
+  exemptionCertificateId?: string;
+  businessName?: string;
+  businessType?: 'individual' | 'sole_proprietorship' | 'llc' | 'corporation' | 'partnership' | 'non_profit' | '';
+  businessRegistrationNumber?: string;
+  taxFormPreference?: '1099' | 'W-9' | 'W-8BEN' | 'W-8ECI' | 'W-8IMY' | 'W-8EXP' | 'other' | '';
+  taxTreatyBenefits?: boolean;
+  treatyCountry?: string;
+  treatyArticle?: string;
+  annualEarningsThreshold?: number;
+  taxWithholdingRate?: number;
+  documents?: ITaxDocument[];
+  verified?: boolean;
+  verifiedBy?: Types.ObjectId;
+  verifiedAt?: Date;
+  lastVerified?: Date;
+  status?: 'pending' | 'verified' | 'rejected' | 'expired' | 'not_required';
+  adminNotes?: string;
+  lastTaxReportDate?: Date | null;
+  nextTaxReportDue?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface IProfile {
   avatar?: string;
   location?: ILocation;
@@ -164,6 +209,9 @@ export interface IUser extends Document {
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+
+  // Tax
+  taxInfo?: ITaxInfo;
 
   // health
   healthcareProfile?: IHealthcareProfile;

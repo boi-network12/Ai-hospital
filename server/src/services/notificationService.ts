@@ -263,6 +263,11 @@ export const getNotificationStats = async (userId: string): Promise<INotificatio
       booking_updated: 0,
       booking_cancelled: 0,
       booking_status_changed: 0,
+      tax_update: 0,
+      tax_document: 0,
+      tax_verification: 0,
+      tax_removal: 0,
+      career_review: 0,
     },
   };
 

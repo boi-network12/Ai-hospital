@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import {
   X, Home, Users, Settings, LogOut,
   Activity, Server, Cpu, HardDrive, Clock,
-  BriefcaseMedical
+  BriefcaseMedical,
+  BookOpen
 } from 'lucide-react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -40,7 +41,7 @@ export function AdminSidebar({
     { href: '/admin-dashboard', label: 'Dashboard', icon: Home },
     { href: '/users', label: 'Users', icon: Users },
     { href: '/medical-practitioners', label: 'Medical Practitioners', icon: BriefcaseMedical },
-    { href: '/admin/settings', label: 'Settings', icon: Settings }
+    { href: '/career-display', label: 'Career Display', icon: BookOpen }
   ];
 
   /* ---------------- SIDEBAR WIDGETS ---------------- */

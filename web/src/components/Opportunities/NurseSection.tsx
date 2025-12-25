@@ -89,7 +89,7 @@ export const NurseSection = () => (
 
       <motion.div whileHover={{ scale: 1.02 }} className="text-center">
         <Link
-          href="/apply/nurse"
+          href="/careers"
           className="inline-flex items-center gap-3 px-8 py-5 bg-emerald-500 text-white rounded-2xl font-semibold text-lg hover:bg-emerald-600 transition-colors"
         >
           Apply as Clinical Nurse Expert <ArrowRight className="w-6 h-6" />

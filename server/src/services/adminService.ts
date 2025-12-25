@@ -1,6 +1,6 @@
 import User, { } from '../models/UserModel';
 import { hashPassword } from './authService';
-import { IAdminAnalytics, IHealthcareCertification, IHealthcareProfile, IUserLean, UserRole } from '../types/usersDetails';
+import { IAdminAnalytics, IHealthcareCertification, IHealthcareProfile, ITaxDocument, ITaxInfo, IUserLean, UserRole } from '../types/usersDetails';
 import { Types } from 'mongoose';
 import { sendMail } from '../utils/mailer';
 import { sendUserCreationEmail } from '../utils/emailUserCreation';
@@ -320,4 +320,169 @@ export const adminUpdateProfessionalDetails = async (
 
   if (!updated) throw new Error('User not found');
   return updated;
+};
+
+// 
+export const adminUpdateTaxInfo = async (
+  userId: string,
+  taxInfoData: Partial<ITaxInfo>
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  // Initialize taxInfo if it doesn't exist
+  if (!user.taxInfo) {
+    user.taxInfo = {
+      hasTaxInfo: false,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+
+  // Update fields
+  Object.keys(taxInfoData).forEach(key => {
+    if (taxInfoData[key as keyof ITaxInfo] !== undefined) {
+      (user.taxInfo as any)[key] = taxInfoData[key as keyof ITaxInfo];
+    }
+  });
+
+  // Set hasTaxInfo based on whether tax data exists
+  if (taxInfoData.taxId || taxInfoData.taxCountry || taxInfoData.isTaxExempt !== undefined) {
+    user.taxInfo.hasTaxInfo = true;
+  }
+
+  // Update timestamps
+  user.taxInfo.updatedAt = new Date();
+  user.markModified('taxInfo');
+
+  await user.save();
+  return await User.findById(userId).select(safeSelect);
+};
+
+/* ---------- Upload tax document ---------- */
+export const adminUploadTaxDocument = async (
+  userId: string,
+  documentData: {
+    name: string;
+    type: ITaxDocument['type'];
+    url: string;
+    expiryDate?: Date;
+    notes?: string;
+  }
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  if (!user.taxInfo) {
+    user.taxInfo = {
+      hasTaxInfo: false,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+
+  const newDocument: ITaxDocument = {
+    name: documentData.name,
+    type: documentData.type,
+    url: documentData.url,
+    uploadedAt: new Date(),
+    verified: false,
+    expiryDate: documentData.expiryDate,
+    notes: documentData.notes || ''
+  };
+
+  if (!user.taxInfo.documents) {
+    user.taxInfo.documents = [];
+  }
+
+  user.taxInfo.documents.push(newDocument);
+  user.taxInfo.updatedAt = new Date();
+  user.markModified('taxInfo');
+
+  await user.save();
+  return await User.findById(userId).select(safeSelect);
+};
+
+/* ---------- Delete tax document ---------- */
+export const adminDeleteTaxDocument = async (
+  userId: string,
+  docId: string
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  if (!user.taxInfo?.documents) {
+    throw new Error('No documents found');
+  }
+
+  const initialLength = user.taxInfo.documents.length;
+  user.taxInfo.documents = user.taxInfo.documents.filter(
+    doc => (doc as any)._id?.toString() !== docId
+  );
+
+  if (user.taxInfo.documents.length === initialLength) {
+    throw new Error('Document not found');
+  }
+
+  user.taxInfo.updatedAt = new Date();
+  user.markModified('taxInfo');
+
+  await user.save();
+  return await User.findById(userId).select(safeSelect);
+};
+
+/* ---------- Verify tax information ---------- */
+export const adminVerifyTaxInfo = async (
+  userId: string,
+  verificationData: {
+    verified: boolean;
+    status: ITaxInfo['status'];
+    adminNotes?: string;
+    verifiedBy: string;
+  }
+) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  if (!user.taxInfo) {
+    throw new Error('No tax information to verify');
+  }
+
+  user.taxInfo.verified = verificationData.verified;
+  user.taxInfo.status = verificationData.status;
+  user.taxInfo.verifiedBy = new Types.ObjectId(verificationData.verifiedBy);
+  user.taxInfo.verifiedAt = new Date();
+  user.taxInfo.lastVerified = new Date();
+  
+  if (verificationData.adminNotes) {
+    user.taxInfo.adminNotes = verificationData.adminNotes;
+  }
+
+  user.taxInfo.updatedAt = new Date();
+  user.markModified('taxInfo');
+
+  await user.save();
+  return await User.findById(userId).select(safeSelect);
+};
+
+/* ---------- Get tax information ---------- */
+export const adminGetTaxInfo = async (userId: string) => {
+  const user = await User.findById(userId).select('taxInfo');
+  if (!user) throw new Error('User not found');
+  
+  return user.taxInfo || { hasTaxInfo: false };
+};
+
+/* ---------- Remove tax information ---------- */
+export const adminRemoveTaxInfo = async (userId: string) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.taxInfo = undefined;
+  user.markModified('taxInfo');
+
+  await user.save();
+  return { message: 'Tax information removed successfully' };
 };

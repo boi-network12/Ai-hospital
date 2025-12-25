@@ -15,7 +15,12 @@ export type NotificationType =
   | 'booking_request'
   | 'booking_updated'
   | 'booking_cancelled'
-  | 'booking_status_changed';
+  | 'booking_status_changed'
+  | 'tax_update'
+  | 'tax_document'
+  | 'tax_verification'
+  | 'tax_removal'
+  | 'career_review';
 
 export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 

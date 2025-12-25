@@ -9,7 +9,7 @@ import React, {
   useCallback,
 } from 'react';
 import { apiFetch } from '@/lib/api';
-import { User, UserRole } from '@/types/auth';
+import { ITaxInfo, User, UserRole } from '@/types/auth';
 import { toast } from 'react-hot-toast';
 import { AuthContext } from './AuthContext';
 
@@ -30,6 +30,8 @@ export interface AdminUserList {
   page: number;
   limit: number;
 }
+
+
 
 interface AdminState {
   analytics: AdminAnalytics | null;
@@ -102,6 +104,15 @@ interface AdminContextProps {
     adminNote?: string
   ) => Promise<User>;
   updateUserProfile: (userId: string, updates: Partial<User>) => Promise<User>;
+
+  updateUserTaxInfo: (userId: string, taxInfo: Partial<ITaxInfo>) => Promise<User>;
+  verifyTaxInfo: (userId: string, data: {
+    verified: boolean;
+    status: ITaxInfo['status'];
+    adminNotes?: string;
+  }) => Promise<User>;
+  getTaxInfo: (userId: string) => Promise<ITaxInfo>;
+  removeTaxInfo: (userId: string) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextProps | undefined>(undefined);
@@ -257,6 +268,50 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     return user;
   };
 
+  /* ---------- Tax Management Functions ---------- */
+  
+  /** --------- update user tax info ------------ */
+  const updateUserTaxInfo = async (userId: string, taxInfo: Partial<ITaxInfo>): Promise<User> => {
+    ensureAdmin();
+    const user = await apiFetch<User>(`/admin/users/${userId}/tax-info`, {
+      method: 'PATCH',
+      body: taxInfo,
+    });
+    toast.success('Tax information updated');
+    await fetchUsers(); // refresh list
+    return user;
+  };
+
+  /** --------- verify tax info ------------ */
+  const verifyTaxInfo = async (userId: string, data: {
+    verified: boolean;
+    status: ITaxInfo['status'];
+    adminNotes?: string;
+  }): Promise<User> => {
+    ensureAdmin();
+    const user = await apiFetch<User>(`/admin/users/${userId}/tax-verification`, {
+      method: 'PATCH',
+      body: data,
+    });
+    toast.success('Tax verification status updated');
+    await fetchUsers(); // refresh list
+    return user;
+  };
+
+  /** --------- get tax info ------------ */
+  const getTaxInfo = async (userId: string): Promise<ITaxInfo> => {
+    ensureAdmin();
+    return await apiFetch<ITaxInfo>(`/admin/users/${userId}/tax-info`);
+  };
+
+  /** --------- remove tax info ------------ */
+  const removeTaxInfo = async (userId: string): Promise<void> => {
+    ensureAdmin();
+    await apiFetch(`/admin/users/${userId}/tax-info`, { method: 'DELETE' });
+    toast.success('Tax information removed');
+    await fetchUsers(); // refresh list
+  };
+
   /* ---------- Auto-load on mount (if admin) ---------- */
   useEffect(() => {
     if (auth.isReady && auth.isAuth && auth.user?.role === 'admin') {
@@ -285,7 +340,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         deleteUser,
         getUserProfile,
         handleRoleRequest,
-        updateUserProfile
+        updateUserProfile,
+        updateUserTaxInfo,
+        verifyTaxInfo,
+        getTaxInfo,
+        removeTaxInfo,
       }}
     >
       {children}

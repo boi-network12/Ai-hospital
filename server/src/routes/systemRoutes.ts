@@ -14,14 +14,12 @@ const execAsync = promisify(exec);
  */
 async function getDbSize() {
   const db = mongoose.connection.db;
-  if (!db) {
-    throw new Error("Database not initialized yet");
-  }
+  if (!db) throw new Error("Database not initialized");
 
-  const adminDb = db.admin();
-  const stats = await adminDb.command({ dbStats: 1 });
+  // Correct way: run dbStats directly on the database object
+  const stats = await db.command({ dbStats: 1, scale: 1024 * 1024 }); // directly in MB
 
-  return (stats.dataSize / 1024 / 1024).toFixed(1); // MB
+  return stats.dataSize.toFixed(1); // dataSize is now already in MB
 }
 
 

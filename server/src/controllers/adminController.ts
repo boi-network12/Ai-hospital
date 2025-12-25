@@ -352,3 +352,168 @@ export const updateUserProfile = async (req: AuthRequest, res: Response) => {
     res.status(400).json({ message: e.message });
   }
 };
+
+/* ---------- Update tax information ---------- */
+export const updateTaxInfo = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const taxInfoData = req.body;
+
+  try {
+    const user = await adminService.adminUpdateTaxInfo(userId, taxInfoData);
+
+    // Send notification
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'tax_update',
+      title: 'Tax Information Updated',
+      message: 'Your tax information has been updated by an administrator.',
+      priority: 'medium',
+      actionUrl: '/profile/tax',
+      data: {
+        updatedBy: req.user._id,
+        updatedAt: new Date(),
+        fieldsUpdated: Object.keys(taxInfoData)
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Upload tax document ---------- */
+export const uploadTaxDocument = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const documentData = req.body;
+
+  try {
+    const user = await adminService.adminUploadTaxDocument(userId, documentData);
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'tax_document',
+      title: 'Tax Document Uploaded',
+      message: `A tax document (${documentData.name}) has been uploaded to your account by an administrator.`,
+      priority: 'medium',
+      actionUrl: '/profile/tax/documents',
+      data: {
+        uploadedBy: req.user._id,
+        uploadedAt: new Date(),
+        documentName: documentData.name,
+        documentType: documentData.type
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Delete tax document ---------- */
+export const deleteTaxDocument = async (req: AuthRequest, res: Response) => {
+  const { userId, docId } = req.params;
+
+  try {
+    const user = await adminService.adminDeleteTaxDocument(userId, docId);
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'tax_document',
+      title: 'Tax Document Removed',
+      message: 'A tax document has been removed from your account by an administrator.',
+      priority: 'medium',
+      actionUrl: '/profile/tax/documents',
+      data: {
+        removedBy: req.user._id,
+        removedAt: new Date(),
+        documentId: docId
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Verify tax information ---------- */
+export const verifyTaxInfo = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+  const { verified, status, adminNotes } = req.body;
+
+  try {
+    const user = await adminService.adminVerifyTaxInfo(userId, {
+      verified,
+      status,
+      adminNotes,
+      verifiedBy: req.user._id
+    });
+
+    const statusMessages: Record<string, string> = {
+      'verified': 'approved',
+      'rejected': 'rejected',
+      'pending': 'marked as pending',
+      'expired': 'marked as expired',
+      'not_required': 'marked as not required'
+    };
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'tax_verification',
+      title: `Tax Information ${statusMessages[status]}`,
+      message: `Your tax information has been ${statusMessages[status]}. ${adminNotes ? `Notes: ${adminNotes}` : ''}`,
+      priority: verified ? 'high' : 'medium',
+      actionUrl: '/profile/tax',
+      data: {
+        verified,
+        status,
+        verifiedBy: req.user._id,
+        verifiedAt: new Date(),
+        adminNotes
+      }
+    });
+
+    res.json(user);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Get tax information ---------- */
+export const getTaxInfo = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+
+  try {
+    const taxInfo = await adminService.adminGetTaxInfo(userId);
+    res.json(taxInfo);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+/* ---------- Remove tax information ---------- */
+export const removeTaxInfo = async (req: AuthRequest, res: Response) => {
+  const { userId } = req.params;
+
+  try {
+    const result = await adminService.adminRemoveTaxInfo(userId);
+
+    await notificationService.sendNotification({
+      userId: userId,
+      type: 'tax_removal',
+      title: 'Tax Information Removed',
+      message: 'Your tax information has been removed by an administrator.',
+      priority: 'medium',
+      data: {
+        removedBy: req.user._id,
+        removedAt: new Date()
+      }
+    });
+
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};

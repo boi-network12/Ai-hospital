@@ -75,7 +75,7 @@ export const DoctorSection = () => (
 
           <motion.div whileHover={{ scale: 1.02 }} className="mt-8">
             <Link
-              href="/apply/doctor"
+              href="/careers"
               className="inline-flex items-center gap-3 px-6 py-4 bg-rose-500 text-white rounded-2xl font-semibold hover:bg-rose-600 transition-colors"
             >
               Apply as Medical Director <ArrowRight className="w-5 h-5" />

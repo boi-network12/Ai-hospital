@@ -51,14 +51,14 @@ export const TechSection = () => (
             />
           </div>
 
-          <motion.div whileHover={{ scale: 1.02 }} className="mt-8">
+          {/* <motion.div whileHover={{ scale: 1.02 }} className="mt-8">
             <Link
-              href="/apply/tech"
-              className="inline-flex items-center gap-3 px-6 py-4 bg-[#8089ff] text-white rounded-2xl font-semibold hover:bg-[#6a73ff] transition-colors"
+              href="#"
+              className="inline-flex items-center gap-3 px-6 py-4 bg-[#8089ff] text-white rounded-2xl font-semibold hover:bg-[#6a73ff] transition-colors cursor-progress"
             >
               Apply as Engineer <ArrowRight className="w-5 h-5" />
             </Link>
-          </motion.div>
+          </motion.div> */}
         </div>
 
         {/* Positions */}
