@@ -39,11 +39,11 @@ export const metadata: Metadata = {
     title: "Neuromed – AI Medical Insights",
     description:
       "Join the waitlist for Neuromed, the AI-driven medical app that provides personalized insights and next-gen health analytics.",
-    url: "https://neuromed-ai-ten.vercel.app",
+    url: "https://neuromed.sbs",
     siteName: "Neuromed",
     images: [
       {
-        url: "https://neuromed-ai-ten.vercel.app/og-image.png",
+        url: "https://neuromed.sbs/og-image.png",
         width: 1200,
         height: 630,
         alt: "Neuromed – AI Medical Insights",
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     title: "Neuromed – AI Medical Insights",
     description:
       "Join the waitlist for Neuromed, the AI-driven medical app that provides personalized insights and next-gen health analytics.",
-    images: ["https://neuromed-ai-ten.vercel.app/og-image.png"],
+    images: ["https://neuromed.sbs/og-image.png"],
     creator: "@Neuro-medAi",
   },
 };
@@ -92,7 +92,7 @@ export default function RootLayout({
             applicationCategory: "MedicalApplication",
             description:
               "AI-powered medical insights app. Join the waitlist to get personalized health analytics.",
-            url: "https://neuromed-ai-ten.vercel.app",
+            url: "https://neuromed.sbs",
             author: {
               "@type": "Person",
               name: "Kamdi",

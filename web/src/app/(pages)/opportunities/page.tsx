@@ -9,6 +9,7 @@ import { RoleCard } from '@/components/Opportunities/RoleCard';
 import { TechSection } from '@/components/Opportunities/TechSection';
 import { NurseSection } from '@/components/Opportunities/NurseSection';
 import { DoctorSection } from '@/components/Opportunities/DoctorSection';
+import Script from "next/script"
 
 import {
   Code2,
@@ -17,6 +18,66 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import FinalCTA from '@/components/HomeComponents/FinalCTA';
+
+
+// Structured data for career opportunities page
+export const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Career Opportunities at Neuromed",
+  "description": "Explore healthcare technology career opportunities at Neuromed",
+  "url": "https://neuromed.sbs/opportunities",
+  "mainEntity": {
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "item": {
+          "@type": "JobPosting",
+          "title": "Tech & Engineering Roles",
+          "description": "Build scalable AI systems that power modern hospitals",
+          "employmentType": ["FULL_TIME", "REMOTE", "CONTRACT"],
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": "Neuromed",
+            "sameAs": "https://neuromed.sbs"
+          }
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "item": {
+          "@type": "JobPosting",
+          "title": "Nursing Excellence Roles",
+          "description": "Shape patient care workflows with real clinical insight",
+          "employmentType": ["FULL_TIME", "PART_TIME"],
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": "Neuromed",
+            "sameAs": "https://neuromed.sbs"
+          }
+        }
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "item": {
+          "@type": "JobPosting",
+          "title": "Medical Leadership Roles",
+          "description": "Design intelligent protocols that save lives",
+          "employmentType": ["FULL_TIME"],
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": "Neuromed",
+            "sameAs": "https://neuromed.sbs"
+          }
+        }
+      }
+    ]
+  }
+};
 
 export default function Opportunities() {
   return (
@@ -93,6 +154,9 @@ export default function Opportunities() {
 
         {/* Final CTA */}
         <FinalCTA />
+        <Script id="opportunities-structured-data" type="application/ld+json">
+          {JSON.stringify(structuredData)}
+        </Script>
       </main>
 
       <Footer />

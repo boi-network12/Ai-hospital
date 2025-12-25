@@ -8,6 +8,42 @@ import AvatarHead1 from "@/assets/img/image.png"
 import AvatarHead2 from "@/assets/img/AvatarHead2.jpg"
 import AvatarHead3 from "@/assets/img/AvatarHead3.webp"
 import { motion } from "framer-motion";
+import Script from 'next/script';
+
+// Add this structured data export
+export const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Neuromed Waitlist",
+  "description": "Join the waitlist for early access to AI-powered healthcare platform",
+  "url": "https://neuromed.sbs/waitlist",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Neuromed",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://neuromed.sbs/logo.png"
+    }
+  },
+  "mainEntity": {
+    "@type": "Event",
+    "name": "Neuromed Platform Launch",
+    "startDate": "2024-12-31",
+    "endDate": "2024-12-31",
+    "eventStatus": "https://schema.org/EventScheduled",
+    "eventAttendanceMode": "https://schema.org/OnlineEventAttendanceMode",
+    "location": {
+      "@type": "VirtualLocation",
+      "url": "https://neuromed.sbs"
+    },
+    "description": "Early access to AI-powered healthcare platform",
+    "organizer": {
+      "@type": "Organization",
+      "name": "Neuromed",
+      "url": "https://neuromed.sbs"
+    }
+  }
+};
 
 const JoinWaitList = () => {
       const [email, setEmail] = useState("");
@@ -242,6 +278,9 @@ const JoinWaitList = () => {
                 </motion.div>
 
             </motion.div>
+            <Script id="waitlist-structured-data" type="application/ld+json">
+               {JSON.stringify(structuredData)}
+            </Script>
         </main>
     </DotBackgroundDemo>
   )

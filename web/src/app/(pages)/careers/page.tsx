@@ -13,6 +13,83 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useCareer } from '@/context/CareerContext';
+import Script from "next/script"
+
+
+// Structured data for job postings
+export const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Careers at Neuromed",
+  "description": "Career opportunities in AI-powered healthcare",
+  "url": "https://neuromed.sbs/careers",
+  "mainEntity": {
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "JobPosting",
+        "title": "AI/ML Engineer",
+        "description": "Build intelligent healthcare systems",
+        "datePosted": "2024-01-01",
+        "validThrough": "2024-12-31",
+        "employmentType": "FULL_TIME",
+        "hiringOrganization": {
+          "@type": "Organization",
+          "name": "Neuromed",
+          "sameAs": "https://neuromed.sbs"
+        },
+        "jobLocation": {
+          "@type": "Place",
+          "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "Remote"
+          }
+        }
+      },
+      {
+        "@type": "JobPosting",
+        "title": "Clinical Nurse",
+        "description": "Shape patient care workflows",
+        "datePosted": "2024-01-01",
+        "validThrough": "2024-12-31",
+        "employmentType": "FULL_TIME",
+        "hiringOrganization": {
+          "@type": "Organization",
+          "name": "Neuromed",
+          "sameAs": "https://neuromed.sbs"
+        },
+        "jobLocation": {
+          "@type": "Place",
+          "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "US"
+          }
+        }
+      },
+      {
+        "@type": "JobPosting",
+        "title": "Medical Director",
+        "description": "Lead clinical strategy & innovation",
+        "datePosted": "2024-01-01",
+        "validThrough": "2024-12-31",
+        "employmentType": "FULL_TIME",
+        "hiringOrganization": {
+          "@type": "Organization",
+          "name": "Neuromed",
+          "sameAs": "https://neuromed.sbs"
+        },
+        "jobLocation": {
+          "@type": "Place",
+          "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "US"
+          }
+        }
+      }
+    ]
+  }
+};
+
 
 export default function Careers() {
   const [activeTab, setActiveTab] = useState<'apply' | 'applications'>('apply');
@@ -130,6 +207,9 @@ export default function Careers() {
 
         {/* Final CTA */}
         <FinalCTA />
+        <Script id="careers-structured-data" type="application/ld+json">
+          {JSON.stringify(structuredData)}
+        </Script>
       </main>
 
       <Footer />
