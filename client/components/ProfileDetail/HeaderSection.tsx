@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import React, { useMemo } from 'react';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { Image } from 'expo-image';
@@ -9,16 +9,19 @@ import { calculateAge } from '@/helper/AgeCalculation';
 import { getZodiacSign } from '@/helper/Zodiac';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { ToastOptions } from '@/context/ToastContext';
 
 const blurhash = BLUR_HASH_PLACEHOLDER;
 
 interface HeaderSectionProps {
   user: User | null;
   updateAvatar: (formData: FormData, signal?: AbortSignal) => Promise<void>;
+  showAlert: (opts: { title: string; message: string; type?: ToastOptions['type'] }) => void;
 }
 
-export default function HeaderSection({ user, updateAvatar }: HeaderSectionProps) {
+export default function HeaderSection({ user, updateAvatar, showAlert }: HeaderSectionProps) {
   const _AuxDetails = useMemo(() => {
+    
     const age = calculateAge(user?.profile?.dateOfBirth);
     const zodiac = getZodiacSign(user?.profile?.dateOfBirth);
     const gender = user?.profile?.gender;
@@ -36,7 +39,11 @@ export default function HeaderSection({ user, updateAvatar }: HeaderSectionProps
   const pickImage = async () => {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') {
-    Alert.alert('Permission required', 'Please allow access to your photo library.');
+      showAlert({
+        title: 'Permission required', 
+        message: 'Please allow access to your photo library.',
+        type: 'error'
+      });
     return;
   }
 
@@ -89,7 +96,10 @@ export default function HeaderSection({ user, updateAvatar }: HeaderSectionProps
     await uploadWithRetry();
   } catch (err: any) {
     console.error('All upload attempts failed:', err);
-    Alert.alert('Upload failed', 'Please check your connection and try again.');
+    showAlert({
+      title: 'Upload Failed',
+      message: 'Failed to upload avatar. Please try again later.',
+    });
 
     // Optional: Force refresh to check if it actually uploaded
     setTimeout(() => {
@@ -104,7 +114,20 @@ export default function HeaderSection({ user, updateAvatar }: HeaderSectionProps
     <View style={styles.container}>
       <View style={styles.topSideSection}>
         <View style={styles.imageContainer}>
-          <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
+          <TouchableOpacity 
+                onPress={() => {
+                if (user?.role === "nurse" || user?.role === "doctor") {
+                 showAlert({
+                    title: "Permission Denied",
+                    message: "Nurses and doctors are not allowed to update profile images.",
+                    type: "error"
+                  });
+                  return;
+                }
+                pickImage();
+              }} 
+                style={styles.imageContainer}
+            >
             <Image
               source={user?.profile?.avatar || ProfileAvatar}
               placeholder={blurhash}

@@ -12,6 +12,7 @@ import {
     User
 } from '@/types/auth.d';
 import { useToast } from '@/Hooks/useToast.d';
+import HospitalService, { Hospital, HospitalFilters } from '@/services/HospitalService';
 
 // ---------- NEW TYPES ----------
 export interface Appointment {
@@ -103,6 +104,10 @@ interface HealthcareState {
     recentPastAppointment: PastAppointment | null;
     pastAppointmentsLoading: boolean;
     pendingAppointmentsCount: number;
+
+    hospitals: Hospital[];
+    hospitalsLoading: boolean;
+    hospitalFilters: HospitalFilters;
 }
 
 type Action =
@@ -121,6 +126,9 @@ type Action =
     | { type: 'SET_PAST_APPOINTMENTS'; payload: PastAppointment[] }
     | { type: 'SET_PAST_APPOINTMENTS_LOADING'; payload: boolean }
     | { type: 'SET_FILTERED_PROFESSIONALS'; payload: HealthcareProfessional[] }
+    | { type: 'SET_HOSPITALS'; payload: Hospital[] }
+    | { type: 'SET_HOSPITALS_LOADING'; payload: boolean }
+    | { type: 'SET_HOSPITAL_FILTERS'; payload: Partial<HospitalFilters> }
     | { type: 'RESET' };
 
 const initialState: HealthcareState = {
@@ -146,7 +154,16 @@ const initialState: HealthcareState = {
     pastAppointments: [],
     recentPastAppointment: null,
     pastAppointmentsLoading: false,
-    pendingAppointmentsCount: 0
+    pendingAppointmentsCount: 0,
+
+    hospitals: [],
+    hospitalsLoading: false,
+    hospitalFilters: {
+        radius: 5000,
+        type: 'hospital',
+        minRating: 0,
+        openNow: false
+    }
 };
 
 const generateCacheKey = (filters: Partial<ProfessionalsFilter>): string => {
@@ -224,6 +241,12 @@ function healthcareReducer(state: HealthcareState, action: Action): HealthcareSt
                   professionals: action.payload,
                   isFiltered: true
              }
+        case 'SET_HOSPITALS':
+            return { ...state, hospitals: action.payload };
+            case 'SET_HOSPITALS_LOADING':
+            return { ...state, hospitalsLoading: action.payload };
+        case 'SET_HOSPITAL_FILTERS':
+            return { ...state, hospitalFilters: { ...state.hospitalFilters, ...action.payload } };
         default:
             return state;
     }
@@ -299,6 +322,13 @@ interface HealthcareContextProps {
     pastAppointments: PastAppointment[];
     recentPastAppointment: PastAppointment | null;
     pastAppointmentsLoading: boolean;
+
+    // for hospital
+    fetchHospitals: (location: { latitude: number; longitude: number }, filters?: HospitalFilters) => Promise<void>;
+    updateHospitalFilters: (filters: Partial<HospitalFilters>) => void;
+    hospitals: Hospital[];
+    hospitalsLoading: boolean;
+    hospitalFilters: HospitalFilters;
 }
 
 export const HealthcareContext = createContext<HealthcareContextProps | undefined>(undefined);
@@ -766,6 +796,29 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
     }
     }, [handleError]);
 
+    // Add to HealthcareProvider component:
+    const fetchHospitals = useCallback(async (
+    location: { latitude: number; longitude: number },
+    filters?: HospitalFilters
+    ) => {
+    try {
+        dispatch({ type: 'SET_HOSPITALS_LOADING', payload: true });
+        const effectiveFilters = { ...healthcare.hospitalFilters, ...filters };
+        
+        const hospitals = await HospitalService.getNearbyHospitals(location, effectiveFilters);
+        dispatch({ type: 'SET_HOSPITALS', payload: hospitals });
+    } catch (error) {
+        console.error('Failed to fetch hospitals:', error);
+        dispatch({ type: 'SET_HOSPITALS', payload: [] });
+    } finally {
+        dispatch({ type: 'SET_HOSPITALS_LOADING', payload: false });
+    }
+    }, [healthcare.hospitalFilters]);
+
+    const updateHospitalFilters = useCallback((filters: Partial<HospitalFilters>) => {
+    dispatch({ type: 'SET_HOSPITAL_FILTERS', payload: filters });
+    }, []);
+
     return (
         <HealthcareContext.Provider
             value={{
@@ -792,7 +845,12 @@ export const HealthcareProvider = ({ children }: { children: ReactNode }) => {
                 getPastAppointments,
                 pastAppointments: healthcare.pastAppointments,
                 recentPastAppointment: healthcare.recentPastAppointment,
-                pastAppointmentsLoading: healthcare.pastAppointmentsLoading
+                pastAppointmentsLoading: healthcare.pastAppointmentsLoading,
+                fetchHospitals,
+                updateHospitalFilters,
+                hospitals: healthcare.hospitals,
+                hospitalsLoading: healthcare.hospitalsLoading,
+                hospitalFilters: healthcare.hospitalFilters
             }}
         >
             {children}

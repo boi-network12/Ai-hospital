@@ -8,11 +8,13 @@ import HeaderSection from '@/components/ProfileDetail/HeaderSection';
 import OtherDetailsDisplay from '@/components/ProfileDetail/OtherDetailsDisplay';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useAuth } from '@/Hooks/authHook.d';
+import { useToast } from '@/Hooks/useToast.d';
 
 export default function ProfileDetails() {
   const router = useRouter();
   const { user, updateAvatar } = useUser();
   const { deleteAccount } = useAuth();
+  const { showAlert } = useToast()
 
   if (!user) return;
 
@@ -29,6 +31,7 @@ export default function ProfileDetails() {
         <HeaderSection 
           user={user}
           updateAvatar={updateAvatar}
+          showAlert={showAlert}
         />
         {/*  */}
         <OtherDetailsDisplay 

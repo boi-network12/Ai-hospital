@@ -175,9 +175,9 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: hp(3),
     marginTop: hp(2),
-    paddingHorizontal: hp(3),
-    paddingVertical: hp(2),
-    borderRadius: hp(2),
+    paddingHorizontal: hp(2),
+    paddingVertical: hp(1),
+    borderRadius: hp(1),
     minWidth: width - hp(6),
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -189,9 +189,9 @@ const styles = StyleSheet.create({
   },
   message: {
     color: "#fff",
-    fontSize: hp(1.9),
+    fontSize: hp(1.3),
     fontWeight: "600",
-    textAlign: "center",
+    textAlign: "left",
     lineHeight: hp(2.6),
   },
 });

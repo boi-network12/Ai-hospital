@@ -115,7 +115,7 @@ export default function DiscoveryHeader({ onFilterPress, onLocationPress, locati
 
 const styles = StyleSheet.create({
   container: {
-    borderBottomWidth: 0.3,
+    borderBottomWidth: 0.15,
     borderBottomColor: "#eee",
     height: hp(7),
     paddingHorizontal: hp(2),

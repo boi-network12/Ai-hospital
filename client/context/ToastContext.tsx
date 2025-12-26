@@ -4,7 +4,7 @@ import { ToastAlert } from "@/modals/ToastAlert";
 
 type ToastType = "info" | "success" | "error" | "warning";
 
-interface ToastOptions {
+export interface ToastOptions {
   message: string;
   type?: ToastType;
   duration?: number;

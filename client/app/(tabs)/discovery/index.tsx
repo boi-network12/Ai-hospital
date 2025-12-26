@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Text, StyleSheet, Alert, View } from 'react-native'
+import { Text, StyleSheet, Alert, View, RefreshControl, TouchableOpacity, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Modalize } from 'react-native-modalize'
 import { Portal } from 'react-native-portalize'
@@ -19,14 +19,26 @@ import {
   getFallbackLocation
 } from "@/helper/LocationHelper"
 import ProfessionalsList from './_components/ProfessionalsList'
+import HospitalCard from '@/components/DiscoveryComponents/HospitalCard'
 import { useToast } from '@/Hooks/useToast.d'
+
+// Types
+type DiscoveryTab = 'professionals' | 'hospitals';
 
 export default function DiscoveryPage() {
   const { user } = useUser();
   const { showAlert } = useToast();
-  const { healthcare, fetchProfessionals, updateFilters } = useHealthcare();
+  const { 
+    healthcare, 
+    fetchProfessionals, 
+    updateFilters,
+    fetchHospitals,
+    hospitals,
+    hospitalsLoading
+  } = useHealthcare();
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<DiscoveryTab>('professionals');
 
   // Modal reference
   const modalizeRef = useRef<Modalize>(null)
@@ -71,10 +83,25 @@ export default function DiscoveryPage() {
         maxDistance: 50,
       });
 
+      // Fetch hospitals with real location
+      if (realLocation.latitude && realLocation.longitude) {
+        await fetchHospitals({
+          latitude: realLocation.latitude,
+          longitude: realLocation.longitude,
+        });
+      }
+
+
       showAlert({ message: 'Showing professionals near you!', type: 'success' });
+    } else {
+      // If no GPS, use fallback coordinates for hospitals
+      await fetchHospitals({
+        latitude: fallback.latitude || 6.5244, // Lagos coordinates
+        longitude: fallback.longitude || 3.3792,
+      });
     }
     setIsDetectingLocation(false);
-  }, [fetchProfessionals, isInitialized, showAlert]);
+  }, [fetchProfessionals, fetchHospitals, isInitialized, showAlert]);
 
   const handleRefresh = useCallback(async () => {
   setRefreshing(true);
@@ -83,25 +110,115 @@ export default function DiscoveryPage() {
     // Use current location or fallback
     const currentLoc = location || getFallbackLocation();
 
-    await fetchProfessionals({
-      city: currentLoc.city,
-      state: currentLoc.state,
-      country: currentLoc.country,
-      ...(currentLoc.latitude && currentLoc.longitude && 
-        currentLoc.latitude !== 0 && currentLoc.longitude !== 0 && {
-          latitude: currentLoc.latitude,
-          longitude: currentLoc.longitude,
-          maxDistance: 50,
-        }),
-      // Include current filters if you want to preserve them
-      // ...healthcare.filtersBackend, // assuming you store transformed filters, or reconstruct
-    });
+    if (activeTab === 'professionals') {
+        await fetchProfessionals({
+          city: currentLoc.city,
+          state: currentLoc.state,
+          country: currentLoc.country,
+          ...(currentLoc.latitude && currentLoc.longitude && {
+            latitude: currentLoc.latitude,
+            longitude: currentLoc.longitude,
+            maxDistance: 50,
+          }),
+        });
+      } else {
+        if (currentLoc.latitude && currentLoc.longitude) {
+          await fetchHospitals({
+            latitude: currentLoc.latitude,
+            longitude: currentLoc.longitude,
+          });
+        }
+      }
   } catch {
-    showAlert({ message: 'Failed to refresh professionals', type: 'error' });
+    showAlert({ message: `Failed to refresh ${activeTab}`, type: 'error' });
   } finally {
     setRefreshing(false);
   }
-}, [location, fetchProfessionals, showAlert]);
+}, [location, fetchProfessionals, fetchHospitals, activeTab, showAlert]);
+
+// Handle tab change
+  const handleTabChange = useCallback(async (tab: DiscoveryTab) => {
+    setActiveTab(tab);
+    
+    if (location && location.latitude && location.longitude) {
+      if (tab === 'hospitals') {
+        await fetchHospitals({
+          latitude: location.latitude,
+          longitude: location.longitude,
+        });
+      }
+    }
+  }, [location, fetchHospitals]);
+
+   // Render content based on active tab
+  const renderContent = () => {
+    if (activeTab === 'professionals') {
+      if (healthcare.loading && !refreshing) {  
+        return (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Finding healthcare professionals near you...</Text>
+          </View>
+        );
+      }
+
+      if (healthcare.professionals.length > 0) {
+        return (
+          <ProfessionalsList
+            professionals={healthcare.professionals}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+          />
+        );
+      }
+
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No healthcare professionals found in your area</Text>
+          <Text style={styles.emptySubtext}>Try adjusting your filters or location</Text>
+        </View>
+      );
+    } else {
+      // Hospitals tab
+      if (hospitalsLoading && !refreshing) {
+        return (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Finding hospitals near you...</Text>
+          </View>
+        );
+      }
+
+      if (hospitals.length > 0) {
+        return (
+          <ScrollView
+            style={styles.hospitalsList}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={["#4F46E5"]}
+                tintColor="#4F46E5"
+              />
+            }
+          >
+            {hospitals.map((hospital) => (
+              <HospitalCard 
+                key={hospital.id} 
+                hospital={hospital}
+              />
+            ))}
+          </ScrollView>
+        );
+      }
+
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No hospitals found in your area</Text>
+          <Text style={styles.emptySubtext}>Try adjusting your search radius</Text>
+        </View>
+      );
+    }
+  };
+
 
   // Handle filter changes
   // DiscoveryPage.tsx
@@ -201,33 +318,6 @@ export default function DiscoveryPage() {
     }
   }, [initializeLocationAndFetch, isInitialized]);
 
-  const renderContent = () => {
-    if (healthcare.loading && !refreshing) {  
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Finding healthcare professionals near you...</Text>
-      </View>
-    );
-  }
-
-    if (healthcare.professionals.length > 0) {
-      return (
-        <ProfessionalsList
-          professionals={healthcare.professionals}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No healthcare professionals found in your area</Text>
-        <Text style={styles.emptySubtext}>Try adjusting your filters or location</Text>
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       {/* 🔹 Header */}
@@ -238,7 +328,32 @@ export default function DiscoveryPage() {
         isLoadingLocation={isDetectingLocation}
       />
 
-      {/* 🔹 Main Content - Remove ScrollView since ProfessionalsList has its own FlatList */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'professionals' && styles.activeTab]}
+          onPress={() => handleTabChange('professionals')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'professionals' && styles.activeTabText]}>
+            Professionals
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'hospitals' && styles.activeTab]}
+          onPress={() => handleTabChange('hospitals')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, activeTab === 'hospitals' && styles.activeTabText]}>
+            Hospitals
+          </Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>External</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* 🔹 Main Content */}
       <View style={styles.content}>
         {renderContent()}
       </View>
@@ -269,8 +384,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     flex: 1,
   },
+   tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: hp(2),
+    paddingVertical: hp(1),
+    borderBottomWidth: 0.3,
+    borderBottomColor: '#E5E7EB',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: hp(1),
+    alignItems: 'center',
+    borderRadius: hp(1),
+    marginHorizontal: hp(0.5),
+  },
+  activeTab: {
+    backgroundColor: '#EEF2FF',
+  },
+  tabText: {
+    fontSize: hp(1.6),
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  activeTabText: {
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  badge: {
+    position: 'absolute',
+    top: -hp(0.5),
+    right: -hp(1.5),
+    backgroundColor: '#10B981',
+    paddingHorizontal: hp(0.5),
+    paddingVertical: hp(0.2),
+    borderRadius: hp(0.5),
+  },
+  badgeText: {
+    fontSize: hp(1),
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   content: {
     flex: 1,
+  },
+  hospitalsList: {
+    flex: 1,
+    paddingHorizontal: hp(2),
   },
   loadingContainer: {
     flex: 1,
