@@ -664,7 +664,7 @@ export const approveApplicationAndCreateUser = async (
 
     // Update application with created user
     application.status = 'approved';
-    application.createdUserId = new Types.ObjectId(user._id as string);
+    application.createdUserId = new Types.ObjectId(String(user._id));
     application.accountCreatedAt = new Date();
     application.reviewedBy = new Types.ObjectId(adminId);
     application.reviewedAt = new Date();
