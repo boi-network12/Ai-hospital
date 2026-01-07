@@ -268,6 +268,7 @@ export const getNotificationStats = async (userId: string): Promise<INotificatio
       tax_verification: 0,
       tax_removal: 0,
       career_review: 0,
+      compliance_reminder: 0
     },
   };
 

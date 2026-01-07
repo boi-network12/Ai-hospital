@@ -113,6 +113,11 @@ interface AdminContextProps {
   }) => Promise<User>;
   getTaxInfo: (userId: string) => Promise<ITaxInfo>;
   removeTaxInfo: (userId: string) => Promise<void>;
+  sendComplianceReminder: (
+    userId: string, 
+    reminderType: 'tax' | 'license' | 'both',
+    customMessage?: string
+  ) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextProps | undefined>(undefined);
@@ -312,6 +317,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     await fetchUsers(); // refresh list
   };
 
+  const sendComplianceReminder = useCallback(async (
+    userId: string,
+    reminderType: 'tax' | 'license' | 'both',
+    customMessage?: string
+  ): Promise<void> => {
+    ensureAdmin();
+    
+    try {
+      await apiFetch(`/admin/users/${userId}/compliance-reminder`, {
+        method: 'POST',
+        body: { reminderType, customMessage },
+      });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send reminder');
+      throw error;
+    }
+  }, [ensureAdmin]);
+
   /* ---------- Auto-load on mount (if admin) ---------- */
   useEffect(() => {
     if (auth.isReady && auth.isAuth && auth.user?.role === 'admin') {
@@ -345,6 +368,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         verifyTaxInfo,
         getTaxInfo,
         removeTaxInfo,
+        sendComplianceReminder
       }}
     >
       {children}

@@ -8,7 +8,12 @@ export interface ICareerApplication extends Document {
   fullName: string;
   dateOfBirth: string;
   gender: string;
-  nationality: string;
+
+  country: string;
+  state: string;
+  city: string;
+  postalCode?: string;
+  address?: string;
   
   // Role Application
   desiredRole: UserRole;
@@ -95,11 +100,24 @@ const CareerApplicationSchema = new Schema<ICareerApplication>({
     enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
     required: true,
   },
-  nationality: {
+  country: {
     type: String,
     required: true,
   },
-  
+  state: {
+    type: String,
+    required: true,
+  },
+  city: {
+    type: String,
+    required: true,
+  },
+  postalCode: {
+    type: String,
+  },
+  address: {
+    type: String,
+  },
   // Role Application
   desiredRole: {
     type: String,

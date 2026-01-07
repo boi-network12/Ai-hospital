@@ -785,7 +785,7 @@ function ApplicationDetailModal({ application, onClose }: {
                       </div>
                       <div>
                         <label className="text-sm text-gray-500">Nationality</label>
-                        <p className="font-medium">{application.nationality}</p>
+                        <p className="font-medium">{application.country}</p>
                       </div>
                     </div>
                     <div>
@@ -860,6 +860,20 @@ function ApplicationDetailModal({ application, onClose }: {
                         </p>
                       </div>
                     )}
+                    <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm text-gray-500">Country</label>
+                      <p className="font-medium">{application.country || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-500">State/Province</label>
+                      <p className="font-medium">{application.state || 'Not provided'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">City</label>
+                    <p className="font-medium">{application.city || 'Not provided'}</p>
+                  </div>
                   </div>
                 </div>
 

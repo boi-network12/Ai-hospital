@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Text, StyleSheet, Alert, View, RefreshControl, TouchableOpacity, ScrollView } from 'react-native'
+import { Text, StyleSheet, Alert, View, RefreshControl, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Modalize } from 'react-native-modalize'
 import { Portal } from 'react-native-portalize'
@@ -149,6 +149,33 @@ export default function DiscoveryPage() {
       }
     }
   }, [location, fetchHospitals]);
+
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  const triggerRotation = () => {
+      rotation.setValue(0); // Reset animation
+      Animated.timing(rotation, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }).start();
+    };
+
+  const debounce = (func: (...args: any[]) => void, delay: number) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    return (...args: any[]) => {
+      if (timeoutId) return;
+      func(...args);
+      triggerRotation(); // 🔄 Trigger animation when clicked
+      timeoutId = setTimeout(() => {
+        timeoutId = undefined;
+      }, delay);
+    };
+  };
+
+  
 
    // Render content based on active tab
   const renderContent = () => {
@@ -300,6 +327,10 @@ export default function DiscoveryPage() {
     }
   };
 
+  const debouncedLocationPress = handleRetryLocation
+    ? debounce(handleRetryLocation, 4000)
+    : undefined;
+
   useEffect(() => {
     // Inject user's saved location as smart default
     if (user?.profile?.location) {
@@ -317,6 +348,13 @@ export default function DiscoveryPage() {
       initializeLocationAndFetch();
     }
   }, [initializeLocationAndFetch, isInitialized]);
+
+  const onClickHospitalFetchLocation = () => {
+    if (debouncedLocationPress) {
+      debouncedLocationPress();
+    }
+    handleTabChange('hospitals');
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -341,7 +379,7 @@ export default function DiscoveryPage() {
         
         <TouchableOpacity
           style={[styles.tab, activeTab === 'hospitals' && styles.activeTab]}
-          onPress={() => handleTabChange('hospitals')}
+          onPress={() => onClickHospitalFetchLocation()}
           activeOpacity={0.7}
         >
           <Text style={[styles.tabText, activeTab === 'hospitals' && styles.activeTabText]}>

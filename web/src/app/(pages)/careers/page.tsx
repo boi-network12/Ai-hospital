@@ -14,6 +14,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useCareer } from '@/context/CareerContext';
 import Script from "next/script"
+import { Country, State, City } from 'country-state-city';
 
 
 // Structured data for job postings
@@ -228,7 +229,11 @@ function ApplySection() {
     phoneNumber: '',
     dateOfBirth: '',
     gender: '',
-    nationality: '',
+    country: '',
+    state: '',
+    city: '',
+    postalCode: '',
+    address: '',
     desiredRole: 'doctor',
     specialization: '',
     yearsOfExperience: '',
@@ -239,21 +244,26 @@ function ApplySection() {
   const [resume, setResume] = useState<File | null>(null);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
 
+  const countries = Country.getAllCountries().map(country => ({
+    value: country.isoCode,
+    label: country.name,   
+    phonecode: country.phonecode
+  }));
+
+  // Get states for selected country
+  const states = formData.country 
+    ? State.getStatesOfCountry(formData.country).map(state => ({
+        value: state.isoCode,
+        label: state.name, // Full state name
+      }))
+    : [];
+
   // Add these gender and nationality options
   const genderOptions = [
     { value: 'Male', label: 'Male' },
     { value: 'Female', label: 'Female' },
     { value: 'Other', label: 'Other' },
     { value: 'Prefer not to say', label: 'Prefer not to say' },
-  ];
-
-  const nationalityOptions = [
-    { value: 'US', label: 'United States' },
-    { value: 'UK', label: 'United Kingdom' },
-    { value: 'CA', label: 'Canada' },
-    { value: 'NG', label: 'Nigeria' },
-    { value: 'IN', label: 'India' },
-    // Add more as needed
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -269,6 +279,9 @@ function ApplySection() {
       return;
     }
 
+    const selectedCountry = countries.find(c => c.value === formData.country);
+    const selectedState = states.find(s => s.value === formData.state);
+
     // Validate date format
     const dobDate = new Date(formData.dateOfBirth);
     if (isNaN(dobDate.getTime())) {
@@ -277,15 +290,22 @@ function ApplySection() {
     }
 
     const form = new FormData();
+
+    const enhancedFormData = {
+      ...formData,
+      country: selectedCountry ? selectedCountry.label : formData.country, // Use full name
+      state: selectedState ? selectedState.label : formData.state, // Use full name
+      // Keep city as entered by user (it's a text input)
+    };
     
     // Add form data
-    Object.entries(formData).forEach(([key, value]) => {
+    Object.entries(enhancedFormData).forEach(([key, value]) => {
       if (key === 'dateOfBirth' && typeof value === 'string') {
         form.append(key, new Date(value).toISOString());
       } else if (typeof value === 'boolean') {
         form.append(key, value.toString());
       } else {
-        form.append(key, value);
+        form.append(key, value as string);
       }
     });
 
@@ -303,7 +323,11 @@ function ApplySection() {
         phoneNumber: '',
         dateOfBirth: '',
         gender: '',
-        nationality: '',
+        country: '',
+        state: '',
+        city: '',
+        postalCode: '',
+        address: '',
         desiredRole: 'doctor',
         specialization: '',
         yearsOfExperience: '',
@@ -405,21 +429,75 @@ function ApplySection() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Nationality *</label>
+                  <label className="block text-sm font-medium mb-2">Country *</label>
                   <select
-                    value={formData.nationality}
-                    onChange={(e) => setFormData({...formData, nationality: e.target.value})}
+                    value={formData.country}
+                    onChange={(e) => setFormData({...formData, country: e.target.value, state: '', city: ''})}
                     className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#8089ff]"
                     required
-                    aria-label='Nationality'
+                    aria-label='Country'
                   >
-                    <option value="">Select Nationality</option>
-                    {nationalityOptions.map(option => (
+                    <option value="">Select Country</option>
+                    {countries.map(option => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">State/Province *</label>
+                  <select
+                    value={formData.state}
+                    onChange={(e) => setFormData({...formData, state: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#8089ff]"
+                    required
+                    disabled={!formData.country}
+                    aria-label='State'
+                  >
+                    <option value="">Select State/Province</option>
+                    {states.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">City *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.city}
+                    onChange={(e) => setFormData({...formData, city: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#8089ff]"
+                    placeholder="New York, Lagos, London..."
+                    disabled={!formData.state}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Postal/ZIP Code</label>
+                  <input
+                    type="text"
+                    value={formData.postalCode}
+                    onChange={(e) => setFormData({...formData, postalCode: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#8089ff]"
+                    placeholder="10001, SW1A 1AA..."
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Address</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#8089ff]"
+                    placeholder="123 Main Street, Apt 4B"
+                  />
                 </div>
 
 
@@ -433,8 +511,8 @@ function ApplySection() {
                   >
                     <option value="doctor">Doctor/Physician</option>
                     <option value="nurse">Nurse</option>
-                    <option value="hospital">Hospital Administrator</option>
-                    <option value="ai">AI/ML Engineer</option>
+                    <option value="hospital" disabled>Hospital Administrator</option>
+                    <option value="ai" disabled>AI/ML Engineer</option>
                   </select>
                 </div>
               </div>

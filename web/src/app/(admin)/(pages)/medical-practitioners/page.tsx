@@ -14,9 +14,13 @@ import {
   Star,
   Clock,
   MapPin,
-  Calendar
+  Calendar,
+  FileText,
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 import { TaxInformationModal } from '../../components/MedicalPractitionersComponents/TaxInformationModal';
+import { ComplianceSection } from './components/ComplianceSection';
 
 export default function MedicalPractitionersPage() {
   const { admin } = useAdmin();
@@ -29,6 +33,22 @@ export default function MedicalPractitionersPage() {
   ) || [];
 
   // Calculate statistics
+  // const stats = {
+  //   total: medicalPractitioners.length,
+  //   doctors: medicalPractitioners.filter(p => p.role === 'doctor').length,
+  //   nurses: medicalPractitioners.filter(p => p.role === 'nurse').length,
+  //   available: medicalPractitioners.filter(p => 
+  //     p.healthcareProfile?.availability?.isAvailable
+  //   ).length,
+  //   totalConsultations: medicalPractitioners.reduce(
+  //     (sum, p) => sum + (p.healthcareProfile?.stats?.totalConsultations || 0), 
+  //     0
+  //   ),
+  //   hasTaxInfo: medicalPractitioners.filter(p => p.taxInfo?.hasTaxInfo).length,
+  //   taxVerified: medicalPractitioners.filter(p => p.taxInfo?.status === 'verified').length,
+  //   taxPending: medicalPractitioners.filter(p => p.taxInfo?.status === 'pending').length,
+  // };
+
   const stats = {
     total: medicalPractitioners.length,
     doctors: medicalPractitioners.filter(p => p.role === 'doctor').length,
@@ -40,9 +60,24 @@ export default function MedicalPractitionersPage() {
       (sum, p) => sum + (p.healthcareProfile?.stats?.totalConsultations || 0), 
       0
     ),
-    hasTaxInfo: medicalPractitioners.filter(p => p.taxInfo?.hasTaxInfo).length,
-    taxVerified: medicalPractitioners.filter(p => p.taxInfo?.status === 'verified').length,
-    taxPending: medicalPractitioners.filter(p => p.taxInfo?.status === 'pending').length,
+    
+    // Compliance statistics
+    missingTaxInfo: medicalPractitioners.filter(p => 
+      !p.taxInfo?.hasTaxInfo || 
+      p.taxInfo?.status === 'pending' || 
+      p.taxInfo?.status === 'rejected'
+    ).length,
+    missingLicense: medicalPractitioners.filter(p => 
+      !p.roleStatus?.licenseNumber || 
+      !p.roleStatus?.verifiedLicense
+    ).length,
+    needsAttention: medicalPractitioners.filter(p => 
+      !p.taxInfo?.hasTaxInfo || 
+      !p.roleStatus?.licenseNumber || 
+      !p.roleStatus?.verifiedLicense ||
+      p.taxInfo?.status === 'pending' ||
+      p.taxInfo?.status === 'rejected'
+    ).length,
   };
 
   const handleViewProfile = (user: User) => {
@@ -131,6 +166,35 @@ export default function MedicalPractitionersPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
+          className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-orange-200 dark:border-orange-800 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Need Attention</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
+                {stats.needsAttention}
+              </p>
+              <div className="text-xs text-gray-500 mt-2">
+                <div className="flex items-center gap-1">
+                  <FileText className="w-3 h-3" />
+                  Missing tax: {stats.missingTaxInfo}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  Missing license: {stats.missingLicense}
+                </div>
+              </div>
+            </div>
+            <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
+              <AlertCircle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
           className="bg-white dark:bg-gray-900 rounded-2xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center justify-between">
@@ -146,6 +210,8 @@ export default function MedicalPractitionersPage() {
           </div>
         </motion.div>
       </div>
+
+      <ComplianceSection practitioners={medicalPractitioners} />
 
       {/* Table */}
       <MedicalPractitionersTable

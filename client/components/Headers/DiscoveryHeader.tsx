@@ -19,6 +19,30 @@ interface DiscoveryHeaderProps {
 }
 
 export default function DiscoveryHeader({ onFilterPress, onLocationPress, location, isLoadingLocation = false }: DiscoveryHeaderProps) {
+  // const getLocationText = () => {
+  //   if (isLoadingLocation) return 'Detecting your location...';
+
+  //   if (!location) return 'Tap to set location';
+
+  //   // Check if we have real GPS coordinates
+  //   const hasRealCoords =
+  //     location.latitude != null &&
+  //     location.longitude != null &&
+  //     location.latitude !== 0 &&
+  //     location.longitude !== 0;
+
+  //   // Optional: also trust city if it's clearly not a placeholder
+  //   const hasGoodCity =
+  //     location.city &&
+  //     !['Nearby Area', 'Your Area', 'Unknown City'].includes(location.city.trim());
+
+  //   if (hasRealCoords || hasGoodCity) {
+  //     return `${location.city}, ${location.country}`;
+  //   }
+
+  //   return 'Tap to detect location';
+  // };
+
   const getLocationText = () => {
     if (isLoadingLocation) return 'Detecting your location...';
 
@@ -30,6 +54,11 @@ export default function DiscoveryHeader({ onFilterPress, onLocationPress, locati
       location.longitude != null &&
       location.latitude !== 0 &&
       location.longitude !== 0;
+
+    // If we have "Nearby Area" as city, show it with the country
+    if (location.city === 'Nearby Area' && location.country) {
+      return `Nearby Area, ${location.country}`;
+    }
 
     // Optional: also trust city if it's clearly not a placeholder
     const hasGoodCity =

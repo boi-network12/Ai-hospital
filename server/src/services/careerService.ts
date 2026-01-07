@@ -292,7 +292,11 @@ export interface CareerApplicationData {
   fullName: string;
   dateOfBirth: string;
   gender: string;
-  nationality: string;
+  country: string;
+  state: string;
+  city: string;
+  postalCode?: string;
+  address?: string;
   
   // Role Application
   desiredRole: 'nurse' | 'doctor' | 'hospital';
@@ -355,8 +359,12 @@ export const submitCareerApplication = async (data: CareerApplicationData) => {
 
   // Validate required fields
   if (!data.fullName || !data.email || !data.phoneNumber || !data.dateOfBirth || 
-      !data.gender || !data.nationality || !data.desiredRole || !data.specialization) {
+      !data.gender || !data.desiredRole || !data.specialization) {
     throw new Error('All required fields must be filled');
+  }
+
+  if (!data.country || !data.state || !data.city) {
+    throw new Error('Country, state, and city are required');
   }
 
   // Validate consent
@@ -645,17 +653,20 @@ export const approveApplicationAndCreateUser = async (
     gender: application.gender,
     dateOfBirth: dateOfBirth.toISOString().split('T')[0], // Format as YYYY-MM-DD
     location: {
-      city: application.preferredLocations && application.preferredLocations[0] 
-        ? application.preferredLocations[0].split(',')[0]?.trim() || '' 
-        : '',
-      state: application.preferredLocations && application.preferredLocations[0]
-        ? application.preferredLocations[0].split(',')[1]?.trim() || ''
-        : '',
-      country: application.nationality || '',
+      country: application.country,
+      state: application.state,
+      city: application.city,
+      address: application.address || '',
+      postalCode: application.postalCode || '',
+      // For coordinates, you might want to add a geocoding service here
+      coordinates: {
+        type: 'Point',
+        coordinates: [0, 0] // Default coordinates, can be updated later
+      }
     },
     specialization: application.specialization,
     licenseNumber: application.licenseDocumentUrl ? 'TO_BE_VERIFIED' : '',
-    issuedCountry: application.nationality,
+    issuedCountry: application.country,
   };
 
   try {
@@ -678,7 +689,7 @@ export const approveApplicationAndCreateUser = async (
         'healthcareProfile.certifications': certifications,
         'roleStatus.verifiedLicense': !!application.licenseDocumentUrl,
         'roleStatus.licenseNumber': application.licenseDocumentUrl ? 'TO_BE_VERIFIED' : '',
-        'roleStatus.issuedCountry': application.nationality,
+        'roleStatus.issuedCountry': application.country,
         'profile.gender': application.gender,
         'profile.dateOfBirth': dateOfBirth,
         'profile.bio': application.coverLetter || '',

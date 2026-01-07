@@ -38,4 +38,7 @@ router.patch('/users/:userId/tax-verification', adminCtrl.verifyTaxInfo);
 router.get('/users/:userId/tax-info', adminCtrl.getTaxInfo);
 router.delete('/users/:userId/tax-info', adminCtrl.removeTaxInfo);
 
+/* Compliance Reminders */
+router.post('/users/:userId/compliance-reminder', adminCtrl.sendComplianceReminder);
+
 export default router;

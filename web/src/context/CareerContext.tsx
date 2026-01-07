@@ -41,6 +41,9 @@ export interface CareerApplication {
   currentPosition?: string;
   currentEmployer?: string;
   expectedSalary?: string;
+  country: string;
+  state: string;
+  city: string;
 }
 
 export interface CareerApplicationFormData {
@@ -59,6 +62,9 @@ export interface CareerApplicationFormData {
   licenseDocument?: File;
   privacyConsent: boolean;
   termsAccepted: boolean;
+  country: string;
+  state: string;
+  city: string;
 }
 
 export interface ApplicationsResponse {

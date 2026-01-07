@@ -20,7 +20,8 @@ export type NotificationType =
   | 'tax_document'
   | 'tax_verification'
   | 'tax_removal'
-  | 'career_review';
+  | 'career_review'
+  | 'compliance_reminder';
 
 export type NotificationStatus = 'unread' | 'read' | 'dismissed';
 

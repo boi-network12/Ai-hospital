@@ -49,6 +49,7 @@ const NotificationSchema = new Schema<INotification>({
       'tax_verification',
       'tax_removal',
       'career_review',
+      'compliance_reminder'
     ],
     required: true,
   },
