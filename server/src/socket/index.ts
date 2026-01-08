@@ -5,20 +5,14 @@ import { verifyAccess } from '../utils/jwt';
 import User from '../models/UserModel';
 import { IUser } from '../types/usersDetails';
 import { HydratedDocument } from 'mongoose';
+import { getSocketCorsConfig } from '../config/corsConfig';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
 export const initSocket = (server: HttpServer): Server => {
-  const io = new Server(server, {
-    cors: {
-      origin: process.env.FRONTEND_ORIGIN?.split(',') || '*',
-      credentials: true,
-      methods: ['GET', 'POST'],
-    },
-    transports: ['websocket', 'polling'],
-  });
+  const io = new Server(server, getSocketCorsConfig());
 
   // Authentication middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
