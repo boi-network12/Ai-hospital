@@ -177,6 +177,7 @@ export interface IRoleStatus {
 
 /* ======================== MAIN USER TYPE ======================== */
 export interface User {
+  _id: string;
   id: string; // _id from MongoDB
   email: string;
   name: string;
@@ -203,6 +204,33 @@ export interface User {
 
   createdAt: string; // ISO date
   updatedAt: string; // ISO date
+
+  isOnline: boolean;
+  lastActive: string;
+  
+  chatSettings?: {
+    readReceipts: boolean;
+    typingIndicators: boolean;
+    mediaAutoDownload: boolean;
+    theme: 'light' | 'dark' | 'system';
+    fontSize: 'small' | 'medium' | 'large';
+    notifications: {
+      sound: boolean;
+      vibration: boolean;
+      preview: boolean;
+    };
+  };
+  
+  // Blocked users for chat
+  blockedUsers?: string[];
+  
+  // Privacy settings
+  privacySettings?: {
+    lastSeen: 'everyone' | 'contacts' | 'nobody';
+    profilePhoto: 'everyone' | 'contacts' | 'nobody';
+    readReceipts: boolean;
+    typingStatus: boolean;
+  };
 }
 
 /* ======================== HEALTHCARE PROFESSIONAL TYPES ======================== */

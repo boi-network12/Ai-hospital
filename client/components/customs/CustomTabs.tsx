@@ -15,8 +15,8 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 const CustomTabs: React.FC<BottomTabBarProps> = (props) => {
   const pathname = usePathname();
 
-  const hiddenRoutes: string[] = ['']; // add routes you want to hide tabs from here
-  const shouldHideTabs = hiddenRoutes.some(route => pathname === route);
+  // Hide tabs on any /chat/[chatId] route
+  const shouldHideTabs = pathname.startsWith('/chat/');
 
   if (shouldHideTabs) return null;
 
@@ -53,6 +53,7 @@ const CustomTabs: React.FC<BottomTabBarProps> = (props) => {
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

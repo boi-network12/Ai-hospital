@@ -42,6 +42,8 @@ import { HealthcareProfessional } from '@/types/auth.d';
 import { RefreshControl } from 'react-native-gesture-handler';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useToast } from '@/Hooks/useToast.d';
+import { socketManager } from '@/Utils/socket';
+import { createOrGetChatRoom } from '@/helper/CreateOrGetChatRoomHelper';
 
 const CommentModal = ({
   visible,
@@ -939,9 +941,24 @@ export default function MedicalProfessionalProfile() {
         setRefreshing(false);
     };
 
-    const handleSendMessage = () => {
-        router.push(`/chat/${professionalId}`);
-    };
+    const handleSendMessage = async () => {
+      try {
+          // Connect to socket if not already connected
+          if (!socketManager.isSocketConnected) {
+              await socketManager.connect();
+          }
+          
+          // Get or create chat room with the professional
+          const chatRoom = await createOrGetChatRoom(professionalId as string);
+          
+          // Navigate to chat
+          router.push(`/messages/${chatRoom._id}`);
+      } catch (error) {
+          console.error('Failed to start chat:', error);
+          showAlert({ message: 'Failed to start chat', type: 'error' });
+      }
+  };
+
 
 
     const handleBookNow = () => {
