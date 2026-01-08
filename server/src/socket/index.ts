@@ -15,6 +15,7 @@ export const initSocket = (server: HttpServer): Server => {
     cors: {
       origin: process.env.FRONTEND_ORIGIN?.split(',') || '*',
       credentials: true,
+      optionsSuccessStatus: 200,
       methods: ['GET', 'POST'],
     },
     transports: ['websocket', 'polling'],
