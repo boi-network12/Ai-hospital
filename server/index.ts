@@ -5,8 +5,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import http from 'http';
-import { initSocket } from './src/socket';
+// import http from 'http';
+// import { initSocket } from './src/socket';
 import connectDB from './src/config/db';
 import errorHandler from './src/middlewares/errorHandler';
 import apiRouter from './src/routes';
@@ -15,11 +15,11 @@ import { dateReminderMiddleware } from './src/middlewares/dateReminderMiddleware
 
 const app = express();
 
-// Create HTTP server
-const server = http.createServer(app);
+// // Create HTTP server
+// const server = http.createServer(app);
 
-// Initialize Socket.IO
-initSocket(server);
+// // Initialize Socket.IO
+// initSocket(server);
 
 // Middlewares
 app.use(helmet());
@@ -56,9 +56,9 @@ connectDB()
 
     // Start server only after DB + cleanup
     const PORT = process.env.PORT || 8080;
-    server.listen(PORT, () => {
-      console.log(`SERVER RUNNING ON PORT ${PORT}`);
-      console.log(`Socket.IO server initialized`);
+    app.listen(PORT, () => {
+      console.log(`🚀 REST API running on port ${PORT}`);
+      console.log(`📡 Socket.IO server is SEPARATE at: ${process.env.SOCKET_SERVER_URL}`);
     });
   })
   .catch((err) => {

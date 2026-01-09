@@ -2,10 +2,8 @@
 
 import { io, Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
-import { apiFetch, BACKEND_URI } from './api';
-
-// Use the same base URL as your REST API
-const SOCKET_URL = `${BACKEND_URI}`;
+import { apiFetch } from './api';
+import { SOCKET_URL } from '@/config/api';
 
 class SocketManager {
   private socket: Socket | null = null;

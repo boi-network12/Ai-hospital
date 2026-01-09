@@ -1,9 +1,6 @@
 // utils/api.ts
+import { BACKEND_URI } from '@/config/api';
 import * as SecureStore from 'expo-secure-store';
-
-export const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
-// For production: 'https://neuromed-ai-backend.vercel.app'
-// Local host API: http://10.52.10.4:8080
 
 interface ApiFetchOptions extends RequestInit {
   body?: any;
