@@ -5,8 +5,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-// import http from 'http';
-// import { initSocket } from './src/socket';
 import connectDB from './src/config/db';
 import errorHandler from './src/middlewares/errorHandler';
 import apiRouter from './src/routes';
@@ -14,12 +12,6 @@ import { cleanupInvalidRatings } from './src/utils/ratingCleanup';
 import { dateReminderMiddleware } from './src/middlewares/dateReminderMiddleware';
 
 const app = express();
-
-// // Create HTTP server
-// const server = http.createServer(app);
-
-// // Initialize Socket.IO
-// initSocket(server);
 
 // Middlewares
 app.use(helmet());

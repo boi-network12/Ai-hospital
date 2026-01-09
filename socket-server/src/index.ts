@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import jwt from "jsonwebtoken";
 dotenv.config();
 
 import express from 'express';
@@ -52,14 +53,31 @@ io.use(async (socket, next) => {
       return next(new Error('Authentication error: No token provided'));
     }
 
-    // For now, we'll just pass the token through
-    // You can add JWT verification or call your main API to validate
-    socket.data.userId = socket.handshake.auth.userId || 'unknown';
+    // Verify JWT token
+    const JWT_SECRET = process.env.JWT_SECRET || '8bc54b3f415d679a36567169f0168110434e69205880e0044eb01b70336c8e4c';
+    
+    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; role: string; iat: number; exp: number };
+    
+    if (!decoded.sub) {
+      return next(new Error('Invalid token: No user ID found'));
+    }
+
+    // Set user data on socket
+    socket.data.userId = decoded.sub;
+    socket.data.role = decoded.role;
     
     console.log(`Authenticated socket: ${socket.id}, User: ${socket.data.userId}`);
     next();
-  } catch (error) {
-    console.error('Socket auth error:', error);
+    
+  } catch (error: any) {
+    console.error('Socket auth error:', error.message);
+    
+    if (error.name === 'TokenExpiredError') {
+      return next(new Error('Token expired'));
+    } else if (error.name === 'JsonWebTokenError') {
+      return next(new Error('Invalid token'));
+    }
+    
     next(new Error('Authentication error'));
   }
 });
