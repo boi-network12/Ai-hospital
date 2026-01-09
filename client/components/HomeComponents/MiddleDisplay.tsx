@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { BLUR_HASH_PLACEHOLDER } from '@/constants/BlurHash';
 import { heightPercentageToDP as hp } from "react-native-responsive-screen"
 import { router } from 'expo-router';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 
 interface MiddleDisplayProps {
   data: {
@@ -30,6 +31,15 @@ export default function MiddleDisplay({ data }: MiddleDisplayProps) {
     }).start();
   }, [fadeAnim]);
 
+  const handlePress = (item: typeof displayData[0]) => {
+    if (item.router) {
+      router.push(item.router as any);
+    } else {
+      // Optional: Add haptic feedback for unavailable items
+      // Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  };
+
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: fadeAnim }] }}>
       <ScrollView
@@ -45,19 +55,85 @@ export default function MiddleDisplay({ data }: MiddleDisplayProps) {
               styles.BoxContainer,
               pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }
             ]}
-            onPress={() => router.push(item.router as any)}
+            onPress={() => handlePress(item)}
+            disabled={!item.router}
           >
-            <View style={styles.ImageContainer}>
-              <Image
-                source={item.image}
-                style={{ width: '60%', aspectRatio: 1 }}
-                transition={1000}
-                placeholder={{ blurhash }}
-                contentFit="contain"
-              />
+            {/* Unavailable Overlay */}
+            {!item.router && (
+              <View style={styles.unavailableOverlay}>
+                <View style={styles.unavailableBadge}>
+                  <Ionicons name="time-outline" size={hp(1.5)} color="#fff" />
+                  <Text style={styles.unavailableText}>Soon</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={[
+              styles.ImageContainer,
+              !item.router && styles.disabledImageContainer
+            ]}>
+              {item.image ? (
+                <Image
+                  source={item.image}
+                  style={{ width: '70%', aspectRatio: 1 }}
+                  transition={1000}
+                  placeholder={{ blurhash }}
+                  contentFit="contain"
+                />
+              ) : (
+                <MaterialIcons 
+                  name="medical-services" 
+                  size={hp(3)} 
+                  color={item.router ? "#8089ff" : "#ccc"} 
+                />
+              )}
+              
+              {/* Coming Soon Icon for unavailable items */}
+              {!item.router && (
+                <View style={styles.comingSoonIcon}>
+                  <MaterialIcons name="hourglass-empty" size={hp(1.2)} color="#ff6b6b" />
+                </View>
+              )}
             </View>
-            <Text style={styles.itemName}>{item.name}</Text>
-            <Text style={styles.itemDescription}>{item.description}</Text>
+            
+            <Text style={[
+              styles.itemName,
+              !item.router && styles.disabledText
+            ]}>
+              {item.name}
+              {!item.router && (
+                <MaterialIcons 
+                  name="lock-outline" 
+                  size={hp(1.2)} 
+                  color="#999" 
+                  style={{ marginLeft: hp(0.5) }}
+                />
+              )}
+            </Text>
+            
+            <Text style={[
+              styles.itemDescription,
+              !item.router && styles.disabledDescription
+            ]}>
+              {item.description}
+            </Text>
+
+            {/* Progress bar for upcoming features */}
+            {!item.router && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View style={styles.progressFill} />
+                </View>
+                <Text style={styles.progressText}>In development</Text>
+              </View>
+            )}
+
+            {/* Arrow indicator for available items */}
+            {item.router && (
+              <View style={styles.arrowContainer}>
+                <MaterialIcons name="arrow-forward-ios" size={hp(1.2)} color="#8089ff" />
+              </View>
+            )}
           </Pressable>
         ))}
 
@@ -70,7 +146,11 @@ export default function MiddleDisplay({ data }: MiddleDisplayProps) {
           ]}
           onPress={() => router.push('/all-tests')}
         >
-          <Text style={styles.seeMoreText}>See More →</Text>
+          <View style={styles.seeMoreIcon}>
+            <Ionicons name="chevron-forward-circle" size={hp(3.5)} color="#fff" />
+          </View>
+          <Text style={styles.seeMoreText}>See More</Text>
+          <Text style={styles.seeMoreSubText}>Explore all tests</Text>
         </Pressable>
       </ScrollView>
     </Animated.View>
@@ -82,19 +162,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   BoxContainer: {
-    borderWidth: 0.6,
+    borderWidth: 0.4,
     borderColor: '#eee',
     marginRight: hp(2),
     padding: hp(1.2),
     paddingVertical: hp(2),
     borderRadius: hp(1.5),
-    width: hp(16),
+    width: hp(18),
     backgroundColor: '#fff',
-    // shadowColor: '#000',
-    // shadowOffset: { width: 0, height: 2 },
-    // shadowOpacity: 0.08,
-    // shadowRadius: 2,
-    // elevation: 2,
   },
   ImageContainer: {
     width: hp(6),
@@ -105,21 +180,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    borderWidth: 0.2,
+    borderColor: 'rgba(128, 137, 255, 0.1)',
+  },
+  disabledImageContainer: {
+    backgroundColor: "rgba(200, 200, 200, 0.05)",
+    borderColor: 'rgba(200, 200, 200, 0.2)',
   },
   itemName: {
     fontSize: hp(1.7),
     fontWeight: '600',
     textAlign: 'left',
     color: '#333',
+    marginBottom: hp(0.5),
+  },
+  disabledText: {
+    color: '#999',
+    opacity: 0.7,
   },
   itemDescription: {
     fontSize: hp(1.3),
     textAlign: 'left',
     color: '#8089ff',
-    marginTop: hp(3),
-    opacity: 0.6,
+    marginTop: hp(0.5),
+    opacity: 0.8,
     fontWeight: '500',
     lineHeight: hp(1.5)
+  },
+  disabledDescription: {
+    color: '#aaa',
+    opacity: 0.5,
   },
   seeMoreBox: {
     backgroundColor: '#8089ff',
@@ -128,11 +218,93 @@ const styles = StyleSheet.create({
     shadowColor: '#8089ff',
     shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 4,
+    borderWidth: 0,
   },
   seeMoreText: {
     color: '#fff',
     fontSize: hp(1.7),
     fontWeight: '600',
-  }
+    marginTop: hp(1),
+  },
+  seeMoreSubText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: hp(1.2),
+    fontWeight: '400',
+    marginTop: hp(0.5),
+  },
+  seeMoreIcon: {
+    marginBottom: hp(0.5),
+  },
+  unavailableOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: hp(1.5),
+    zIndex: 2,
+  },
+  unavailableBadge: {
+    position: 'absolute',
+    top: hp(1),
+    right: hp(1),
+    backgroundColor: 'rgba(255, 107, 107, 0.9)',
+    paddingHorizontal: hp(0.8),
+    paddingVertical: hp(0.3),
+    borderRadius: hp(1),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hp(0.3),
+    shadowColor: '#ff6b6b',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  unavailableText: {
+    color: '#fff',
+    fontSize: hp(1.1),
+    fontWeight: '600',
+  },
+  comingSoonIcon: {
+    position: 'absolute',
+    bottom: hp(0.5),
+    right: hp(0.5),
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: hp(1),
+    padding: hp(0.3),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  progressContainer: {
+    marginTop: hp(1),
+  },
+  progressBar: {
+    height: hp(0.4),
+    backgroundColor: 'rgba(200, 200, 200, 0.3)',
+    borderRadius: hp(0.2),
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    width: '60%',
+    backgroundColor: '#8089ff',
+    borderRadius: hp(0.2),
+  },
+  progressText: {
+    fontSize: hp(1),
+    color: '#999',
+    marginTop: hp(0.3),
+    textAlign: 'center',
+  },
+  arrowContainer: {
+    position: 'absolute',
+    bottom: hp(1.5),
+    right: hp(1.5),
+  },
 });

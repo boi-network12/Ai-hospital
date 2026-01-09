@@ -196,7 +196,7 @@ export default function LoginPage() {
                   style={styles.otpInput}
                   placeholder="000000"
                   placeholderTextColor="#aaa"
-                  keyboardType="number-pad"
+                  // keyboardType="number-pad"
                   maxLength={6}
                   value={otp}
                   onChangeText={setOtp}
@@ -358,7 +358,7 @@ export default function LoginPage() {
 
             {/* Sign-up link */}
             <View style={styles.signupWrapper}>
-              <Text style={styles.signupPrompt}>Don’t have an account? </Text>
+              <Text style={styles.signupPrompt}>Don&apos;t have an account? </Text>
               <TouchableOpacity onPress={() => router.push("/register")}>
                 <Text style={styles.signupLink}>Sign up</Text>
               </TouchableOpacity>

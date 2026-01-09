@@ -1,5 +1,5 @@
 // app/(tabs)/chat/index.ts
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import SearchIcon from '@/assets/Svgs/search.svg';
 import OnlineDot from '@/assets/Svgs/droplet.svg';
 import { useUser } from '@/Hooks/userHooks.d';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 
 
@@ -38,13 +39,6 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
   
 
   const getLastMessageText = () => {
-    console.log('Chat debug:', {
-      id: chat._id,
-      lastMessage: chat.lastMessage,
-      lastMessageData: chat.lastMessageData,
-      lastMessageAt: chat.lastMessageAt,
-      hasLastMessageField: 'lastMessage' in chat
-    });
     
     // Try multiple sources for last message
     const lastMessageSources = [
@@ -90,7 +84,7 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
     }
     
     // Default message
-    return 'Start a conversation';
+    return '...';
   };
 
   const getUnreadCount = () => {
@@ -212,6 +206,22 @@ export default function ChatListScreen() {
     loadChats();
   }, [loadChats]);
 
+  const chatList = useMemo(() => {
+    const aiChat: any = {
+      _id: 'ai-chat',
+      isAI: true,
+      name: 'AI Health Assistant',
+      description: 'Get AI-driven diagnostic advice and recommendations.',
+      isOnline: true,
+      lastMessage: 'How can I help with your health concerns today?',
+      lastMessageAt: new Date(),
+      unreadCount: { [user?._id || '']: 0 },
+      participantsData: [],
+    };
+
+    return [aiChat, ...chats];
+  }, [chats, user?._id]);
+
   const filteredChats = chats.filter(chat => {
     if (!searchQuery) return true;
     
@@ -230,9 +240,55 @@ export default function ChatListScreen() {
     }
   });
 
-  const handleChatPress = (chat: ChatRoom) => {
-    setActiveChat(chat);
-    router.push(`/messages/${chat._id}`);
+  const handleChatPress = (chat: any) => {
+    if (chat.isAI) {
+      // Navigate to AI chat
+      router.push('/messages/ai');
+    } else {
+      // Normal chat navigation
+      setActiveChat(chat);
+      router.push(`/messages/${chat._id}`);
+    }
+  };
+
+  const renderChatItem = ({ item }: { item: any }) => {
+    if (item.isAI) {
+      return (
+        <TouchableOpacity style={styles.chatItem} onPress={() => handleChatPress(item)}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.aiAvatar}>
+              <Feather name="cpu" size={24} color="#8089ff" />
+            </View>
+            <View style={styles.aiOnlineIndicator}>
+              <View style={styles.aiOnlineDot} />
+            </View>
+          </View>
+
+          <View style={styles.chatInfo}>
+            <View style={styles.chatHeader}>
+              <Text style={styles.chatName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.aiStatus}>
+                Online
+              </Text>
+            </View>
+            
+            <View style={styles.chatFooter}>
+              <Text style={styles.lastMessage} numberOfLines={1}>
+                {item.lastMessage}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    return <ChatListItem 
+               chat={item} 
+               onPress={handleChatPress} 
+               unreadCount={item.unreadCount[user?._id || ''] || 0} 
+            />;
   };
 
   if (loading && chats.length === 0) {
@@ -271,14 +327,8 @@ export default function ChatListScreen() {
 
       {/* Chat List */}
       <FlatList
-        data={filteredChats}
-        renderItem={({ item }) => (
-          <ChatListItem 
-              chat={item} 
-              onPress={handleChatPress} 
-              unreadCount={item.unreadCount[user?._id || ''] || 0}
-          />
-        )}
+        data={chatList} // Use chatList instead of filteredChats
+        renderItem={renderChatItem} // Use your custom renderChatItem function
         keyExtractor={(item) => item._id.toString()}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -313,6 +363,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 0.5,
     borderBottomColor: '#eee',
+  },
+  aiAvatar: {
+    width: wp(14),
+    height: wp(14),
+    borderRadius: wp(7),
+    backgroundColor: 'rgba(128, 137, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#8089ff',
+  },
+  aiOnlineIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 2,
+  },
+  aiOnlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+  },
+  aiStatus: {
+    fontSize: hp(1.2),
+    color: '#4CAF50',
+    fontWeight: '500',
   },
   headerTitle: {
     fontSize: hp(2.5),

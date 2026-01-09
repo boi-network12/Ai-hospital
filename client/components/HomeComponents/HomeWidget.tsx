@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   widgetContainer: {
     backgroundColor: '#fff',
-    width: wp(42),
+    width: "47%",
     borderWidth: 0.5,
     borderColor: '#eee',
     borderRadius: hp(1),

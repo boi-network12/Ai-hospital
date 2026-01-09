@@ -3,8 +3,6 @@ import { Server, Socket } from 'socket.io';
 import { registerChatHandlers } from './chatHandlers';
 import { verifyAccess } from '../utils/jwt';
 import User from '../models/UserModel';
-import { IUser } from '../types/usersDetails';
-import { HydratedDocument } from 'mongoose';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;

@@ -114,13 +114,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const response = await apiFetch<{ data: { chats: ChatRoom[] } }>('/chat/rooms');
     
     // Debug: Log what we're getting from API
-    console.log('API Response - Chats:', response.data.chats.map(chat => ({
-      id: chat._id,
-      lastMessage: chat.lastMessage,
-      lastMessageData: chat.lastMessageData,
-      hasLastMessage: !!chat.lastMessageData,
-      participants: chat.participantsData?.length
-    })));
+    // console.log('API Response - Chats:', response.data.chats.map(chat => ({
+    //   id: chat._id,
+    //   lastMessage: chat.lastMessage,
+    //   lastMessageData: chat.lastMessageData,
+    //   hasLastMessage: !!chat.lastMessageData,
+    //   participants: chat.participantsData?.length
+    // })));
     
     setChats(response.data.chats);
   } catch (error) {
