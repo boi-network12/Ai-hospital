@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useChat } from '@/context/ChatContext';
-import { ChatListItemProps, ChatRoom } from '@/types/chat';
+import { ChatListItemProps } from '@/types/chat';
 import { format } from 'date-fns';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
