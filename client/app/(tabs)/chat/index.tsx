@@ -202,8 +202,8 @@ export default function ChatListScreen() {
     loadChats();
   }, [loadChats]);
 
-  const chatList = useMemo(() => {
-  // 1. Add AI chat
+  const baseChatList = useMemo(() => {
+    // 1. Add AI chat
     const aiChat: any = {
       _id: 'ai-chat',
       isAI: true,
@@ -219,7 +219,7 @@ export default function ChatListScreen() {
       },
       unreadCount: { [user?._id || '']: 0 },
       participantsData: [],
-      updatedAt: new Date(), // Add this
+      updatedAt: new Date(),
     };
 
     // 2. Sort regular chats by lastMessageAt, then updatedAt
@@ -236,34 +236,50 @@ export default function ChatListScreen() {
     // 3. Return AI chat first, then sorted chats
     return [aiChat, ...sortedChats];
   }, [chats, user?._id]);
-    const filteredChats = chats.filter(chat => {
-      if (!searchQuery) return true;
+
+  // Filter chats based on search query
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) return baseChatList;
+    
+    const searchLower = searchQuery.toLowerCase().trim();
+    
+    return baseChatList.filter(chat => {
+      if (chat.isAI) {
+        // Search in AI chat
+        return chat.name.toLowerCase().includes(searchLower) || 
+               chat.description.toLowerCase().includes(searchLower) ||
+               'ai health assistant artificial intelligence'.includes(searchLower);
+      }
       
-      const searchLower = searchQuery.toLowerCase();
-      
+      // Search in regular chats
       if (chat.isGroup) {
-        return chat.groupName?.toLowerCase().includes(searchLower);
+        return chat.groupName?.toLowerCase().includes(searchLower) ||
+               chat.groupDescription?.toLowerCase().includes(searchLower);
       } else {
-        const otherParticipant = chat.participantsData?.find(p => p._id !== user?._id);
+        const otherParticipant = chat.participantsData?.find((p: any) => {
+          // Handle both string and ObjectId comparison
+          const participantId = typeof p._id === 'object' ? p._id.toString() : p._id;
+          const userIdStr = user?._id?.toString();
+          return participantId !== userIdStr;
+        });
         const participantMatch = otherParticipant?.name.toLowerCase().includes(searchLower);
         
-        // Also search in last message content
         const lastMessageMatch = chat.lastMessageData?.content?.toLowerCase().includes(searchLower);
         
         return participantMatch || lastMessageMatch;
       }
     });
+  }, [baseChatList, searchQuery, user?._id]);
 
   const handleChatPress = (chat: any) => {
     if (chat.isAI) {
-      // Navigate to AI chat
       router.push('/messages/ai');
     } else {
-      // Normal chat navigation
       setActiveChat(chat);
       router.push(`/messages/${chat._id}`);
     }
   };
+
 
   const renderChatItem = ({ item }: { item: any }) => {
     if (item.isAI) {
@@ -315,6 +331,16 @@ export default function ChatListScreen() {
     );
   }
 
+  if (loading && chats.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8089ff" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -341,7 +367,7 @@ export default function ChatListScreen() {
 
       {/* Chat List */}
       <FlatList
-        data={chatList} // Use chatList instead of filteredChats
+        data={filteredChats} // Use chatList instead of filteredChats
         renderItem={renderChatItem} // Use your custom renderChatItem function
         keyExtractor={(item) => item._id.toString()}
         showsVerticalScrollIndicator={false}
