@@ -39,53 +39,49 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
   
 
   const getLastMessageText = () => {
+  // Priority 1: lastMessageData (populated message object)
+  if (chat.lastMessageData && typeof chat.lastMessageData === 'object') {
+    const message = chat.lastMessageData;
     
-    // Try multiple sources for last message
-    const lastMessageSources = [
-      chat.lastMessageData,
-      chat.lastMessage,
-      // Check if we have messages from context
-      messages && messages.length > 0 ? messages[messages.length - 1] : null
-    ];
-    
-    for (const source of lastMessageSources) {
-      if (!source) continue;
-      
-      if (typeof source === 'string' && source.trim()) {
-        return source.length > 30 
-          ? source.substring(0, 30) + '...' 
-          : source;
-      }
-      
-      if (typeof source === 'object') {
-        const msg = source as any;
-        
-        // Handle different message types
-        if (msg.messageType === 'text' && msg.content) {
-          return msg.content.length > 30 
-            ? msg.content.substring(0, 30) + '...' 
-            : msg.content;
-        }
-        
-        // Handle media messages
-        switch (msg.messageType) {
-          case 'image':
-            return '📷 Image';
-          case 'file':
-            return `📎 ${msg.fileName || 'File'}`;
-          case 'audio':
-            return '🎤 Audio message';
-          case 'video':
-            return '🎬 Video';
-          default:
-            return msg.content || 'Message';
-        }
-      }
+    if (message.messageType === 'text' && message.content) {
+      return message.content.length > 30 
+        ? message.content.substring(0, 30) + '...' 
+        : message.content;
     }
     
-    // Default message
-    return '...';
-  };
+    // Handle media messages
+    switch (message.messageType) {
+      case 'image':
+        return '📷 Image';
+      case 'file':
+        return `📎 ${message.fileName || 'File'}`;
+      case 'audio':
+        return '🎤 Audio message';
+      case 'video':
+        return '🎬 Video';
+      default:
+        return message.content || 'Message';
+    }
+  }
+  
+  // Priority 2: lastMessage (could be ObjectId or string)
+  if (chat.lastMessage) {
+    // If it's an ObjectId string, show placeholder
+    if (typeof chat.lastMessage === 'string' && chat.lastMessage.length === 24) {
+      return 'Message...'; // It's an ObjectId, not actual content
+    }
+    
+    // If it's a string message (old data), use it
+    if (typeof chat.lastMessage === 'string') {
+      return chat.lastMessage.length > 30 
+        ? chat.lastMessage.substring(0, 30) + '...' 
+        : chat.lastMessage;
+    }
+  }
+  
+  // Default
+  return 'Start a conversation...';
+};
 
   const getUnreadCount = () => {
     return chat.unreadCount[user?._id || ''] || 0;
@@ -207,6 +203,7 @@ export default function ChatListScreen() {
   }, [loadChats]);
 
   const chatList = useMemo(() => {
+  // 1. Add AI chat
     const aiChat: any = {
       _id: 'ai-chat',
       isAI: true,
@@ -215,30 +212,47 @@ export default function ChatListScreen() {
       isOnline: true,
       lastMessage: 'How can I help with your health concerns today?',
       lastMessageAt: new Date(),
+      lastMessageData: {
+        content: 'How can I help with your health concerns today?',
+        createdAt: new Date(),
+        messageType: 'text'
+      },
       unreadCount: { [user?._id || '']: 0 },
       participantsData: [],
+      updatedAt: new Date(), // Add this
     };
 
-    return [aiChat, ...chats];
-  }, [chats, user?._id]);
+    // 2. Sort regular chats by lastMessageAt, then updatedAt
+    const sortedChats = [...chats].sort((a, b) => {
+      const dateA = a.lastMessageAt || a.updatedAt || a.createdAt || new Date(0);
+      const dateB = b.lastMessageAt || b.updatedAt || b.createdAt || new Date(0);
+      
+      const timeA = new Date(dateA).getTime();
+      const timeB = new Date(dateB).getTime();
+      
+      return timeB - timeA; // Descending (newest first)
+    });
 
-  const filteredChats = chats.filter(chat => {
-    if (!searchQuery) return true;
-    
-    const searchLower = searchQuery.toLowerCase();
-    
-    if (chat.isGroup) {
-      return chat.groupName?.toLowerCase().includes(searchLower);
-    } else {
-      const otherParticipant = chat.participantsData?.find(p => p._id !== user?._id);
-      const participantMatch = otherParticipant?.name.toLowerCase().includes(searchLower);
+    // 3. Return AI chat first, then sorted chats
+    return [aiChat, ...sortedChats];
+  }, [chats, user?._id]);
+    const filteredChats = chats.filter(chat => {
+      if (!searchQuery) return true;
       
-      // Also search in last message content
-      const lastMessageMatch = chat.lastMessageData?.content?.toLowerCase().includes(searchLower);
+      const searchLower = searchQuery.toLowerCase();
       
-      return participantMatch || lastMessageMatch;
-    }
-  });
+      if (chat.isGroup) {
+        return chat.groupName?.toLowerCase().includes(searchLower);
+      } else {
+        const otherParticipant = chat.participantsData?.find(p => p._id !== user?._id);
+        const participantMatch = otherParticipant?.name.toLowerCase().includes(searchLower);
+        
+        // Also search in last message content
+        const lastMessageMatch = chat.lastMessageData?.content?.toLowerCase().includes(searchLower);
+        
+        return participantMatch || lastMessageMatch;
+      }
+    });
 
   const handleChatPress = (chat: any) => {
     if (chat.isAI) {

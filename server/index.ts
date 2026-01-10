@@ -57,3 +57,4 @@ connectDB()
     console.error("DB connection failed:", err);
     process.exit(1);
   });
+  // server/index

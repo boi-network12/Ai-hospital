@@ -3,7 +3,7 @@ import { useAuth } from '@/Hooks/authHook.d';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useToast } from '@/Hooks/useToast.d';
 // import { User } from '@/types/auth';
-import { ChatMessage, ChatRoom, Sender } from '@/types/chat';
+import { ChatMessage, ChatRoom } from '@/types/chat';
 import { apiFetch } from '@/Utils/api';
 import { socketManager } from '@/Utils/socket';
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -114,13 +114,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const response = await apiFetch<{ data: { chats: ChatRoom[] } }>('/chat/rooms');
     
     // Debug: Log what we're getting from API
-    // console.log('API Response - Chats:', response.data.chats.map(chat => ({
-    //   id: chat._id,
-    //   lastMessage: chat.lastMessage,
-    //   lastMessageData: chat.lastMessageData,
-    //   hasLastMessage: !!chat.lastMessageData,
-    //   participants: chat.participantsData?.length
-    // })));
+    console.log('API Response - Chats:', response.data.chats.map(chat => ({
+      id: chat._id,
+      lastMessage: chat.lastMessage,
+      lastMessageData: chat.lastMessageData,
+      hasLastMessage: !!chat.lastMessageData,
+      participants: chat.participantsData?.length
+    })));
     
     setChats(response.data.chats);
   } catch (error) {
@@ -160,7 +160,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Check if message already exists to avoid duplicates
           const exists = prev.some(m => m._id === message._id);
           if (!exists) {
-            return [message, ...prev];
+            return [...prev, message]; // Append at the end
           }
           return prev;
         });
@@ -196,19 +196,43 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    const handleMessageSent = (message: ChatMessage) => {
-      console.log('ChatProvider: Message sent', message._id);
-      const currentActiveChat = activeChatRef.current;
+    const handleMessageSent = (confirmedMessage: ChatMessage) => {
+    console.log('ChatProvider: Message sent confirmed', confirmedMessage._id);
+    
+    const currentUser = userRef.current;
+    
+    // 1. Update messages list
+    setMessages(prev => {
+      // Remove any temporary messages
+      const filtered = prev.filter(m => !m._id.toString().startsWith('temp-'));
       
-      if (currentActiveChat && message.chatRoomId.toString() === currentActiveChat._id.toString()) {
-        // Replace temporary message with actual message
-        setMessages(prev => {
-          const filtered = prev.filter(m => !m._id.startsWith('temp-'));
-          return [message, ...filtered];
-        });
+      // Check if message already exists
+      const exists = filtered.some(m => m._id.toString() === confirmedMessage._id.toString());
+      if (!exists) {
+        return [...filtered, confirmedMessage];
       }
-    };
-
+      return filtered;
+    });
+    
+    // 2. CRITICAL: Update chat list with new last message
+    setChats(prev => prev.map(chat => {
+      if (chat._id.toString() === confirmedMessage.chatRoomId.toString()) {
+        return {
+          ...chat,
+          lastMessageData: confirmedMessage, // This should be populated
+          lastMessage: confirmedMessage.content, // Fallback for old format
+          lastMessageAt: new Date(confirmedMessage.createdAt),
+          updatedAt: new Date(confirmedMessage.createdAt),
+          unreadCount: {
+            ...chat.unreadCount,
+            [currentUser?._id || '']: 0 // Reset our own unread count
+          }
+        };
+      }
+      return chat;
+    }));
+  };
+    
     const handleMessageRead = (data: any) => {
       console.log('ChatProvider: Message read', data);
       setMessages(prev => prev.map(msg => {
@@ -249,7 +273,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...msg,
             content: data.content,
             isEdited: true,
-            editedAt: data.editedAt
+            editedAt: data.editedAt,
+            status: 'sent'
           };
         }
         return msg;
@@ -257,8 +282,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const handleMessageDeleted = (data: any) => {
-      console.log('ChatProvider: Message deleted', data);
-      setMessages(prev => prev.filter(msg => msg._id.toString() !== data.messageId));
+      
+      // Only filter if deleteForEveryone is true OR it's our own message
+      const currentUser = userRef.current;
+      const isOurMessage = messages.find(msg => 
+        msg._id.toString() === data.messageId
+      )?.senderId.toString() === currentUser?._id;
+      
+      if (data.deleteForEveryone || isOurMessage) {
+        setMessages(prev => prev.filter(msg => msg._id.toString() !== data.messageId));
+      }
     };
 
     const handleReactionAdded = (data: any) => {
@@ -394,7 +427,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(true);
       }
 
-      const before = loadMore && messages.length > 0 ? messages[0].createdAt : undefined;
+      const before = loadMore && messages.length > 0 ? messages[messages.length - 1].createdAt : undefined;
       const params = new URLSearchParams();
       params.append('limit', '50');
       if (before) {
@@ -413,16 +446,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `/chat/rooms/${chatRoomId}/messages?${params.toString()}`
       );
 
+      // API returns oldest first, but we need newest first in state
+      const sortedMessages = [...response.data.messages].reverse();
+
       if (loadMore) {
-        setMessages(prev => [...response.data.messages, ...prev]);
+        setMessages(prev => [...prev, ...sortedMessages]);
       } else {
-        setMessages(response.data.messages);
+        setMessages(sortedMessages);
       }
 
       setHasMoreMessages(response.data.hasMore);
 
-      // Join chat room via socket
-      socketManager.joinChat(chatRoomId);
+      // Join chat room via socket ONLY if not already joined
+      const isAlreadyJoined = activeChatRef.current?._id.toString() === chatRoomId;
+      if (!isAlreadyJoined) {
+        socketManager.joinChat(chatRoomId);
+      }
 
       // Clear typing indicators
       setTypingUsers(new Set());
@@ -446,72 +485,67 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Send message with optimistic UI
   const sendMessage = async (content: string, replyTo?: string) => {
-  const currentActiveChat = activeChatRef.current;
-  const currentUser = userRef.current;
-  
-  if (!currentActiveChat || !content.trim() || !currentUser) {
-    console.warn('ChatProvider: Cannot send message - missing chat, content, or user');
-    return;
-  }
+    const currentActiveChat = activeChatRef.current;
+    const currentUser = userRef.current;
+    
+    if (!currentActiveChat || !content.trim() || !currentUser) {
+      return;
+    }
 
-  try {
-    setSending(true);
-    
-    // Create a proper sender object that matches the Sender interface
-    const tempSender: Sender = {
-      _id: currentUser._id,
-      name: currentUser.name,
-      email: currentUser.email,
-      profile: {
-        avatar: currentUser.profile?.avatar,
-        specialization: currentUser.profile?.specialization,
-        location: currentUser.profile?.location,
-      },
-      isOnline: currentUser.isOnline,
-      lastActive: currentUser.lastActive,
-    };
-    
-    // Create temporary message for optimistic UI
-    const tempMessage: ChatMessage = {
-      _id: `temp-${Date.now()}`,
-      chatRoomId: currentActiveChat._id,
-      senderId: currentUser._id,
-      sender: tempSender, // Use the properly typed sender
-      content,
-      messageType: 'text',
-      status: 'sent',
-      readBy: [currentUser._id],
-      isEdited: false,
-      isDeleted: false,
-      reactions: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      replyTo: replyTo
-    };
-    
-    // Add temporary message immediately for optimistic UI
-    setMessages(prev => [tempMessage, ...prev]);
-    
-    // Send via socket
-    await socketManager.sendMessage({
-      chatRoomId: currentActiveChat._id.toString(),
-      content,
-      replyTo
-    });
-    
-    // Clear typing indicator
-    socketManager.setTyping(currentActiveChat._id.toString(), false);
-    
-  } catch (error) {
-    console.error('ChatProvider: Failed to send message:', error);
-    showAlert({message: 'Failed to send message', type: "error"})
-    
-    // Remove temporary message on error
-    setMessages(prev => prev.filter(m => !m._id.startsWith('temp-')));
-  } finally {
-    setSending(false);
-  }
-};
+    try {
+      setSending(true);
+      
+      // Create temporary message with proper _id as string
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const tempMessage: ChatMessage = {
+        _id: tempId as any,
+        chatRoomId: currentActiveChat._id,
+        senderId: currentUser._id,
+        sender: {
+          _id: currentUser._id,
+          name: currentUser.name,
+          email: currentUser.email,
+          profile: {
+            avatar: currentUser.profile?.avatar,
+          },
+          isOnline: currentUser.isOnline,
+          lastActive: currentUser.lastActive,
+        },
+        content,
+        messageType: 'text',
+        status: 'sending',
+        readBy: [],
+        isEdited: false,
+        isDeleted: false,
+        reactions: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      // Add temporary message at the END (since messages are newest-first)
+      setMessages(prev => [...prev, tempMessage]);
+      
+      // Send via socket
+      await socketManager.sendMessage({
+        chatRoomId: currentActiveChat._id.toString(),
+        content,
+        replyTo
+      });
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      showAlert({ message: 'Failed to send message', type: "error" });
+      
+      // Update status of temporary message
+      setMessages(prev => prev.map(msg => 
+        msg._id.toString().startsWith('temp-') 
+          ? { ...msg, status: 'failed' }
+          : msg
+      ));
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Send file message
   const sendFileMessage = async (file: any, type: 'image' | 'file' | 'audio' | 'video') => {
@@ -577,29 +611,93 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Edit message
+ // Fix the editMessage function in ChatContext.tsx
   const editMessage = async (messageId: string, content: string) => {
     const currentActiveChat = activeChatRef.current;
     if (!currentActiveChat) return;
 
     try {
+      // Optimistic update
+      setMessages(prev => prev.map(msg => 
+        msg._id.toString() === messageId 
+          ? { ...msg, content, isEdited: true, status: 'updating' }
+          : msg
+      ));
+
+      // Send edit via socket
       await socketManager.editMessage(messageId, currentActiveChat._id.toString(), content);
+      
+      // Optimistic update success (socket will confirm)
     } catch (error) {
       console.error('ChatProvider: Failed to edit message:', error);
-      showAlert({message: 'Failed to edit messages', type: "error"})
+      showAlert({message: 'Failed to edit message', type: "error"});
+      
+      // Rollback optimistic update
+      setMessages(prev => prev.map(msg => 
+        msg._id.toString() === messageId 
+          ? { ...msg, status: 'failed' }
+          : msg
+      ));
     }
   };
 
   // Delete message
-  const deleteMessage = async (messageId: string, deleteForEveryone = false) => {
+    const deleteMessage = async (messageId: string, deleteForEveryone = false) => {
     const currentActiveChat = activeChatRef.current;
     if (!currentActiveChat) return;
 
     try {
-      await socketManager.deleteMessage(messageId, currentActiveChat._id.toString(), deleteForEveryone);
+      // 1. Find message index for optimistic update
+      const messageIndex = messages.findIndex(m => m._id.toString() === messageId);
+      if (messageIndex === -1) return;
+
+      // 2. Optimistic update - mark message as deleting (visual feedback)
+      setMessages(prev =>
+        prev.map(msg =>
+          msg._id.toString() === messageId
+            ? { ...msg, isRemoving: true }
+            : msg
+        )
+      );
+
+      // 3. Call backend (REST + Socket)
+      // First REST call (important for persistence)
+      await apiFetch(`/chat/messages/${messageId}?deleteForEveryone=${deleteForEveryone}`, {
+        method: 'DELETE',
+      });
+
+      // Then notify everyone via socket
+      socketManager.deleteMessage(messageId, currentActiveChat._id.toString(), deleteForEveryone);
+
+      // 4. Visual feedback delay - let user see the "deleting" state for a tiny moment
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      // 5. Smooth removal with animation class
+      setMessages(prev =>
+        prev.map((msg, idx) =>
+          idx === messageIndex
+            ? { ...msg, isRemoving: true }
+            : msg
+        )
+      );
+
+      // 6. Actually remove after animation time
+      setTimeout(() => {
+        setMessages(prev => prev.filter(m => m._id.toString() !== messageId));
+      }, 600); // should match your CSS animation duration
+
     } catch (error) {
-      console.error('ChatProvider: Failed to delete message:', error);
-      showAlert({message: 'Failed to delete messages', type: "error"})
+      console.error('Failed to delete message:', error);
+      showAlert({ message: 'Failed to delete message', type: 'error' });
+
+      // Rollback optimistic update on error
+      setMessages(prev =>
+        prev.map(msg =>
+          msg._id.toString() === messageId
+            ? { ...msg, isDeleting: false, status: 'sent' } // or whatever it was
+            : msg
+        )
+      );
     }
   };
 
@@ -703,7 +801,7 @@ const loadMessagesForChat = async (chatRoomId: string, loadMore = false) => {
       setLoading(true);
     }
 
-    const before = loadMore && messages.length > 0 ? messages[0].createdAt : undefined;
+    const before = loadMore && messages.length > 0 ? messages[messages.length - 1].createdAt : undefined;
     const params = new URLSearchParams();
     params.append('limit', '50');
     if (before) {
@@ -722,21 +820,38 @@ const loadMessagesForChat = async (chatRoomId: string, loadMore = false) => {
       `/chat/rooms/${chatRoomId}/messages?${params.toString()}`
     );
 
+    // API returns oldest first, but we need newest first in state
+    const sortedMessages = [...response.data.messages].reverse();
+
+    // Remove duplicates before setting state
+    const uniqueMessages = removeDuplicates(
+      loadMore ? [...messages, ...sortedMessages] : sortedMessages
+    );
+
     if (loadMore) {
-      setMessages(prev => [...response.data.messages, ...prev]);
+      setMessages(prev => {
+        const combined = [...prev, ...sortedMessages];
+        return removeDuplicates(combined);
+      });
     } else {
-      setMessages(response.data.messages);
+      setMessages(removeDuplicates(sortedMessages));
     }
 
     setHasMoreMessages(response.data.hasMore);
 
-    // Join chat room via socket
-    socketManager.joinChat(chatRoomId);
+    // Join chat room via socket - ONLY if not already joined
+    const isAlreadyJoined = activeChatRef.current?._id.toString() === chatRoomId;
+    if (!isAlreadyJoined) {
+      socketManager.joinChat(chatRoomId);
+      console.log(`Joined chat room: ${chatRoomId} (first time)`);
+    } else {
+      console.log(`Already joined chat room: ${chatRoomId}, skipping...`);
+    }
 
     // Clear typing indicators
     setTypingUsers(new Set());
     
-    return response.data.messages;
+    return uniqueMessages;
   } catch (error) {
     console.error('ChatProvider: Failed to load messages:', error);
     showAlert({message: 'Failed to load message', type: "error"})
@@ -744,6 +859,19 @@ const loadMessagesForChat = async (chatRoomId: string, loadMore = false) => {
   } finally {
     setLoading(false);
   }
+};
+
+// Helper function to remove duplicate messages
+const removeDuplicates = (messages: ChatMessage[]): ChatMessage[] => {
+  const seen = new Set();
+  return messages.filter(message => {
+    const key = message._id.toString();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 };
 
   const value: ChatContextType = {

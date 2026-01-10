@@ -11,3 +11,4 @@ const connectDB = async (): Promise<void> => {
 };
 
 export default connectDB;
+// server/src/config/db.ts

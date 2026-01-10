@@ -30,7 +30,7 @@ export interface ChatMessage {
    _hideTime?: boolean;
   
   // Message status
-  status: 'sent' | 'delivered' | 'read' | 'failed';
+  status: 'sent' | 'delivered' | 'read' | 'failed' | 'sending' | 'updating';
   readBy: string[];
   readAt?: string | Date;
   
@@ -38,9 +38,11 @@ export interface ChatMessage {
   isEdited: boolean;
    editedAt?: string | Date;
   deletedAt?: string | Date;
-  isDeleted: boolean;
+  isDeleted?: boolean;
   deletedBy?: string;
   
+  isDeleting?: boolean;
+  isRemoving?: boolean;
   // Reactions
   reactions: MessageReaction[];
   

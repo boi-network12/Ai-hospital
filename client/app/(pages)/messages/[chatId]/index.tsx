@@ -21,12 +21,11 @@ import { ChatMessage } from '@/types/chat';
 import { format } from 'date-fns';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { useUser } from '@/Hooks/userHooks.d';
-
-// Expo Vector Icons
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '@/Hooks/useToast.d';
 
+// Components
 interface ReactionPickerProps {
   visible: boolean;
   onClose: () => void;
@@ -141,6 +140,14 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
   const { user } = useUser();
 
   const getStatusIcon = () => {
+    if (message.status === 'sending' || message.status === 'updating') {
+      return <ActivityIndicator size={12} color="#999" />;
+    }
+    
+    if (message.status === 'failed') {
+      return <Feather name="alert-circle" size={16} color="#ff4444" />;
+    }
+
     switch (message.status) {
       case 'sent':
         return <Feather name="check" size={16} color="#999" />;
@@ -247,11 +254,13 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
 });
 MessageItem.displayName = 'MessageItem';
 
+// Main Chat Screen Component
 const ChatScreen: React.FC = () => {
   const { chatId } = useLocalSearchParams<{ chatId: string }>();
   const { showAlert } = useToast();
   const router = useRouter();
   const { user } = useUser();
+  
   const {
     activeChat,
     messages,
@@ -269,6 +278,7 @@ const ChatScreen: React.FC = () => {
     loadMessagesForChat
   } = useChat();
 
+  // State
   const [messageText, setMessageText] = useState('');
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
@@ -276,19 +286,19 @@ const ChatScreen: React.FC = () => {
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
   const [showMessageMenu, setShowMessageMenu] = useState(false);
 
+  // Refs
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
+  // Effects
   useEffect(() => {
     const initializeChat = async () => {
       if (chatId) {
         try {
           console.log('ChatScreen: Initializing chat...');
           
-          // Load chat room using context function
           const chatRoom = await loadChatRoom(chatId);
           
-          // Load messages for the chat
           if (chatRoom) {
             await loadMessagesForChat(chatRoom._id.toString());
           }
@@ -302,7 +312,6 @@ const ChatScreen: React.FC = () => {
 
     initializeChat();
 
-    // Cleanup when leaving chat
     return () => {
       setActiveChat(null);
     };
@@ -320,6 +329,7 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, user?._id, markAsRead]);
 
+  // Handlers
   const handleTextChange = useCallback(
     (text: string) => {
       setMessageText(text);
@@ -377,9 +387,8 @@ const ChatScreen: React.FC = () => {
   );
 
   const handleCopy = useCallback((text: string) => {
-    // Clipboard.setString(text); // Uncomment when using expo-clipboard
     showAlert({message: 'Message copied to clipboard', type: 'success'})
-  }, []);
+  }, [showAlert]);
 
   const handleAddReaction = useCallback(
     (emoji: string) => {
@@ -390,19 +399,29 @@ const ChatScreen: React.FC = () => {
     [selectedMessage, addReaction]
   );
 
+  // Render Functions
   const renderTypingIndicator = () => {
-    if (typingUsers.size === 0) return null;
-
     return (
-      <View style={styles.typingContainer}>
-        <Text style={styles.typingText}>
-          {Array.from(typingUsers).join(', ')} is typing...
-        </Text>
-        <View style={styles.typingDots}>
-          <View style={[styles.typingDot, { animationDelay: '0s' }]} />
-          <View style={[styles.typingDot, { animationDelay: '0.2s' }]} />
-          <View style={[styles.typingDot, { animationDelay: '0.4s' }]} />
-        </View>
+      <View style={styles.footerContainer}>
+        {typingUsers.size > 0 && (
+          <View style={styles.typingContainer}>
+            <Text style={styles.typingText}>
+              {Array.from(typingUsers).join(', ')} is typing...
+            </Text>
+            <View style={styles.typingDots}>
+              <View style={[styles.typingDot]} />
+              <View style={[styles.typingDot, { animationDelay: '0.2s' }]} />
+              <View style={[styles.typingDot, { animationDelay: '0.4s' }]} />
+            </View>
+          </View>
+        )}
+        
+        {loading && messages.length > 0 && (
+          <View style={styles.loadingMoreContainer}>
+            <ActivityIndicator size="small" color="#8089ff" />
+            <Text style={styles.loadingMoreText}>Loading more messages...</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -497,7 +516,7 @@ const ChatScreen: React.FC = () => {
       >
         <FlatList
           ref={flatListRef}
-           data={[...messages].reverse()} 
+          data={messages}
           renderItem={({ item }) => (
             <MessageItem
               message={item}
@@ -506,11 +525,40 @@ const ChatScreen: React.FC = () => {
               onLongPress={handleMessageLongPress}
             />
           )}
-          keyExtractor={(item) => item._id.toString()}
+          keyExtractor={(item) => {
+            if (!item._id) {
+              return `msg-${Date.now()}-${Math.random()}`;
+            }
+            
+            // Ensure consistent string representation
+            const idString = typeof item._id === 'string' 
+              ? item._id 
+              : item._id.toString();
+            
+            // Add message type to avoid conflicts with other IDs
+            return `msg-${idString}`;
+          }}
           inverted
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.messagesList}
           ListFooterComponent={renderTypingIndicator()}
+          onEndReached={() => {
+            if ( !loading && activeChat) {
+              loadMessagesForChat(activeChat._id.toString(), true);
+            }
+          }}
+          onEndReachedThreshold={0.1}
+          ListFooterComponentStyle={{
+            paddingVertical: hp(1),
+          }}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No messages yet</Text>
+                <Text style={styles.emptySubtext}>Start a conversation!</Text>
+              </View>
+            ) : null
+          }
         />
 
         {renderReplyPreview()}
@@ -812,6 +860,40 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#ccc',
   },
+  footerContainer: {
+    alignItems: 'center',
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: hp(2),
+    paddingHorizontal: wp(4),
+    backgroundColor: 'rgba(128, 137, 255, 0.1)',
+    borderRadius: 20,
+    marginTop: hp(1),
+  },
+  loadingMoreText: {
+    fontSize: hp(1.4),
+    color: '#8089ff',
+    marginLeft: wp(2),
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: hp(20),
+  },
+  emptyText: {
+    fontSize: hp(2),
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: hp(1),
+  },
+  emptySubtext: {
+    fontSize: hp(1.6),
+    color: '#999',
+  },
   replyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -875,9 +957,6 @@ const styles = StyleSheet.create({
   reactionEmoji: {
     padding: wp(3),
   },
-  // reactionEmojiText: {
-  //   fontSize: hp(3.5),
-  // },
   messageMenuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',

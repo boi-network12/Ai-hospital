@@ -12,7 +12,7 @@ export interface ChatUser {
 }
 
 export interface ChatMessage {
-  _id: Types.ObjectId;
+  _id: Types.ObjectId | string;
   chatRoomId: Types.ObjectId;
   senderId: Types.ObjectId;
   content: string;
@@ -60,7 +60,7 @@ export interface ChatRoom {
   lastMessage?: Types.ObjectId;
   lastMessageData?: ChatMessage;
   lastMessageAt?: Date;
-  unreadCount: Map<string, number>;
+  unreadCount: Map<string, number> | Record<string, number>; 
   
   isActive: boolean;
   isArchived: boolean;

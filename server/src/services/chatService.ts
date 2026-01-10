@@ -422,62 +422,42 @@ export class ChatService {
     limit: number;
     totalPages: number;
   }> {
-    const participantChats = await ChatParticipant.find({
-      userId: new Types.ObjectId(userId),
+    // First, find the chat rooms where user is a participant
+    const chatRooms = await ChatRoom.find({
+      participants: new Types.ObjectId(userId),
       isArchived: false
     })
       .populate({
-        path: 'chatRoomId',
-        populate: [
-          {
-            path: 'participantsData',
-            select: 'name email profile.avatar isOnline lastActive'
-          },
-          {
-            path: 'lastMessageData',
-            populate: {
-              path: 'sender',
-              select: 'name profile.avatar'
-            }
-          }
-        ]
+        path: 'participantsData',
+        select: 'name email profile.avatar isOnline lastActive'
       })
-      .sort({ 'chatRoomId.lastMessageAt': -1 } as any)
+      .populate({
+        path: 'lastMessageData',
+        select: 'content messageType senderId fileUrl fileName createdAt',
+        populate: {
+          path: 'sender',
+          select: 'name profile.avatar'
+        }
+      })
+      .sort({ lastMessageAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean();
 
-    // Ensure lastMessageData is properly populated
-    const chats: IChatRoom[] = participantChats
-      .map((p: any) => {
-        const chat = p.chatRoomId;
-        if (chat) {
-          // If lastMessageData exists but is just an ObjectId, populate it
-          if (chat.lastMessage && typeof chat.lastMessage === 'object' && chat.lastMessage._id) {
-            chat.lastMessageData = chat.lastMessage;
-          } else if (chat.lastMessage && typeof chat.lastMessage === 'string') {
-            // If it's just an ID, we need to fetch the message
-            // For now, we'll fetch it separately or handle in frontend
-            chat.lastMessageData = null;
-          }
-        }
-        return chat;
-      })
-      .filter((room): room is IChatRoom => !!room && room !== null);
-
-    const total = await ChatParticipant.countDocuments({
-      userId: new Types.ObjectId(userId),
+    const total = await ChatRoom.countDocuments({
+      participants: new Types.ObjectId(userId),
       isArchived: false
     });
 
     return {
-      chats,
+      chats: chatRooms as IChatRoom[],
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit)
     };
   }
+
 
   // Get unread message count
   static async getUnreadCount(userId: string): Promise<number> {

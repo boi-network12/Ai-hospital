@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
-import jwt from "jsonwebtoken";
 dotenv.config();
-
+import jwt from 'jsonwebtoken';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import { apiClient } from './services/apiClient';
 
 const app = express();
 const server = http.createServer(app);
@@ -54,30 +54,15 @@ io.use(async (socket, next) => {
     }
 
     // Verify JWT token
-    const JWT_SECRET = process.env.JWT_SECRET || '8bc54b3f415d679a36567169f0168110434e69205880e0044eb01b70336c8e4c';
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     
-    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; role: string; iat: number; exp: number };
-    
-    if (!decoded.sub) {
-      return next(new Error('Invalid token: No user ID found'));
-    }
-
-    // Set user data on socket
-    socket.data.userId = decoded.sub;
-    socket.data.role = decoded.role;
+    socket.data.userId = decoded.sub || decoded._id;
+    socket.data.user = decoded;
     
     console.log(`Authenticated socket: ${socket.id}, User: ${socket.data.userId}`);
     next();
-    
-  } catch (error: any) {
-    console.error('Socket auth error:', error.message);
-    
-    if (error.name === 'TokenExpiredError') {
-      return next(new Error('Token expired'));
-    } else if (error.name === 'JsonWebTokenError') {
-      return next(new Error('Invalid token'));
-    }
-    
+  } catch (error) {
+    console.error('Socket auth error:', error);
     next(new Error('Authentication error'));
   }
 });
@@ -110,26 +95,50 @@ io.on('connection', (socket) => {
     console.log(`User ${socket.data.userId} left chat: ${chatRoomId}`);
   });
   
-  socket.on('send_message', (data: any) => {
-    const { chatRoomId, ...messageData } = data;
-    
-    // Broadcast to chat room (excluding sender)
-    socket.to(`chat:${chatRoomId}`).emit('receive_message', {
-      ...messageData,
-      chatRoomId,
-      senderId: socket.data.userId,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Send confirmation to sender
-    socket.emit('message_sent', {
-      ...messageData,
-      chatRoomId,
-      status: 'sent',
-      timestamp: new Date().toISOString()
-    });
+  socket.on('send_message', async (data: any) => {
+    try {
+      const { chatRoomId, ...messageData } = data;
+      const token = socket.handshake.auth.token;
+
+      // 1. First save to database via REST API
+      const savedMessage = await apiClient.sendMessage(token, {
+        chatRoomId,
+        ...messageData
+      });
+
+      const completeMessage = {
+        ...savedMessage.data,
+        chatRoomId,
+        senderId: socket.data.userId,
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+        readBy: [],
+        isEdited: false,
+        isDeleted: false,
+        reactions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // 2. Broadcast to chat room
+      socket.to(`chat:${chatRoomId}`).emit('receive_message', completeMessage);
+      
+      // 3. Send confirmation to sender
+      socket.emit('message_sent', {
+        ...savedMessage.data,
+        status: 'sent',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      socket.emit('message_error', {
+        error: 'Failed to send message',
+        originalData: data
+      });
+    }
   });
-  
+
   socket.on('typing', (data: any) => {
     const { chatRoomId, isTyping } = data;
     
@@ -140,6 +149,115 @@ io.on('connection', (socket) => {
       timestamp: new Date().toISOString()
     });
   });
+
+  socket.on('mark_read', (data: any) => {
+    const { chatRoomId, messageId } = data;
+    
+    socket.to(`chat:${chatRoomId}`).emit('message_read', {
+      messageId,
+      readBy: socket.data.userId,
+      readAt: new Date().toISOString(),
+      chatRoomId
+    });
+  });
+  
+  socket.on('add_reaction', async (data: any) => {
+    try {
+      const { messageId, chatRoomId, emoji } = data;
+      const token = socket.handshake.auth.token;
+
+      // 1. Add reaction in database
+      await apiClient.addReaction(token, messageId, { emoji });
+      
+      // 2. Broadcast to chat room
+      socket.to(`chat:${chatRoomId}`).emit('reaction_added', {
+        messageId,
+        emoji,
+        userId: socket.data.userId,
+        timestamp: new Date().toISOString(),
+        chatRoomId
+      });
+      
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+    }
+  });
+
+  socket.on('remove_reaction', async (data: any) => {
+    try {
+      const { messageId, chatRoomId } = data;
+      const token = socket.handshake.auth.token;
+
+      // 1. Remove reaction from database
+      await apiClient.removeReaction(token, messageId);
+      
+      // 2. Broadcast to chat room
+      socket.to(`chat:${chatRoomId}`).emit('reaction_removed', {
+        messageId,
+        userId: socket.data.userId,
+        timestamp: new Date().toISOString(),
+        chatRoomId
+      });
+      
+    } catch (error) {
+      console.error('Error removing reaction:', error);
+    }
+  });
+  
+  socket.on('edit_message', async (data: any) => {
+    try {
+      const { messageId, chatRoomId, content } = data;
+      const token = socket.handshake.auth.token;
+
+      // 1. Update in database
+      const updatedMessage = await apiClient.editMessage(token, messageId, { content });
+      
+      // 2. Broadcast to entire chat room (including sender)
+      io.to(`chat:${chatRoomId}`).emit('message_edited', {
+        messageId,
+        content,
+        userId: socket.data.userId,
+        editedAt: new Date().toISOString(),
+        chatRoomId
+      });
+      
+    } catch (error) {
+      console.error('Error editing message:', error);
+      socket.emit('message_error', {
+        error: 'Failed to edit message',
+        originalData: data
+      });
+    }
+  });
+
+  socket.on('delete_message', async (data: any) => {
+  try {
+      const { messageId, chatRoomId, deleteForEveryone = false } = data; // Get from data, not params
+      const token = socket.handshake.auth.token;
+
+      // 1. Delete from database
+      await apiClient.deleteMessage(token, messageId, {
+        deleteForEveryone: deleteForEveryone ? 'true' : 'false'
+      });
+      
+      // 2. Broadcast to chat room
+      io.to(`chat:${chatRoomId}`).emit('message_deleted', { // Use io.to instead of socket.to
+        messageId,
+        deleteForEveryone,
+        userId: socket.data.userId,
+        timestamp: new Date().toISOString(),
+        chatRoomId
+      });
+      
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      socket.emit('message_error', {
+        error: 'Failed to delete message',
+        originalData: data
+      });
+    }
+  });
+
   
   socket.on('disconnect', (reason) => {
     console.log(`❌ Socket disconnected: ${socket.id} (User: ${socket.data.userId}), Reason: ${reason}`);
