@@ -50,7 +50,6 @@ connectDB()
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, () => {
       console.log(`🚀 REST API running on port ${PORT}`);
-      console.log(`📡 Socket.IO server is SEPARATE at: ${process.env.SOCKET_SERVER_URL}`);
     });
   })
   .catch((err) => {

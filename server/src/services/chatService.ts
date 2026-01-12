@@ -137,8 +137,26 @@ export class ChatService {
       if (participantId.toString() !== senderId) {
         const currentCount = chatRoom.unreadCount.get(participantId.toString()) || 0;
         chatRoom.unreadCount.set(participantId.toString(), currentCount + 1);
+        
+        // Also update participant's lastSeenMessage if needed
+        ChatParticipant.findOneAndUpdate(
+          {
+            userId: participantId,
+            chatRoomId: chatRoom._id
+          },
+          {
+            lastSeenAt: new Date(),
+            $setOnInsert: {
+              role: 'member',
+              notifications: true,
+              isArchived: false
+            }
+          },
+          { upsert: true, new: true }
+        ).exec();
       }
     });
+
 
     await chatRoom.save();
 

@@ -17,7 +17,7 @@ const HeroBg = () => {
         transition={{ duration: 0.6 }}
         className="capitalize font-semibold text-gray-400 dark:text-gray-600 text-xl"
       >
-        the apps to conquer any hospital
+        Healthcare intelligence, powered by AI.
       </motion.span>
 
       {/* Heading */}
@@ -28,8 +28,8 @@ const HeroBg = () => {
         transition={{ duration: 0.7, delay: 0.1 }}
         className="text-3xl md:text-6xl text-center font-medium font-pt-sans"
       >
-        All Your Hospital Operations.
-        <br /> One Intelligent Platform.
+         AI-powered healthcare assistant 
+        <br /> cares for you 24/7
       </motion.h1>
 
       {/* Paragraph */}
@@ -40,8 +40,7 @@ const HeroBg = () => {
         transition={{ duration: 0.6, delay: 0.2 }}
         className="text-xl text-center text-gray-600 dark:text-gray-400 md:font-mono font-light"
       >
-        Neuromed centralizes care, records, billing, and analytics into a single
-        system for smoother hospital operations.
+        Neuromed is an AI-driven healthcare platform that acts as the brain behind hospital and medical applications.
       </motion.p>
 
       {/* Image */}

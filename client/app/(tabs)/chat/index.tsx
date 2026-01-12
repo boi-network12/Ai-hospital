@@ -1,5 +1,5 @@
 // app/(tabs)/chat/index.ts
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useChat } from '@/context/ChatContext';
@@ -146,7 +147,7 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
         {/* Online indicator for one-on-one chats */}
         {!chat.isGroup && otherParticipant?.isOnline && (
           <View style={styles.onlineIndicator}>
-            <OnlineDot width={12} height={12} />
+            <OnlineDot width={12} height={12} color="green"/>
           </View>
         )}
       </View>
@@ -197,6 +198,7 @@ export default function ChatListScreen() {
   } = useChat();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadChats();
@@ -279,6 +281,19 @@ export default function ChatListScreen() {
       router.push(`/messages/${chat._id}`);
     }
   };
+
+  // Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+      setRefreshing(true);
+      try {
+        await loadChats();
+      } catch (error) {
+        console.error('Failed to refresh chats:', error);
+      } finally {
+        setRefreshing(false);
+      }
+    }, [loadChats]);
+
 
 
   const renderChatItem = ({ item }: { item: any }) => {
@@ -367,10 +382,20 @@ export default function ChatListScreen() {
 
       {/* Chat List */}
       <FlatList
-        data={filteredChats} // Use chatList instead of filteredChats
-        renderItem={renderChatItem} // Use your custom renderChatItem function
+        data={filteredChats}
+        renderItem={renderChatItem} 
         keyExtractor={(item) => item._id.toString()}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#8089ff']}
+            tintColor="#8089ff"
+            title="Pull to refresh"
+            titleColor="#8089ff"
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No conversations yet</Text>
@@ -378,6 +403,14 @@ export default function ChatListScreen() {
               Start a new conversation by messaging a professional
             </Text>
           </View>
+        }
+        ListFooterComponent={
+          refreshing ? (
+            <View style={styles.refreshFooter}>
+              <ActivityIndicator size="small" color="#8089ff" />
+              <Text style={styles.refreshText}>Refreshing...</Text>
+            </View>
+          ) : null
         }
       />
     </SafeAreaView>
@@ -393,6 +426,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  refreshFooter: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: hp(2),
+  },
+  refreshText: {
+    marginLeft: wp(2),
+    fontSize: hp(1.4),
+    color: '#8089ff',
   },
   header: {
     flexDirection: 'row',

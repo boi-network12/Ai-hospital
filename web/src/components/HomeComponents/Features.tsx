@@ -1,38 +1,38 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Stethoscope, BarChart3, Users2, ShieldCheck, Layers, FileCheck2 } from "lucide-react";
+import { Stethoscope, BarChart3, Users2, ShieldCheck, Layers, FileCheck2, MessageSquare, UserCheck, Brain, Activity } from "lucide-react";
 
 const features = [
   {
     icon: <Stethoscope size={25} />,
-    title: "Smart Patient Management",
-    desc: "Track admissions, vitals, and care plans seamlessly across departments."
+    title: "AI Health Assistant",
+    desc: "Get personalized health advice and symptom analysis from our AI, with proper disclaimers for medical guidance."
   },
   {
-    icon: <BarChart3 size={25} />,
-    title: "Real-time Analytics",
-    desc: "Monitor performance, patient load, and hospital metrics instantly."
+    icon: <MessageSquare size={25} />, // You'll need to import this icon
+    title: "Doctor Discovery & Booking",
+    desc: "Find, message, and book appointments with verified doctors and specialists in your area."
   },
   {
-    icon: <Users2 size={25} />,
-    title: "Staff Workflow Tools",
-    desc: "Assign tasks, manage shifts, and coordinate teams efficiently."
+    icon: <Activity size={25} />, // You'll need to import this icon
+    title: "Health Data Analysis",
+    desc: "Connect wearables to track vitals, analyze patterns, and get AI-powered insights about your health."
   },
   {
     icon: <ShieldCheck size={25} />,
-    title: "Secure & Compliant",
-    desc: "HIPAA-grade security ensures patient data stays fully protected."
+    title: "Personalized Medication",
+    desc: "AI suggests medications based on your health data and history, not generic recommendations."
   },
   {
-    icon: <Layers size={25} />,
-    title: "Integrated Departments",
-    desc: "Connect labs, pharmacy, triage, clinics, and admin in one system."
+    icon: <UserCheck size={25} />, // You'll need to import this icon
+    title: "Complete User Control",
+    desc: "You own your data. Full authority over your health information and privacy settings."
   },
   {
-    icon: <FileCheck2 size={25} />,
-    title: "Automated Billing",
-    desc: "Generate invoices, track payments, and sync with insurance."
+    icon: <Brain size={25} />, // You'll need to import this icon
+    title: "Smart Health Monitoring",
+    desc: "Daily activity analysis, health checkup tracking, and personalized wellness recommendations."
   },
 ];
 

@@ -20,7 +20,7 @@ const Displays = () => {
           transition={{ duration: 0.6 }}
           className="text-start font-medium text-gray-600 dark:text-gray-200 lg:text-3xl md:text-2xl text-lg mb-5"
         >
-          Neuromed gives hospitals a clear, real-time view of operations—from patient flows to clinical tasks and administrative activities. Everything stays connected, organized, and updated automatically.
+          Neuromed gives you a complete view of your health journey—from AI-powered symptom analysis to connecting with healthcare professionals. Everything stays organized in one secure place.
         </motion.p>
 
         {/* Paragraph 2 */}
@@ -31,7 +31,7 @@ const Displays = () => {
           transition={{ duration: 0.6, delay: 0.15 }}
           className="text-start font-medium text-gray-600 dark:text-gray-200 lg:text-3xl md:text-2xl text-lg mb-5"
         >
-          Empower your staff with intuitive tools, smarter insights, and seamless workflows designed to reduce delays, prevent errors, and improve the quality of patient care.
+          Take control of your wellness with personalized insights, easy doctor access, and intelligent health tracking designed to keep you informed and proactive about your health.
         </motion.p>
       </div>
 

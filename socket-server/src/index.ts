@@ -3,7 +3,7 @@ dotenv.config();
 import jwt from 'jsonwebtoken';
 import express from 'express';
 import http from 'http';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { apiClient } from './services/apiClient';
 
@@ -15,19 +15,18 @@ app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
   credentials: true
 }));
-
 app.use(express.json());
 
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     service: 'socket-server',
     timestamp: new Date().toISOString()
   });
 });
 
-// Initialize Socket.IO
+// Initialize Socket.IO with proper settings
 const io = new Server(server, {
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
@@ -38,13 +37,16 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true
   }
 });
 
-// Authentication middleware (simplified - you can call your main API to verify)
-io.use(async (socket, next) => {
+// Store active users by userId
+const activeUsers = new Map<string, { socketId: string, userId: string, lastSeen: Date }>();
+
+// Authentication middleware
+io.use(async (socket: Socket, next) => {
   try {
     const token = socket.handshake.auth.token;
     
@@ -52,14 +54,14 @@ io.use(async (socket, next) => {
       console.log('No token provided');
       return next(new Error('Authentication error: No token provided'));
     }
-
+    
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     
-    socket.data.userId = decoded.sub || decoded._id;
+    socket.data.userId = decoded.sub || decoded._id || decoded.userId;
     socket.data.user = decoded;
     
-    console.log(`Authenticated socket: ${socket.id}, User: ${socket.data.userId}`);
+    console.log(`✅ Authenticated socket: ${socket.id}, User: ${socket.data.userId}`);
     next();
   } catch (error) {
     console.error('Socket auth error:', error);
@@ -68,23 +70,45 @@ io.use(async (socket, next) => {
 });
 
 // Connection handler
-io.on('connection', (socket) => {
-  console.log(`✅ Socket connected: ${socket.id} (User: ${socket.data.userId})`);
+io.on('connection', (socket: Socket) => {
+  const userId = socket.data.userId;
+  console.log(`✅ Socket connected: ${socket.id} (User: ${userId})`);
+  
+  // Store user as active
+  activeUsers.set(userId, {
+    socketId: socket.id,
+    userId,
+    lastSeen: new Date()
+  });
   
   // Join user's personal room
-  if (socket.data.userId && socket.data.userId !== 'unknown') {
-    socket.join(`user:${socket.data.userId}`);
-    console.log(`User ${socket.data.userId} joined personal room`);
+  if (userId && userId !== 'unknown') {
+    socket.join(`user:${userId}`);
+    
+    // Emit to all connected clients
+    io.emit('user_online_status', {
+      userId,
+      isOnline: true,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Update presence
+    io.emit('user_presence_update', {
+      userId,
+      isOnline: true,
+      lastActive: new Date().toISOString(),
+      timestamp: new Date().toISOString()
+    });
   }
-  
+    
   // Chat room handlers
   socket.on('join_chat', (chatRoomId: string) => {
     socket.join(`chat:${chatRoomId}`);
-    console.log(`User ${socket.data.userId} joined chat: ${chatRoomId}`);
+    console.log(`User ${userId} joined chat: ${chatRoomId}`);
     
-    // Notify others
-    socket.to(`chat:${chatRoomId}`).emit('user_online', {
-      userId: socket.data.userId,
+    // Notify others in this chat that user joined
+    socket.to(`chat:${chatRoomId}`).emit('user_joined_chat', {
+      userId,
       chatRoomId,
       timestamp: new Date().toISOString()
     });
@@ -92,27 +116,38 @@ io.on('connection', (socket) => {
   
   socket.on('leave_chat', (chatRoomId: string) => {
     socket.leave(`chat:${chatRoomId}`);
-    console.log(`User ${socket.data.userId} left chat: ${chatRoomId}`);
+    console.log(`User ${userId} left chat: ${chatRoomId}`);
+    
+    socket.to(`chat:${chatRoomId}`).emit('user_left_chat', {
+      userId,
+      chatRoomId,
+      timestamp: new Date().toISOString()
+    });
   });
   
-  socket.on('send_message', async (data: any) => {
+  // In socket-server/index.ts, update the send_message handler:
+
+  socket.on('send_message', async (data: any, callback: Function) => {
     try {
       const { chatRoomId, ...messageData } = data;
       const token = socket.handshake.auth.token;
-
-      // 1. First save to database via REST API
+      
+      console.log(`📨 Sending message to chat: ${chatRoomId} from user: ${userId}`);
+      
+      // 1. Save to database via REST API
       const savedMessage = await apiClient.sendMessage(token, {
         chatRoomId,
         ...messageData
       });
-
+      
       const completeMessage = {
         ...savedMessage.data,
+        _id: savedMessage.data._id || savedMessage.data.id,
         chatRoomId,
-        senderId: socket.data.userId,
+        senderId: userId,
         timestamp: new Date().toISOString(),
         status: 'sent',
-        readBy: [],
+        readBy: [userId],
         isEdited: false,
         isDeleted: false,
         reactions: [],
@@ -120,44 +155,84 @@ io.on('connection', (socket) => {
         updatedAt: new Date().toISOString()
       };
       
-      // 2. Broadcast to chat room
-      socket.to(`chat:${chatRoomId}`).emit('receive_message', completeMessage);
+      // 2. Broadcast to ENTIRE chat room (including sender)
+      io.to(`chat:${chatRoomId}`).emit('receive_message', completeMessage);
       
-      // 3. Send confirmation to sender
-      socket.emit('message_sent', {
-        ...savedMessage.data,
-        status: 'sent',
+      // 3. Also emit chat_updated event to update chat list
+      io.to(`chat:${chatRoomId}`).emit('chat_updated', {
+        chatRoomId,
+        lastMessage: completeMessage,
+        lastMessageAt: new Date().toISOString(),
         timestamp: new Date().toISOString()
       });
       
+      // 4. Send confirmation to sender ONLY via callback (not via broadcast)
+      if (callback) {
+        callback({
+          success: true,
+          data: completeMessage,
+          message: 'Message sent successfully'
+        });
+      }
+      
+      // 5. Also emit message_sent event for the sender (optional, for consistency)
+      socket.emit('message_sent', completeMessage);
+      
+      console.log(`✅ Message broadcasted to chat: ${chatRoomId}`);
+      
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
+      
+      // Send error via callback
+      if (callback) {
+        callback({
+          success: false,
+          error: 'Failed to send message',
+          // message: error.message
+        });
+      }
+      
+      // Also emit error event
       socket.emit('message_error', {
         error: 'Failed to send message',
         originalData: data
       });
     }
   });
-
+    
   socket.on('typing', (data: any) => {
     const { chatRoomId, isTyping } = data;
     
+    // Broadcast typing status to everyone in chat EXCEPT sender
     socket.to(`chat:${chatRoomId}`).emit('user_typing', {
-      userId: socket.data.userId,
+      userId,
       chatRoomId,
       isTyping,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      userName: socket.data.user?.name || 'User'
     });
+    
+    console.log(`✍️ User ${userId} ${isTyping ? 'started' : 'stopped'} typing in chat: ${chatRoomId}`);
   });
-
+  
   socket.on('mark_read', (data: any) => {
     const { chatRoomId, messageId } = data;
     
+    // Broadcast read receipt to everyone in chat
     socket.to(`chat:${chatRoomId}`).emit('message_read', {
       messageId,
-      readBy: socket.data.userId,
+      readBy: userId,
       readAt: new Date().toISOString(),
       chatRoomId
+    });
+  });
+
+  socket.on('rejoin_rooms', (rooms: string[]) => {
+    rooms.forEach(room => {
+      if (room.startsWith('chat:')) {
+        socket.join(room);
+        console.log(`🔄 User ${userId} rejoined room: ${room}`);
+      }
     });
   });
   
@@ -165,15 +240,17 @@ io.on('connection', (socket) => {
     try {
       const { messageId, chatRoomId, emoji } = data;
       const token = socket.handshake.auth.token;
-
+      
+      console.log(`🎭 Adding reaction to message: ${messageId} in chat: ${chatRoomId}`);
+      
       // 1. Add reaction in database
       await apiClient.addReaction(token, messageId, { emoji });
       
-      // 2. Broadcast to chat room
-      socket.to(`chat:${chatRoomId}`).emit('reaction_added', {
+      // 2. Broadcast to ENTIRE chat room
+      io.to(`chat:${chatRoomId}`).emit('reaction_added', {
         messageId,
         emoji,
-        userId: socket.data.userId,
+        userId,
         timestamp: new Date().toISOString(),
         chatRoomId
       });
@@ -182,19 +259,19 @@ io.on('connection', (socket) => {
       console.error('Error adding reaction:', error);
     }
   });
-
+  
   socket.on('remove_reaction', async (data: any) => {
     try {
       const { messageId, chatRoomId } = data;
       const token = socket.handshake.auth.token;
-
+      
       // 1. Remove reaction from database
       await apiClient.removeReaction(token, messageId);
       
-      // 2. Broadcast to chat room
-      socket.to(`chat:${chatRoomId}`).emit('reaction_removed', {
+      // 2. Broadcast to ENTIRE chat room
+      io.to(`chat:${chatRoomId}`).emit('reaction_removed', {
         messageId,
-        userId: socket.data.userId,
+        userId,
         timestamp: new Date().toISOString(),
         chatRoomId
       });
@@ -208,17 +285,32 @@ io.on('connection', (socket) => {
     try {
       const { messageId, chatRoomId, content } = data;
       const token = socket.handshake.auth.token;
-
+      
+      console.log(`✏️ Editing message: ${messageId} in chat: ${chatRoomId}`);
+      
       // 1. Update in database
       const updatedMessage = await apiClient.editMessage(token, messageId, { content });
       
-      // 2. Broadcast to entire chat room (including sender)
+      // 2. Broadcast to ENTIRE chat room (including sender)
       io.to(`chat:${chatRoomId}`).emit('message_edited', {
         messageId,
         content,
-        userId: socket.data.userId,
+        userId,
         editedAt: new Date().toISOString(),
         chatRoomId
+      });
+      
+      // 3. Also update chat if this is the last message
+      io.to(`chat:${chatRoomId}`).emit('chat_updated', {
+        chatRoomId,
+        lastMessage: {
+          ...updatedMessage.data,
+          content,
+          isEdited: true,
+          editedAt: new Date().toISOString()
+        },
+        lastMessageAt: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       });
       
     } catch (error) {
@@ -229,22 +321,24 @@ io.on('connection', (socket) => {
       });
     }
   });
-
+  
   socket.on('delete_message', async (data: any) => {
-  try {
-      const { messageId, chatRoomId, deleteForEveryone = false } = data; // Get from data, not params
+    try {
+      const { messageId, chatRoomId, deleteForEveryone = false } = data;
       const token = socket.handshake.auth.token;
-
+      
+      console.log(`🗑️ Deleting message: ${messageId} from chat: ${chatRoomId}`);
+      
       // 1. Delete from database
       await apiClient.deleteMessage(token, messageId, {
         deleteForEveryone: deleteForEveryone ? 'true' : 'false'
       });
       
-      // 2. Broadcast to chat room
-      io.to(`chat:${chatRoomId}`).emit('message_deleted', { // Use io.to instead of socket.to
+      // 2. Broadcast to ENTIRE chat room
+      io.to(`chat:${chatRoomId}`).emit('message_deleted', {
         messageId,
         deleteForEveryone,
-        userId: socket.data.userId,
+        userId,
         timestamp: new Date().toISOString(),
         chatRoomId
       });
@@ -257,19 +351,49 @@ io.on('connection', (socket) => {
       });
     }
   });
-
+  
+  // New: User presence events
+  socket.on('user_presence', (data: any) => {
+    const { isOnline, lastActive } = data;
+    
+    // Update user's presence
+    if (activeUsers.has(userId)) {
+      activeUsers.set(userId, {
+        ...activeUsers.get(userId)!,
+        lastSeen: lastActive ? new Date(lastActive) : new Date()
+      });
+    }
+    
+    // Broadcast presence to all connected clients
+    socket.broadcast.emit('user_presence_update', {
+      userId,
+      isOnline,
+      lastActive: lastActive || new Date().toISOString(),
+      timestamp: new Date().toISOString()
+    });
+  });
   
   socket.on('disconnect', (reason) => {
-    console.log(`❌ Socket disconnected: ${socket.id} (User: ${socket.data.userId}), Reason: ${reason}`);
+    console.log(`❌ Socket disconnected: ${socket.id} (User: ${userId}), Reason: ${reason}`);
+    
+    // Remove from active users
+    activeUsers.delete(userId);
     
     // Notify all rooms user was in
     socket.rooms.forEach(room => {
       if (room.startsWith('chat:')) {
         socket.to(room).emit('user_offline', {
-          userId: socket.data.userId,
+          userId,
           timestamp: new Date().toISOString()
         });
       }
+    });
+    
+    // Broadcast global offline status
+    socket.broadcast.emit('user_online_status', {
+      userId,
+      isOnline: false,
+      timestamp: new Date().toISOString()
     });
   });
   
@@ -278,12 +402,22 @@ io.on('connection', (socket) => {
   });
 });
 
+// Get active users
+app.get('/active-users', (req, res) => {
+  const users = Array.from(activeUsers.values()).map(user => ({
+    ...user,
+    isOnline: true
+  }));
+  res.json({ success: true, data: users });
+});
+
 // Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
   console.log(`🌐 WebSocket URL: ws://localhost:${PORT}`);
   console.log(`✅ Health check: http://localhost:${PORT}/health`);
+  console.log(`👤 Active users endpoint: http://localhost:${PORT}/active-users`);
 });
 
 // Handle graceful shutdown

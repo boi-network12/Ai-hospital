@@ -64,7 +64,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
     res.status(201).json({
       success: true,
       data: message,
-      message: 'Message sent successfully'
+      message: 'Message sent successfully',
+      socketEvent: 'receive_message'
     });
   } catch (error: any) {
     console.error('Send message error:', error);

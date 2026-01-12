@@ -64,6 +64,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sending, setSending] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const [isConnected, setIsConnected] = useState(false);
   
   // Use refs to track current values without re-running effects
@@ -84,20 +85,37 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authRef.current = auth;
   }, [auth]);
 
+  useEffect(() => {
+    const cleanup = () => {
+      typingTimeoutsRef.current.forEach(t => clearTimeout(t));
+      typingTimeoutsRef.current.clear();
+    };
+
+    return cleanup;
+  }, []);
+
   // Connect to socket on mount
   useEffect(() => {
+  const initializeSocket = async () => {
     if (auth.isAuth && auth.accessToken) {
       console.log('ChatProvider: Auth detected, connecting socket...');
-      socketManager.connect();
-    } else {
-      console.log('ChatProvider: No auth, not connecting socket');
+      try {
+        await connectSocket();
+        await loadChats();
+        await loadUnreadCount();
+      } catch (error) {
+        console.error('ChatProvider: Failed to initialize socket:', error);
+      }
     }
+  };
 
-    return () => {
-      console.log('ChatProvider: Cleaning up socket connection');
-      socketManager.disconnect();
-    };
-  }, [auth.isAuth, auth.accessToken]);
+  initializeSocket();
+
+  return () => {
+    console.log('ChatProvider: Cleaning up socket connection');
+    disconnectSocket();
+  };
+}, [auth.isAuth, auth.accessToken]);
 
   // Mark message as read
   const markAsRead = useCallback((messageId: string) => {
@@ -112,15 +130,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   try {
     setLoading(true);
     const response = await apiFetch<{ data: { chats: ChatRoom[] } }>('/chat/rooms');
-    
-    // Debug: Log what we're getting from API
-    console.log('API Response - Chats:', response.data.chats.map(chat => ({
-      id: chat._id,
-      lastMessage: chat.lastMessage,
-      lastMessageData: chat.lastMessageData,
-      hasLastMessage: !!chat.lastMessageData,
-      participants: chat.participantsData?.length
-    })));
     
     setChats(response.data.chats);
   } catch (error) {
@@ -138,6 +147,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleConnect = () => {
       console.log('ChatProvider: Socket connected');
       setIsConnected(true);
+      socketManager.updateUserPresence(true);
       loadChats();
       loadUnreadCount();
     };
@@ -145,6 +155,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleDisconnect = () => {
       console.log('ChatProvider: Socket disconnected');
       setIsConnected(false);
+      socketManager.updateUserPresence(false);
     };
 
     const handleReceiveMessage = (message: ChatMessage) => {
@@ -155,20 +166,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // If message is for active chat, add to messages
       if (currentActiveChat && message.chatRoomId === currentActiveChat._id) {
-        console.log('ChatProvider: Adding message to active chat');
-        setMessages(prev => {
-          // Check if message already exists to avoid duplicates
-          const exists = prev.some(m => m._id === message._id);
-          if (!exists) {
-            return [...prev, message]; // Append at the end
-          }
-          return prev;
+          console.log('ChatProvider: Adding message to active chat');
+          setMessages(prev => {
+            // Check if message already exists to avoid duplicates
+            const exists = prev.some(m => m._id === message._id);
+            if (!exists) {
+              return [...prev, message];
+            }
+            return prev;
         });
+      
         
         // Mark as read if it's not our own message
         if (currentUser && message.senderId.toString() !== currentUser._id) {
-          console.log('ChatProvider: Marking message as read');
-          markAsRead(message._id.toString());
+          socketManager.markAsRead(currentActiveChat._id.toString(), message._id.toString());
         }
       }
 
@@ -178,11 +189,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return {
             ...chat,
             lastMessageData: message,
+            lastMessage: message.content,
             lastMessageAt: new Date(message.createdAt),
+            updatedAt: new Date(message.createdAt),
             unreadCount: {
               ...chat.unreadCount,
-              [currentUser?._id || '']: message.senderId.toString() === currentUser?._id 
-                ? chat.unreadCount[currentUser?._id || ''] || 0
+              [currentUser?._id || '']: message.senderId.toString() === currentUser?._id
+                ? 0
                 : (chat.unreadCount[currentUser?._id || ''] || 0) + 1
             }
           };
@@ -248,14 +261,47 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
     };
 
-    const handleUserTyping = (data: any) => {
+     const handleUserTyping = (data: any) => {
       console.log('ChatProvider: User typing', data);
-      const currentActiveChat = activeChatRef.current;
       
-      if (currentActiveChat && data.chatRoomId === currentActiveChat._id) {
+      const currentActiveChat = activeChatRef.current;
+      const currentUser = userRef.current;
+      
+      if (currentActiveChat && 
+          data.chatRoomId === currentActiveChat._id && 
+          data.userId !== currentUser?._id) {
+
+        console.log(`👀 ${data.userId} is typing in active chat`);
+        
         if (data.isTyping) {
-          setTypingUsers(prev => new Set(prev).add(data.userId));
+          // Add user to typing set
+          setTypingUsers(prev => {
+            const newSet = new Set(prev);
+            newSet.add(data.userId);
+            return newSet;
+          });
+          
+          // Clear typing indicator after 3 seconds
+          const timeoutId = setTimeout(() => {
+            setTypingUsers(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(data.userId);
+              return newSet;
+            });
+          }, 3000);
+          
+          // Store timeout for cleanup
+          typingTimeoutsRef.current.set(data.userId, timeoutId);
+          
         } else {
+          // Clear existing timeout if any
+          const existingTimeout = typingTimeoutsRef.current.get(data.userId);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+            typingTimeoutsRef.current.delete(data.userId);
+          }
+          
+          // Remove user from typing set
           setTypingUsers(prev => {
             const newSet = new Set(prev);
             newSet.delete(data.userId);
@@ -264,6 +310,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     };
+    
 
     const handleMessageEdited = (data: any) => {
       console.log('ChatProvider: Message edited', data);
@@ -279,19 +326,83 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return msg;
       }));
+
+      // Update chat if this was the last message
+      setChats(prev => prev.map(chat => {
+        if (chat._id.toString() === data.chatRoomId && 
+            chat.lastMessageData?._id?.toString() === data.messageId) {
+          
+          // Option 1: Most readable & safe (recommended)
+          if (!chat.lastMessageData) return chat;
+          
+          return {
+            ...chat,
+            lastMessageData: {
+              ...chat.lastMessageData,
+              content: data.content,
+              isEdited: true,
+              editedAt: data.editedAt,
+              // Explicitly keep _id (TypeScript will be happy)
+              _id: chat.lastMessageData._id
+            }
+          };
+        }
+        return chat;
+      }));
     };
 
-    const handleMessageDeleted = (data: any) => {
+     const handleMessageDeleted = (data: any) => {
+      console.log('ChatProvider: Message deleted', data);
       
-      // Only filter if deleteForEveryone is true OR it's our own message
       const currentUser = userRef.current;
-      const isOurMessage = messages.find(msg => 
+      const isOurMessage = messages.find(msg =>
         msg._id.toString() === data.messageId
       )?.senderId.toString() === currentUser?._id;
       
+      // Remove message if deleteForEveryone is true OR it's our own message
       if (data.deleteForEveryone || isOurMessage) {
         setMessages(prev => prev.filter(msg => msg._id.toString() !== data.messageId));
       }
+      
+      // Update chat list if this was the last message
+      setChats(prev => prev.map(chat => {
+        if (chat._id.toString() === data.chatRoomId && 
+            chat.lastMessageData?._id.toString() === data.messageId) {
+          // Find a new last message or set to null
+          return {
+            ...chat,
+            lastMessageData: undefined,
+            lastMessageAt: chat.lastMessageAt // Keep same or adjust
+          };
+        }
+        return chat;
+      }));
+    };
+
+    const handleUserOnlineStatus = (data: any) => {
+      console.log('ChatProvider: User online status', data);
+      
+      // Update user online status in chats
+      setChats(prev => prev.map(chat => {
+        if (chat.participantsData) {
+          const updatedParticipants = chat.participantsData.map(participant => {
+            if (participant._id === data.userId) {
+              return {
+                ...participant,
+                isOnline: data.isOnline,
+                lastActive: data.lastActive || participant.lastActive
+              };
+            }
+            return participant;
+          });
+          
+          return {
+            ...chat,
+            participantsData: updatedParticipants
+          };
+        }
+        return chat;
+      }));
     };
 
     const handleReactionAdded = (data: any) => {
@@ -341,19 +452,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
     };
 
-    const handleChatUpdated = (data: any) => {
-      console.log('ChatProvider: Chat updated', data);
-      setChats(prev => prev.map(chat => {
-        if (chat._id.toString() === data.chatRoomId) {
-          return {
-            ...chat,
-            lastMessageData: data.lastMessage,
-            lastMessageAt: data.lastMessageAt
-          };
-        }
-        return chat;
-      }));
-    };
 
     const handleAuthError = async (error: any) => {
       console.log('ChatProvider: Auth error detected', error);
@@ -369,13 +467,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+     const handleChatUpdated = (data: any) => {
+        console.log('ChatProvider: Chat updated', data);
+        
+        setChats(prev => prev.map(chat => {
+          if (chat._id.toString() === data.chatRoomId) {
+            return {
+              ...chat,
+              lastMessageData: data.lastMessage,
+              lastMessageAt: data.lastMessageAt,
+              updatedAt: new Date(data.timestamp)
+            };
+          }
+          return chat;
+        }));
+      };
+
+
     // Register socket event listeners
     socketManager.on('connect', handleConnect);
     socketManager.on('disconnect', handleDisconnect);
     socketManager.on('receive_message', handleReceiveMessage);
     socketManager.on('message_sent', handleMessageSent);
-    socketManager.on('message_read', handleMessageRead);
     socketManager.on('user_typing', handleUserTyping);
+    socketManager.on('user_online_status', handleUserOnlineStatus);
+    socketManager.on('message_read', handleMessageRead);
     socketManager.on('message_edited', handleMessageEdited);
     socketManager.on('message_deleted', handleMessageDeleted);
     socketManager.on('reaction_added', handleReactionAdded);
@@ -391,6 +507,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socketManager.off('message_sent', handleMessageSent);
       socketManager.off('message_read', handleMessageRead);
       socketManager.off('user_typing', handleUserTyping);
+      socketManager.off('user_online_status', handleUserOnlineStatus);
       socketManager.off('message_edited', handleMessageEdited);
       socketManager.off('message_deleted', handleMessageDeleted);
       socketManager.off('reaction_added', handleReactionAdded);
@@ -462,9 +579,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isAlreadyJoined) {
         socketManager.joinChat(chatRoomId);
       }
-
-      // Clear typing indicators
-      setTypingUsers(new Set());
     } catch (error) {
       console.error('ChatProvider: Failed to load messages:', error);
       showAlert({message: 'Failed to load messages', type: "error"})
@@ -588,7 +702,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Set typing indicator
   const setTyping = useCallback((isTyping: boolean) => {
     const currentActiveChat = activeChatRef.current;
-    if (currentActiveChat) {
+    if (currentActiveChat && socketManager.isSocketConnected) {
+      console.log(`✍️ ${isTyping ? 'START' : 'STOP'} typing in chat: ${currentActiveChat._id}`);
       socketManager.setTyping(currentActiveChat._id.toString(), isTyping);
     }
   }, []);

@@ -17,12 +17,42 @@ class ApiClient {
         }
       });
       return response.data;
-    } catch (error) {
-      console.error('API Error - sendMessage:', error);
+    } catch (error: any) {
+      console.error('API Error - sendMessage:', error.response?.data || error.message);
       throw error;
     }
   }
-  
+
+  async getMessages(token: string, chatRoomId: string, params?: any) {
+    try {
+      const response = await axios.get(`${this.baseURL}/v1/chat/rooms/${chatRoomId}/messages`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('API Error - getMessages:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async markAsRead(token: string, chatRoomId: string, data: any) {
+    try {
+      const response = await axios.post(`${this.baseURL}/v1/chat/rooms/${chatRoomId}/read`, data, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('API Error - markAsRead:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
   async editMessage(token: string, messageId: string, data: any) {
     try {
       const response = await axios.put(`${this.baseURL}/v1/chat/messages/${messageId}`, data, {
@@ -32,12 +62,12 @@ class ApiClient {
         }
       });
       return response.data;
-    } catch (error) {
-      console.error('API Error - editMessage:', error);
+    } catch (error: any) {
+      console.error('API Error - editMessage:', error.response?.data || error.message);
       throw error;
     }
   }
-  
+
   async deleteMessage(token: string, messageId: string, params?: any) {
     try {
       const response = await axios.delete(`${this.baseURL}/v1/chat/messages/${messageId}`, {
@@ -47,12 +77,12 @@ class ApiClient {
         params
       });
       return response.data;
-    } catch (error) {
-      console.error('API Error - deleteMessage:', error);
+    } catch (error: any) {
+      console.error('API Error - deleteMessage:', error.response?.data || error.message);
       throw error;
     }
   }
-  
+
   async addReaction(token: string, messageId: string, data: any) {
     try {
       const response = await axios.post(`${this.baseURL}/v1/chat/messages/${messageId}/reactions`, data, {
@@ -62,12 +92,12 @@ class ApiClient {
         }
       });
       return response.data;
-    } catch (error) {
-      console.error('API Error - addReaction:', error);
+    } catch (error: any) {
+      console.error('API Error - addReaction:', error.response?.data || error.message);
       throw error;
     }
   }
-  
+
   async removeReaction(token: string, messageId: string) {
     try {
       const response = await axios.delete(`${this.baseURL}/v1/chat/messages/${messageId}/reactions`, {
@@ -76,8 +106,23 @@ class ApiClient {
         }
       });
       return response.data;
-    } catch (error) {
-      console.error('API Error - removeReaction:', error);
+    } catch (error: any) {
+      console.error('API Error - removeReaction:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  // NEW: Get chat participants
+  async getChatParticipants(token: string, chatRoomId: string) {
+    try {
+      const response = await axios.get(`${this.baseURL}/v1/chat/rooms/${chatRoomId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('API Error - getChatParticipants:', error.response?.data || error.message);
       throw error;
     }
   }

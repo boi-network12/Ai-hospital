@@ -24,6 +24,7 @@ import { useUser } from '@/Hooks/userHooks.d';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '@/Hooks/useToast.d';
+import { debounce } from 'lodash';
 
 // Components
 interface ReactionPickerProps {
@@ -317,6 +318,20 @@ const ChatScreen: React.FC = () => {
     };
   }, [chatId]);
 
+  const handleTextChangeDebounced = useCallback(
+    debounce((text: string) => {
+      if (activeChat) {
+        const isTyping = text.length > 0;
+        setTyping(isTyping);
+        // Clear typing after 1 second if no further typing
+        setTimeout(() => {
+          setTyping(false);
+        }, 1000);
+      }
+    }, 300),
+    [activeChat, setTyping]
+  );
+
   useEffect(() => {
     const unreadMessages = messages.filter(
       (msg) => !msg.readBy?.includes(user?._id ?? '') && msg.senderId !== user?._id
@@ -329,31 +344,44 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, user?._id, markAsRead]);
 
+  
+
   // Handlers
-  const handleTextChange = useCallback(
+ const handleTextChange = useCallback(
     (text: string) => {
       setMessageText(text);
-      if (activeChat) {
-        setTyping(text.length > 0);
-      }
+      handleTextChangeDebounced(text);
     },
-    [activeChat, setTyping]
+    [handleTextChangeDebounced]
   );
 
   const handleSend = useCallback(async () => {
     if (!messageText.trim() && !editingMessage) return;
-
-    if (editingMessage) {
-      await editMessage(editingMessage._id.toString(), messageText.trim());
-      setEditingMessage(null);
-    } else {
-      await sendMessage(messageText.trim(), replyTo?._id.toString());
-      setReplyTo(null);
+    
+    try {
+      if (editingMessage) {
+        await editMessage(editingMessage._id.toString(), messageText.trim());
+        setEditingMessage(null);
+      } else {
+        await sendMessage(messageText.trim(), replyTo?._id.toString());
+        setReplyTo(null);
+      }
+      
+      setMessageText('');
+      setTyping(false);
+      
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      showAlert({ message: 'Failed to send message', type: "error" });
     }
+  }, [messageText, editingMessage, replyTo, sendMessage, editMessage, setTyping, showAlert]);
+  
 
-    setMessageText('');
-    setTyping(false);
-  }, [messageText, editingMessage, replyTo, sendMessage, editMessage, setTyping]);
 
   const handleMessageLongPress = useCallback((message: ChatMessage) => {
     setSelectedMessage(message);
@@ -398,33 +426,36 @@ const ChatScreen: React.FC = () => {
     },
     [selectedMessage, addReaction]
   );
+  
 
   // Render Functions
   const renderTypingIndicator = () => {
-    return (
-      <View style={styles.footerContainer}>
-        {typingUsers.size > 0 && (
-          <View style={styles.typingContainer}>
-            <Text style={styles.typingText}>
-              {Array.from(typingUsers).join(', ')} is typing...
-            </Text>
-            <View style={styles.typingDots}>
-              <View style={[styles.typingDot]} />
-              <View style={[styles.typingDot, { animationDelay: '0.2s' }]} />
-              <View style={[styles.typingDot, { animationDelay: '0.4s' }]} />
-            </View>
-          </View>
-        )}
-        
-        {loading && messages.length > 0 && (
-          <View style={styles.loadingMoreContainer}>
-            <ActivityIndicator size="small" color="#8089ff" />
-            <Text style={styles.loadingMoreText}>Loading more messages...</Text>
-          </View>
-        )}
+  if (typingUsers.size === 0) return null;
+  
+  // Get the names of typing users
+  const typingUserNames = Array.from(typingUsers).map(userId => {
+    const user = activeChat?.participantsData?.find(p => p._id === userId);
+    return user?.name || 'Someone';
+  });
+
+  return (
+    <View style={styles.typingIndicatorContainer}>
+      <View style={styles.typingIndicatorBubble}>
+        <View style={styles.typingDots}>
+          <View style={styles.typingDot} />
+          <View style={[styles.typingDot, styles.typingDotMiddle]} />
+          <View style={styles.typingDot} />
+        </View>
+        <Text style={styles.typingText}>
+          {typingUserNames.length === 1 
+            ? `${typingUserNames[0]} is typing...`
+            : `${typingUserNames.slice(0, 2).join(', ')} ${typingUserNames.length > 2 ? `and ${typingUserNames.length - 2} more` : ''} are typing...`}
+        </Text>
       </View>
-    );
-  };
+    </View>
+  );
+};
+
 
   const renderReplyPreview = () => {
     if (!replyTo) return null;
@@ -499,6 +530,7 @@ const ChatScreen: React.FC = () => {
               <Text style={styles.headerTitle}>{otherParticipant?.name || 'Chat'}</Text>
               <Text style={styles.headerSubtitle}>
                 {otherParticipant?.isOnline ? 'Online' : 'Offline'}
+                {renderTypingIndicator()}
               </Text>
             </>
           )}
@@ -516,7 +548,9 @@ const ChatScreen: React.FC = () => {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={[...messages].sort((a, b) => 
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          )}
           renderItem={({ item }) => (
             <MessageItem
               message={item}
@@ -525,40 +559,16 @@ const ChatScreen: React.FC = () => {
               onLongPress={handleMessageLongPress}
             />
           )}
-          keyExtractor={(item) => {
-            if (!item._id) {
-              return `msg-${Date.now()}-${Math.random()}`;
-            }
-            
-            // Ensure consistent string representation
-            const idString = typeof item._id === 'string' 
-              ? item._id 
-              : item._id.toString();
-            
-            // Add message type to avoid conflicts with other IDs
-            return `msg-${idString}`;
-          }}
-          inverted
+          keyExtractor={(item) => item._id.toString()}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.messagesList}
-          ListFooterComponent={renderTypingIndicator()}
-          onEndReached={() => {
-            if ( !loading && activeChat) {
-              loadMessagesForChat(activeChat._id.toString(), true);
-            }
+          onContentSizeChange={() => {
+            // Auto-scroll to bottom
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
           }}
-          onEndReachedThreshold={0.1}
-          ListFooterComponentStyle={{
-            paddingVertical: hp(1),
-          }}
-          ListEmptyComponent={
-            !loading ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No messages yet</Text>
-                <Text style={styles.emptySubtext}>Start a conversation!</Text>
-              </View>
-            ) : null
-          }
+          inverted={false}  // REMOVE inverted if you have it
         />
 
         {renderReplyPreview()}
@@ -812,21 +822,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginLeft: wp(4),
   },
-  typingText: {
-    fontSize: hp(1.4),
-    color: '#666',
-    marginRight: wp(2),
-  },
-  typingDots: {
-    flexDirection: 'row',
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#666',
-    marginHorizontal: 2,
-  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -979,4 +974,42 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: wp(3),
   },
+  typingIndicatorContainer: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    alignItems: 'flex-start',
+  },
+  typingIndicatorBubble: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingHorizontal: wp(3),
+    paddingVertical: hp(1),
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: wp(80),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    marginRight: wp(2),
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#999',
+    marginHorizontal: 1,
+  },
+  typingDotMiddle: {
+    animationDelay: '0.2s',
+  },
+  typingText: {
+    fontSize: hp(1.4),
+    color: '#666',
+  },
+
 });

@@ -4,22 +4,22 @@ import { motion } from "framer-motion";
 
 const testimonials = [
   {
-    name: "Dr. Chinedu Okafor",
-    role: "Chief Medical Director",
-    hospital: "Unity General Hospital",
-    text: "Neuromed improved our patient flow by nearly 40%. The difference is night and day."
+    name: "Sarah Johnson",
+    role: "App User",
+    duration: "Using Neuromed for 6 months",
+    text: "The AI assistant helped me identify symptoms I overlooked. Connected me with a specialist who confirmed the issue early."
   },
   {
-    name: "Nurse Sarah Mensah",
-    role: "Head Nurse",
-    hospital: "CityCare Clinic",
-    text: "Task management and alerts have cut down our delays drastically. It’s a lifesaver."
+    name: "Michael Chen",
+    role: "Diabetes Patient",
+    duration: "Regular user for 1 year",
+    text: "Daily health tracking and AI insights have completely transformed how I manage my condition between doctor visits."
   },
   {
-    name: "Emeka Lawal",
-    role: "Hospital Administrator",
-    hospital: "PrimeHealth Center",
-    text: "Billing automation alone saves us hours every day. Absolutely worth it."
+    name: "Dr. Amanda Rodriguez",
+    role: "Cardiologist",
+    hospital: "City Medical Center",
+    text: "Neuromed provides my patients with better pre-visit information, making consultations more productive."
   },
 ];
 

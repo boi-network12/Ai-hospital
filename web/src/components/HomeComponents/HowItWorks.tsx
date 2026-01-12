@@ -5,23 +5,23 @@ import { motion } from "framer-motion";
 const steps = [
   {
     step: "1",
-    title: "Set up your workspace",
-    desc: "Create your hospital environment and add departments in minutes."
+    title: "Create Your Profile",
+    desc: "Set up your personal health profile and connect your wearables."
   },
   {
     step: "2",
-    title: "Connect your staff",
-    desc: "Invite nurses, doctors, admins, and assign roles instantly."
+    title: "Chat with AI Health Assistant",
+    desc: "Get preliminary health advice and symptom analysis from our AI."
   },
   {
     step: "3",
-    title: "Integrate patient records",
-    desc: "Upload existing data or sync records automatically."
+    title: "Connect with Doctors",
+    desc: "Discover, message, and book appointments with healthcare professionals."
   },
   {
     step: "4",
-    title: "Monitor in real-time",
-    desc: "Watch every department update live as operations flow."
+    title: "Monitor & Improve",
+    desc: "Track your health metrics and receive personalized wellness plans."
   },
 ];
 

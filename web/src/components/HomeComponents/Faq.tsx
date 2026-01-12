@@ -5,16 +5,16 @@ import { motion } from "framer-motion";
 
 const questions = [
   {
-    q: "Is Neuromed secure?",
-    a: "Yes, we use enterprise-grade encryption and HIPAA-compliant data handling."
+    q: "Can Neuromed's AI diagnose my condition?",
+    a: "No. Neuromed's AI provides health information and suggestions based on symptoms and your data, but cannot diagnose medical conditions. Always consult a doctor for diagnosis and treatment."
   },
   {
-    q: "Can multiple hospitals use one workspace?",
-    a: "Yes. You can create multiple branches inside a single admin environment."
+    q: "Is my health data private and secure?",
+    a: "Yes. We use HIPAA-compliant encryption and give you full control over your data. You decide what to share and with whom."
   },
   {
-    q: "Does Neuromed work offline?",
-    a: "Certain modules cache data offline and sync when connection returns."
+    q: "How does the AI suggest medications?",
+    a: "Our AI analyzes your health data, symptoms, and medical history to suggest possible medications. These are informational suggestions only - always consult a doctor before taking any medication."
   },
 ];
 
