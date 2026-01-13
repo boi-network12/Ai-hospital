@@ -112,7 +112,6 @@ class ApiClient {
     }
   }
 
-  // NEW: Get chat participants
   async getChatParticipants(token: string, chatRoomId: string) {
     try {
       const response = await axios.get(`${this.baseURL}/v1/chat/rooms/${chatRoomId}`, {
@@ -123,6 +122,20 @@ class ApiClient {
       return response.data;
     } catch (error: any) {
       console.error('API Error - getChatParticipants:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async getUser(token: string, userId: string) {
+    try {
+      const response = await axios.get(`${this.baseURL}/v1/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('API Error - getUser:', error.response?.data || error.message);
       throw error;
     }
   }

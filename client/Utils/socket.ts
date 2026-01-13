@@ -3,251 +3,324 @@ import * as SecureStore from 'expo-secure-store';
 import { apiFetch } from './api';
 import { SOCKET_URL } from '@/config/api';
 
+// ============================================
+// INTERFACES
+// ============================================
+
+interface PendingMessage {
+  type: string;
+  data: any;
+  callback?: Function;
+  timestamp: number;
+}
+
+interface Listener {
+  callback: Function;
+  once: boolean;
+}
+
+interface ConnectionState {
+  connected: boolean;
+  socketId: string | null;
+  joinedRooms: Set<string>;
+  pendingMessages: number;
+  reconnectAttempts: number;
+  lastConnection: Date | null;
+}
+
+// ============================================
+// SOCKET MANAGER CLASS
+// ============================================
+
 class SocketManager {
+  // Core Properties
   private socket: Socket | null = null;
+  private listeners: Map<string, Listener[]> = new Map();
+  private joinedRooms: Set<string> = new Set();
+  
+  // State Management
   private isConnected: boolean = false;
-  private listeners: Map<string, Function[]> = new Map();
+  private isConnecting: boolean = false;
+  private isRefreshingToken: boolean = false;
+  
+  // Reconnection Logic
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
-  private isRefreshingToken: boolean = false;
-  private refreshTimeout: NodeJS.Timeout | null = null;
-  private connectionInProgress: boolean = false;
-  private joinedRooms: Set<string> = new Set();
-  private shouldReconnect = true;
-  private connectionPromise: Promise<void> | null = null;
-  private pendingMessages: {
-    type: string;
-    data: any;
-    callback?: Function;
-  }[] = [];
+  private reconnectDelay: number = 1000;
+  
+  // Message Management
+  private pendingMessages: PendingMessage[] = [];
+  private messageQueue: Map<string, { message: any; timestamp: number }> = new Map();
+  private lastMessageTimestamps: Map<string, number> = new Map();
+  
+  // Timeouts & Intervals
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private presenceInterval: NodeJS.Timeout | null = null;
+  private flushInterval: NodeJS.Timeout | null = null;
+  
+  // Constants
+  private readonly MESSAGE_DEBOUNCE_MS = 100;
+  private readonly PRESENCE_UPDATE_INTERVAL = 30000; // 30 seconds
+  private readonly QUEUE_FLUSH_INTERVAL = 5000; // 5 seconds
+  private readonly MAX_PENDING_MESSAGES = 50;
 
-  // Track message timeouts to prevent duplicate sends
-  private messageTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  // ============================================
+  // PUBLIC PROPERTIES
+  // ============================================
 
-  get isSocketConnected(): boolean {
+  get socketId(): string | null {
+    return this.socket?.id || null;
+  }
+
+  get connected(): boolean {
     return this.isConnected && !!this.socket?.connected;
   }
 
+  get status(): ConnectionState {
+    return {
+      connected: this.isConnected,
+      socketId: this.socketId,
+      joinedRooms: this.joinedRooms,
+      pendingMessages: this.pendingMessages.length,
+      reconnectAttempts: this.reconnectAttempts,
+      lastConnection: this.socket ? new Date() : null
+    };
+  }
+
+  // ============================================
+  // CORE CONNECTION MANAGEMENT
+  // ============================================
+
   async connect(): Promise<void> {
-     if (this.connectionPromise) {
-      return this.connectionPromise;
-    }
-    
-    if (this.connectionInProgress) {
-      console.log('Connection already in progress...');
+    if (this.isConnecting || this.connected) {
+      console.log(this.isConnecting ? 'Connection in progress...' : 'Already connected');
       return;
     }
 
-    if (this.socket?.connected) {
-      console.log('Socket already connected');
-      return Promise.resolve();
+    this.isConnecting = true;
+    
+    try {
+      const token = await this.getValidToken();
+      await this.createSocketConnection(token);
+      await this.waitForConnection();
+      
+      console.log('✅ Socket connected successfully');
+      this.startMaintenanceTasks();
+      
+    } catch (error: any) {
+      console.error('❌ Failed to connect:', error.message);
+      await this.handleConnectError(error);
+      throw error;
+    } finally {
+      this.isConnecting = false;
     }
-
-    this.connectionInProgress = true;
-
-    this.connectionPromise = new Promise(async (resolve, reject) => {
-       try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (!token) {
-          throw new Error('No access token available');
-        }
-
-        console.log('🔌 Connecting to socket server...');
-        await this.createSocketConnection(token);
-        
-        // Wait for connection to be established
-        const waitForConnection = new Promise<void>((innerResolve, innerReject) => {
-          const timeout = setTimeout(() => {
-            innerReject(new Error('Connection timeout'));
-          }, 10000);
-
-          const onConnect = () => {
-            clearTimeout(timeout);
-            innerResolve();
-          };
-
-          const onConnectError = (error: any) => {
-            clearTimeout(timeout);
-            innerReject(error);
-          };
-
-          if (this.socket) {
-            this.socket.once('connect', onConnect);
-            this.socket.once('connect_error', onConnectError);
-          }
-        });
-
-        await waitForConnection;
-        console.log('✅ Socket connected successfully');
-        resolve();
-      } catch (error) {
-        console.error('Failed to connect socket:', error);
-        reject(error);
-      } finally {
-        this.connectionPromise = null;
-      }
-    });
-
-    return this.connectionPromise;
   }
 
   private async createSocketConnection(token: string): Promise<void> {
-    // Clean up existing connection
-    this.disconnect();
+    this.disconnect(); // Clean up any existing connection
 
-    try {
-      const latestToken = await SecureStore.getItemAsync('accessToken');
-      if (!latestToken) {
-        throw new Error('No access token available after refresh');
+    this.socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      reconnectionDelay: this.reconnectDelay,
+      reconnectionDelayMax: 5000,
+      auth: { token },
+      timeout: 15000,
+      forceNew: true,
+      withCredentials: true,
+      query: {
+        platform: 'mobile',
+        version: '1.0.0',
+        timestamp: Date.now().toString()
+      }
+    });
+
+    this.setupEventListeners();
+  }
+
+  private async waitForConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        reject(new Error('Socket not initialized'));
+        return;
       }
 
-      console.log('Creating socket connection with token...');
+      const timeout = setTimeout(() => {
+        reject(new Error('Connection timeout'));
+      }, 15000);
 
-      // Create new socket connection
-      this.socket = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'],
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        auth: {
-          token: latestToken
-        },
-        timeout: 15000,
-        forceNew: false,
-        multiplex: false,
-        withCredentials: true,
-        query: {
-          platform: 'mobile',
-          timestamp: Date.now().toString()
-        }
-      });
+      const onConnect = () => {
+        clearTimeout(timeout);
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+        resolve();
+      };
 
-      this.setupEventListeners();
+      const onError = (error: any) => {
+        clearTimeout(timeout);
+        reject(error);
+      };
 
-      // Manually connect
-      this.socket.connect();
-
-    } catch (error) {
-      console.error('Failed to create socket connection:', error);
-      throw error;
-    }
+      this.socket.once('connect', onConnect);
+      this.socket.once('connect_error', onError);
+    });
   }
+
+  // ============================================
+  // EVENT LISTENERS SETUP
+  // ============================================
 
   private setupEventListeners(): void {
     if (!this.socket) return;
 
-    // Connection events
-    this.socket.on('connect', () => {
-      console.log('✅✅✅ SOCKET CONNECTED SUCCESSFULLY, ID:', this.socket?.id);
-      
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-      
-      // Emit connection event
-      this.emitToListeners('connect', { socketId: this.socket.id });
-      
-      // Send presence update immediately
-      this.socket.emit('user_presence', {
-        isOnline: true,
-        lastActive: new Date().toISOString()
-      });
-      
-      // Rejoin previously joined rooms
-      this.rejoinRooms();
-      
-      // Send any pending messages
-      this.flushPendingMessages();
-    });
+    // Connection Events
+    this.socket.on('connect', this.handleConnect.bind(this));
+    this.socket.on('disconnect', this.handleDisconnect.bind(this));
+    this.socket.on('connect_error', this.handleConnectError.bind(this));
 
-    this.socket.on('disconnect', (reason: string) => {
-      console.log('❌ Socket disconnected:', reason);
-      this.isConnected = false;
-      this.emitToListeners('disconnect', { reason });
-      
-      // For non-auth disconnects, attempt reconnect
-      if (reason !== 'io client disconnect' && 
-          reason !== 'io server disconnect') {
-        this.attemptReconnect();
-      }
-    });
-
-    this.socket.on('connect_error', (error: any) => {
-      console.error('🔌 Socket connect_error:', error.message);
-      
-      // Check for auth errors
-      const isAuthError = error.message?.includes('auth') || 
-                         error.message?.includes('jwt') || 
-                         error.message?.includes('token') ||
-                         error.message?.includes('invalid') ||
-                         error.message?.includes('expired') ||
-                         error.message?.includes('unauthorized');
-      
-      if (isAuthError) {
-        console.log('🔐 Auth error detected in connect_error');
-        this.handleAuthErrorAndRefresh();
-      } else {
-        console.log('🌐 Network/connection error, will attempt reconnect');
-        this.emitToListeners('connect_error', error);
-        this.attemptReconnect();
-      }
-    });
-
-    // Listen for all chat events - MATCHING BACKEND EVENTS
+    // Chat Events
     const chatEvents = [
-      'receive_message',      // New message from anyone in chat
-      'message_sent',         // Confirmation of sent message
-      'message_read',         // Message read receipt
-      'message_edited',       // Message edited
-      'message_deleted',      // Message deleted
-      'user_typing',          // User typing indicator
-      'user_online_status',   // User online/offline status
-      'user_presence_update', // User presence update
-      'user_joined_chat',     // User joined chat room
-      'user_left_chat',       // User left chat room
-      'reaction_added',       // Reaction added to message
-      'reaction_removed',     // Reaction removed from message
-      'chat_updated',         // Chat metadata updated
-      'message_error',        // Message sending error
-      'error'                 // General socket error
+      'receive_message',
+      'message_sent',
+      'message_delivered',
+      'message_read',
+      'message_edited',
+      'message_deleted',
+      'user_typing',
+      'user_online_status',
+      'user_presence_update',
+      'user_joined_chat',
+      'user_left_chat',
+      'reaction_added',
+      'reaction_removed',
+      'chat_updated',
+      'chat_seen',
+      'message_error',
+      'error'
     ];
 
-    chatEvents.forEach((event) => {
+    chatEvents.forEach(event => {
       this.socket!.on(event, (data: any) => {
-        console.log(`📡 Received socket event: ${event}`, data);
         this.emitToListeners(event, data);
       });
     });
 
-    // Handle auth error from server
-    this.socket.on('auth_error', (error: any) => {
-      console.error('🔐 Socket auth_error:', error);
-      this.emitToListeners('auth_error', error);
-      this.handleAuthErrorAndRefresh();
-    });
+    // Auth Events
+    this.socket.on('auth_error', this.handleAuthError.bind(this));
+    this.socket.on('unauthorized', this.handleAuthError.bind(this));
   }
 
-  private async handleAuthErrorAndRefresh(): Promise<void> {
-    if (this.isRefreshingToken) {
-      console.log('Token refresh already in progress...');
-      return;
+  // ============================================
+  // EVENT HANDLERS
+  // ============================================
+
+  private handleConnect(): void {
+    console.log('✅✅✅ Socket connected:', this.socketId);
+    
+    this.isConnected = true;
+    this.reconnectAttempts = 0;
+    
+    // Update presence
+    this.updateUserPresence(true);
+
+    // Request online status of users in joined rooms
+    this.requestOnlineStatus();
+    
+    // Rejoin rooms
+    this.rejoinRooms();
+    
+    // Flush pending messages
+    this.flushPendingMessages();
+    
+    // Emit connection event to listeners
+    this.emitToListeners('connect', { socketId: this.socketId });
+  }
+
+  private requestOnlineStatus(): void {
+    if (this.connected && this.joinedRooms.size > 0) {
+      this.socket?.emit('get_online_status', {
+        rooms: Array.from(this.joinedRooms)
+      });
+    }
+  }
+
+  private handleDisconnect(reason: string): void {
+    console.log('❌ Socket disconnected:', reason);
+    this.isConnected = false;
+    
+    // Update presence
+    this.updateUserPresence(false);
+    
+    // Emit disconnect event
+    this.emitToListeners('disconnect', { reason });
+    
+    // Attempt reconnect for non-intentional disconnects
+    if (!['io client disconnect', 'io server disconnect'].includes(reason)) {
+      this.scheduleReconnect();
+    }
+  }
+
+  private async handleConnectError(error: any): Promise<void> {
+    console.error('🔌 Connection error:', error.message);
+    
+    // Check for auth errors
+    const isAuthError = /auth|jwt|token|invalid|expired|unauthorized/i.test(error.message);
+    
+    if (isAuthError) {
+      await this.handleAuthErrorAndRefresh();
+    } else {
+      this.emitToListeners('connect_error', error);
+      this.scheduleReconnect();
+    }
+  }
+
+  private async handleAuthError(error: any): Promise<void> {
+    console.error('🔐 Auth error:', error);
+    this.emitToListeners('auth_error', error);
+    await this.handleAuthErrorAndRefresh();
+  }
+
+  // ============================================
+  // AUTH & TOKEN MANAGEMENT
+  // ============================================
+
+  private async getValidToken(): Promise<string> {
+    let token = await SecureStore.getItemAsync('accessToken');
+    
+    if (!token) {
+      throw new Error('No access token available');
     }
 
-    console.log('🔐 Auth error detected - attempting token refresh...');
+    // Check token expiry (optional)
+    try {
+      const decoded: any = JSON.parse(atob(token.split('.')[1]));
+      const expiry = decoded.exp * 1000;
+      
+      if (Date.now() >= expiry - 60000) { // Refresh if expires in 1 minute
+        token = await this.refreshAccessToken();
+      }
+    } catch (error) {
+      console.warn('Token validation failed, using as-is:', error);
+    }
+
+    return token;
+  }
+
+  private async refreshAccessToken(): Promise<string> {
+    if (this.isRefreshingToken) {
+      throw new Error('Token refresh already in progress');
+    }
+
     this.isRefreshingToken = true;
     
-    // Disconnect socket first
-    this.disconnect();
-
     try {
-      // Get refresh token
       const refreshToken = await SecureStore.getItemAsync('refreshToken');
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
 
-      // Call refresh endpoint
       const response = await apiFetch('/auth/refresh', {
         method: 'POST',
         body: { refreshToken }
@@ -255,85 +328,88 @@ class SocketManager {
 
       if (response.accessToken) {
         await SecureStore.setItemAsync('accessToken', response.accessToken);
-        console.log('✅ Token refreshed successfully');
-        
-        // Reconnect with new token
-        await this.connect();
-      } else {
-        throw new Error('Invalid refresh response');
+        console.log('✅ Token refreshed');
+        return response.accessToken;
       }
+
+      throw new Error('Invalid refresh response');
       
-    } catch (err: any) {
-      console.error('❌ Token refresh failed:', err.message || err);
-      this.emitToListeners('auth_error_failed', { error: err });
+    } catch (error: any) {
+      console.error('❌ Token refresh failed:', error.message);
       
-      // Clear tokens on complete failure
+      // Clear tokens on failure
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
+      
+      throw error;
     } finally {
       this.isRefreshingToken = false;
     }
   }
 
-  private attemptReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+  private async handleAuthErrorAndRefresh(): Promise<void> {
+    try {
+      await this.refreshAccessToken();
       
-      console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms...`);
+      // Reconnect with new token
+      setTimeout(() => {
+        this.connect().catch(console.error);
+      }, 1000);
       
-      setTimeout(async () => {
-        try {
-          await this.connect();
-        } catch (err) {
-          console.error('Reconnect attempt failed:', err);
-        }
-      }, delay);
-    } else {
-      console.log('❌ Max reconnection attempts reached');
-      this.emitToListeners('reconnect_failed', { attempts: this.reconnectAttempts });
+    } catch (error) {
+      console.error('❌ Auth recovery failed');
+      this.emitToListeners('auth_failed', { error });
     }
   }
 
+  // ============================================
+  // RECONNECTION LOGIC
+  // ============================================
+
+  private scheduleReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('❌ Max reconnection attempts reached');
+      this.emitToListeners('reconnect_failed', { attempts: this.reconnectAttempts });
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), 30000);
+    
+    console.log(`🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    
+    this.reconnectTimeout = setTimeout(async () => {
+      try {
+        await this.connect();
+      } catch (error) {
+        console.error('Reconnect failed:', error);
+      }
+    }, delay);
+  }
+
+  // ============================================
+  // ROOM MANAGEMENT
+  // ============================================
+
   private rejoinRooms(): void {
-    if (!this.socket?.connected) return;
+    if (!this.connected || this.joinedRooms.size === 0) return;
     
     console.log(`🔄 Rejoining ${this.joinedRooms.size} rooms...`);
     this.joinedRooms.forEach(roomId => {
       this.socket?.emit('join_chat', roomId);
-      console.log(`Rejoined room: ${roomId}`);
     });
   }
-
-  private flushPendingMessages(): void {
-    if (!this.socket?.connected || this.pendingMessages.length === 0) return;
-    
-    console.log(`Flushing ${this.pendingMessages.length} pending messages...`);
-    
-    this.pendingMessages.forEach(({ type, data, callback }) => {
-      try {
-        if (this.socket?.connected) {
-          if (callback) {
-            this.socket.emit(type, data, callback);
-          } else {
-            this.socket.emit(type, data);
-          }
-        }
-      } catch (error) {
-        console.error(`Error flushing pending message ${type}:`, error);
-      }
-    });
-    
-    this.pendingMessages = [];
-  }
-
-  // === CHAT ACTIONS ===
 
   async joinChat(chatRoomId: string): Promise<void> {
-    if (!this.socket?.connected) {
-      console.warn('Socket not connected, will join when connected');
-      this.joinedRooms.add(chatRoomId);
-      await this.connect();
+    this.joinedRooms.add(chatRoomId);
+    
+    if (!this.connected) {
+      console.log('📝 Queuing room join for when connected');
+      return;
     }
 
     return new Promise((resolve, reject) => {
@@ -344,97 +420,63 @@ class SocketManager {
 
       const timeout = setTimeout(() => {
         reject(new Error('Join chat timeout'));
-      }, 5000);
+      }, 10000);
 
       this.socket.emit('join_chat', chatRoomId, (response: any) => {
         clearTimeout(timeout);
         
         if (response?.success) {
-          this.joinedRooms.add(chatRoomId);
-          console.log(`✅ Successfully joined chat room: ${chatRoomId}`);
+          console.log(`✅ Joined chat: ${chatRoomId}`);
           resolve();
         } else {
+          this.joinedRooms.delete(chatRoomId);
           reject(new Error(response?.error || 'Failed to join chat'));
         }
       });
     });
   }
 
-
   leaveChat(chatRoomId: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('leave_chat', chatRoomId);
-    }
     this.joinedRooms.delete(chatRoomId);
-    console.log(`Left chat room: ${chatRoomId}`);
+    
+    if (this.connected) {
+      this.socket?.emit('leave_chat', chatRoomId);
+    }
+    
+    console.log(`📤 Left chat: ${chatRoomId}`);
   }
 
-  // sendMessage(data: any): Promise<any> {
-  //   return new Promise((resolve, reject) => {
-  //     if (!this.socket?.connected) {
-  //       console.warn('⚠️ Socket not connected - message queued');
-        
-  //       // Queue message for when socket reconnects
-  //       this.pendingMessages.push({
-  //         type: 'send_message',
-  //         data,
-  //         callback: (response: any) => {
-  //           if (response?.error) {
-  //             reject(new Error(response.error));
-  //           } else {
-  //             resolve(response);
-  //           }
-  //         }
-  //       });
-        
-  //       // Attempt to reconnect
-  //       this.connect().catch(() => {
-  //         reject(new Error('Socket not connected and reconnection failed'));
-  //       });
-        
-  //       return;
-  //     }
+  // ============================================
+  // MESSAGE MANAGEMENT
+  // ============================================
 
-  //     // Clear any existing timeout for this message (if retrying)
-  //     const messageKey = `${data.chatRoomId}-${Date.now()}`;
-  //     const existingTimeout = this.messageTimeouts.get(messageKey);
-  //     if (existingTimeout) {
-  //       clearTimeout(existingTimeout);
-  //     }
+  private flushPendingMessages(): void {
+    if (!this.connected || this.pendingMessages.length === 0) return;
+    
+    console.log(`📤 Flushing ${this.pendingMessages.length} pending messages...`);
+    
+    // Process messages in order
+    const messagesToSend = [...this.pendingMessages];
+    this.pendingMessages = [];
+    
+    messagesToSend.forEach(({ type, data, callback }) => {
+      try {
+        if (callback) {
+          this.socket?.emit(type, data, callback);
+        } else {
+          this.socket?.emit(type, data);
+        }
+      } catch (error) {
+        console.error(`Error sending pending ${type}:`, error);
+      }
+    });
+  }
 
-  //     // Add timeout for send operation
-  //     const timeout = setTimeout(() => {
-  //       this.messageTimeouts.delete(messageKey);
-  //       reject(new Error('Message send timeout (15s)'));
-  //     }, 15000);
-
-  //     this.messageTimeouts.set(messageKey, timeout);
-
-  //     console.log(`📤 Sending message to chat: ${data.chatRoomId}`);
-      
-  //     this.socket.emit('send_message', data, (response: any) => {
-  //       // Clear timeout
-  //       const currentTimeout = this.messageTimeouts.get(messageKey);
-  //       if (currentTimeout) {
-  //         clearTimeout(currentTimeout);
-  //         this.messageTimeouts.delete(messageKey);
-  //       }
-        
-  //       if (response?.error) {
-  //         console.error('❌ Message send error:', response.error);
-  //         reject(new Error(response.error));
-  //       } else {
-  //         console.log('✅ Message sent successfully, response:', response);
-  //         resolve(response);
-  //       }
-  //     });
-  //   });
-  // }
-
-   sendMessage(data: any): Promise<any> {
+  sendMessage(data: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
+      if (!this.connected) {
+        // Queue message for later
+        this.queueMessage('send_message', data, resolve, reject);
         return;
       }
 
@@ -444,7 +486,7 @@ class SocketManager {
 
       console.log(`📤 Sending message to chat: ${data.chatRoomId}`);
       
-      this.socket.emit('send_message', data, (response: any) => {
+      this.socket?.emit('send_message', data, (response: any) => {
         clearTimeout(timeout);
         
         if (response?.success) {
@@ -457,98 +499,96 @@ class SocketManager {
       });
     });
   }
-  
-  setTyping(chatRoomId: string, isTyping: boolean): void {
-    if (this.socket?.connected) {
-      this.socket.emit('typing', { chatRoomId, isTyping });
-      console.log(`✍️ Typing ${isTyping ? 'started' : 'stopped'} in chat: ${chatRoomId}`);
-    } else {
-      console.warn('Socket not connected - skipping typing event');
+
+  private queueMessage(type: string, data: any, resolve: Function, reject: Function): void {
+    if (this.pendingMessages.length >= this.MAX_PENDING_MESSAGES) {
+      reject(new Error('Message queue full'));
+      return;
     }
+
+    this.pendingMessages.push({
+      type,
+      data,
+      callback: (response: any) => {
+        if (response?.success) {
+          resolve(response.data);
+        } else {
+          reject(new Error(response?.error || 'Queue send failed'));
+        }
+      },
+      timestamp: Date.now()
+    });
+
+    console.log(`📥 Queued ${type} (${this.pendingMessages.length} pending)`);
   }
 
+  // ============================================
+  // PRESENCE & TYPING
+  // ============================================
+
   updateUserPresence(isOnline: boolean, lastActive?: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('user_presence', {
+    if (this.connected) {
+      this.socket?.emit('user_presence', {
         isOnline,
         lastActive: lastActive || new Date().toISOString()
       });
-      console.log(`👤 User presence updated: ${isOnline ? 'online' : 'offline'}`);
     }
+  }
+
+  setTyping(chatRoomId: string, isTyping: boolean): void {
+    if (!this.connected) return;
+    
+    // Debounce typing events
+    const key = `typing_${chatRoomId}`;
+    const now = Date.now();
+    const lastTime = this.lastMessageTimestamps.get(key) || 0;
+    
+    if (now - lastTime < this.MESSAGE_DEBOUNCE_MS) {
+      return;
+    }
+    
+    this.lastMessageTimestamps.set(key, now);
+    this.socket?.emit('typing', { chatRoomId, isTyping });
   }
 
   markAsRead(chatRoomId: string, messageId: string): void {
-    if (this.socket?.connected) {
-      this.socket.emit('mark_read', { chatRoomId, messageId });
-      console.log(`📖 Marked message as read: ${messageId} in chat: ${chatRoomId}`);
-    } else {
-      console.warn('Socket not connected - cannot mark as read');
+    if (this.connected) {
+      this.socket?.emit('mark_read', { chatRoomId, messageId });
     }
   }
 
-  addReaction(messageId: string, chatRoomId: string, emoji: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
+  // ============================================
+  // MESSAGE ACTIONS
+  // ============================================
 
-      this.socket.emit('add_reaction', { messageId, chatRoomId, emoji }, (response: any) => {
-        if (response?.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve();
-        }
-      });
-    });
+  addReaction(messageId: string, chatRoomId: string, emoji: string): Promise<void> {
+    return this.emitWithCallback('add_reaction', { messageId, chatRoomId, emoji });
   }
 
   removeReaction(messageId: string, chatRoomId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
-
-      this.socket.emit('remove_reaction', { messageId, chatRoomId }, (response: any) => {
-        if (response?.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve();
-        }
-      });
-    });
+    return this.emitWithCallback('remove_reaction', { messageId, chatRoomId });
   }
 
   editMessage(messageId: string, chatRoomId: string, content: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
-
-      this.socket.emit('edit_message', { messageId, chatRoomId, content }, (response: any) => {
-        if (response?.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve();
-        }
-      });
-    });
+    return this.emitWithCallback('edit_message', { messageId, chatRoomId, content });
   }
 
   deleteMessage(messageId: string, chatRoomId: string, deleteForEveryone: boolean = false): Promise<void> {
+    return this.emitWithCallback('delete_message', { 
+      messageId, 
+      chatRoomId, 
+      deleteForEveryone 
+    });
+  }
+
+  private emitWithCallback(event: string, data: any): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
+      if (!this.connected) {
         reject(new Error('Socket not connected'));
         return;
       }
 
-      this.socket.emit('delete_message', { 
-        messageId, 
-        chatRoomId, 
-        deleteForEveryone 
-      }, (response: any) => {
+      this.socket?.emit(event, data, (response: any) => {
         if (response?.error) {
           reject(new Error(response.error));
         } else {
@@ -558,90 +598,132 @@ class SocketManager {
     });
   }
 
-  // === LISTENER MANAGEMENT ===
+  // ============================================
+  // LISTENER MANAGEMENT
+  // ============================================
 
-  on(event: string, callback: Function): void {
+  on(event: string, callback: Function, once: boolean = false): void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
+
+    const listeners = this.listeners.get(event)!;
     
-    const callbacks = this.listeners.get(event)!;
-    
-    // Avoid duplicate listeners
-    if (!callbacks.includes(callback)) {
-      callbacks.push(callback);
-      console.log(`📞 Listener added for event: ${event}, total: ${callbacks.length}`);
+    // Check for duplicates
+    const exists = listeners.some(l => l.callback === callback && l.once === once);
+    if (!exists) {
+      listeners.push({ callback, once });
     }
   }
 
+  once(event: string, callback: Function): void {
+    this.on(event, callback, true);
+  }
+
   off(event: string, callback: Function): void {
-    const callbacks = this.listeners.get(event);
-    if (callbacks) {
-      const index = callbacks.indexOf(callback);
+    const listeners = this.listeners.get(event);
+    if (listeners) {
+      const index = listeners.findIndex(l => l.callback === callback);
       if (index > -1) {
-        callbacks.splice(index, 1);
-        console.log(`📞 Listener removed for event: ${event}, remaining: ${callbacks.length}`);
-        
-        if (callbacks.length === 0) {
-          this.listeners.delete(event);
-        }
+        listeners.splice(index, 1);
       }
     }
   }
 
   private emitToListeners(event: string, data: any): void {
-    const callbacks = this.listeners.get(event);
+    const listeners = this.listeners.get(event);
     
-    if (callbacks && callbacks.length > 0) {
-      console.log(`📢 Emitting to ${callbacks.length} listeners for event: ${event}`);
+    if (listeners && listeners.length > 0) {
+      // Filter out 'once' listeners after execution
+      const remainingListeners: Listener[] = [];
       
-      // Use setTimeout to prevent blocking
-      setTimeout(() => {
-        callbacks.forEach((cb, index) => {
-          try {
-            cb(data);
-          } catch (err) {
-            console.error(`Error in socket listener #${index} for event "${event}":`, err);
+      listeners.forEach(listener => {
+        try {
+          listener.callback(data);
+          if (!listener.once) {
+            remainingListeners.push(listener);
           }
-        });
-      }, 0);
-    } else {
-      console.log(`ℹ️ No listeners for event: ${event}`);
+        } catch (error) {
+          console.error(`Error in listener for "${event}":`, error);
+          if (!listener.once) {
+            remainingListeners.push(listener);
+          }
+        }
+      });
+      
+      this.listeners.set(event, remainingListeners);
     }
   }
 
-  // === UTILITY METHODS ===
+  // ============================================
+  // MAINTENANCE & CLEANUP
+  // ============================================
+
+  private startHeartbeat(): void {
+    // Send heartbeat every 30 seconds to keep presence updated
+    setInterval(() => {
+      if (this.connected) {
+        this.socket?.emit('heartbeat', {
+          timestamp: Date.now()
+        });
+      }
+    }, 30000);
+  }
+
+  private startMaintenanceTasks(): void {
+    this.startHeartbeat()
+    
+    // Regular presence updates
+    this.presenceInterval = setInterval(() => {
+      if (this.connected) {
+        this.updateUserPresence(true);
+      }
+    }, this.PRESENCE_UPDATE_INTERVAL);
+
+    // Queue cleanup
+    this.flushInterval = setInterval(() => {
+      this.cleanupOldMessages();
+    }, this.QUEUE_FLUSH_INTERVAL);
+  }
+
+  private cleanupOldMessages(): void {
+    const now = Date.now();
+    const cutoff = now - 300000; // 5 minutes
+    
+    this.pendingMessages = this.pendingMessages.filter(msg => msg.timestamp > cutoff);
+    
+    // Cleanup old timestamps
+    this.lastMessageTimestamps.forEach((timestamp, key) => {
+      if (now - timestamp > 60000) { // 1 minute
+        this.lastMessageTimestamps.delete(key);
+      }
+    });
+  }
 
   disconnect(): void {
     console.log('🔌 Disconnecting socket...');
     
-    // Clear any pending timeouts
-    if (this.refreshTimeout) {
-      clearTimeout(this.refreshTimeout);
-      this.refreshTimeout = null;
-    }
+    // Clear intervals
+    if (this.presenceInterval) clearInterval(this.presenceInterval);
+    if (this.flushInterval) clearInterval(this.flushInterval);
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
     
-    // Clear message timeouts
-    this.messageTimeouts.forEach((timeout) => {
-      clearTimeout(timeout);
-    });
-    this.messageTimeouts.clear();
-    
-    // Update presence if connected
-    if (this.socket?.connected) {
-      this.updateUserPresence(false);
-    }
+    // Update presence
+    this.updateUserPresence(false);
     
     // Disconnect socket
     if (this.socket) {
       this.socket.disconnect();
       this.socket.removeAllListeners();
       this.socket = null;
-      console.log('✅ Socket disconnected');
     }
     
+    // Reset state
     this.isConnected = false;
-    this.connectionInProgress = false;
+    this.isConnecting = false;
+    this.joinedRooms.clear();
+    
+    console.log('✅ Socket disconnected');
   }
 
   cleanup(): void {
@@ -649,62 +731,54 @@ class SocketManager {
     
     this.disconnect();
     this.listeners.clear();
-    this.joinedRooms.clear();
     this.pendingMessages = [];
-    this.isRefreshingToken = false;
-    this.reconnectAttempts = 0;
-    
-    if (this.refreshTimeout) {
-      clearTimeout(this.refreshTimeout);
-      this.refreshTimeout = null;
-    }
+    this.messageQueue.clear();
+    this.lastMessageTimestamps.clear();
     
     console.log('✅ Socket manager cleaned up');
   }
 
-  getSocketId(): string | null {
-    return this.socket?.id || null;
-  }
+  // ============================================
+  // DEBUG & UTILITIES
+  // ============================================
 
-  getConnectionStatus(): {
-    connected: boolean;
-    socketId: string | null;
-    joinedRooms: Set<string>;
-    pendingMessages: number;
-    reconnectAttempts: number;
-  } {
-    return {
-      connected: this.isConnected,
-      socketId: this.getSocketId(),
-      joinedRooms: this.joinedRooms,
-      pendingMessages: this.pendingMessages.length,
-      reconnectAttempts: this.reconnectAttempts
-    };
-  }
-
-  // === DEBUG METHODS ===
-  
-  debugLogStatus(): void {
+  debug(): void {
     console.log('=== SOCKET DEBUG INFO ===');
-    console.log('Connected:', this.isConnected);
-    console.log('Socket ID:', this.getSocketId());
+    console.log('Connected:', this.connected);
+    console.log('Socket ID:', this.socketId);
     console.log('Joined Rooms:', Array.from(this.joinedRooms));
     console.log('Pending Messages:', this.pendingMessages.length);
     console.log('Listeners:', 
-      Array.from(this.listeners.entries()).map(([event, cbs]) => `${event}: ${cbs.length}`)
+      Array.from(this.listeners.entries()).map(([event, listeners]) => 
+        `${event}: ${listeners.length}`
+      )
     );
     console.log('Reconnect Attempts:', this.reconnectAttempts);
     console.log('=========================');
   }
+
+  ping(): Promise<number> {
+    return new Promise((resolve) => {
+      if (!this.connected) {
+        resolve(-1);
+        return;
+      }
+
+      const start = Date.now();
+      this.socket?.emit('ping', {}, () => {
+        resolve(Date.now() - start);
+      });
+    });
+  }
 }
 
+// ============================================
+// SINGLETON INSTANCE
+// ============================================
 
-
-// Create singleton instance
 export const socketManager = new SocketManager();
 
-// Optional: Export for debugging
+// Optional: Global access for debugging
 if (typeof window !== 'undefined') {
-  // @ts-ignore - For debugging in browser
-  window.socketManager = socketManager;
+  (window as any).socketManager = socketManager;
 }

@@ -1,5 +1,5 @@
-// app/(pages/messages/[chatId]/index.tsx
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+// app/(pages)/messages/[chatId]/index.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,25 +15,28 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useChat } from '@/context/ChatContext';
-import { ChatMessage } from '@/types/chat';
-import { format } from 'date-fns';
-import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { useUser } from '@/Hooks/userHooks.d';
+import { useToast } from '@/Hooks/useToast.d';
+import { ChatMessage } from '@/types/chat';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useToast } from '@/Hooks/useToast.d';
-import { debounce } from 'lodash';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
-// Components
+// ============================================
+// COMPONENTS
+// ============================================
+
+// 1. Reaction Picker Component
 interface ReactionPickerProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (emoji: string) => void;
 }
 
-const ReactionPicker: React.FC<ReactionPickerProps> = ({ visible, onClose, onSelect }) => {
+const ReactionPicker: React.FC<ReactionPickerProps> = React.memo(({ visible, onClose, onSelect }) => {
   const reactions = ['😀', '😍', '😂', '😮', '😢', '👍', '❤️', '🎉', '🔥', '👏'];
 
   return (
@@ -56,9 +59,11 @@ const ReactionPicker: React.FC<ReactionPickerProps> = ({ visible, onClose, onSel
       </Pressable>
     </Modal>
   );
-};
+});
+
 ReactionPicker.displayName = 'ReactionPicker';
 
+// 2. Message Menu Component
 interface MessageMenuProps {
   visible: boolean;
   onClose: () => void;
@@ -70,7 +75,7 @@ interface MessageMenuProps {
   isOwnMessage: boolean;
 }
 
-const MessageMenu: React.FC<MessageMenuProps> = ({
+const MessageMenu: React.FC<MessageMenuProps> = React.memo(({
   visible,
   onClose,
   message,
@@ -81,14 +86,14 @@ const MessageMenu: React.FC<MessageMenuProps> = ({
   isOwnMessage,
 }) => {
   const menuItems = [
-    { id: 'reply', label: 'Reply', icon: <Feather name="corner-up-left" size={20} color="#333" /> },
-    { id: 'copy', label: 'Copy', icon: <Feather name="copy" size={20} color="#333" /> },
+    { id: 'reply', label: 'Reply', icon: 'corner-up-left' },
+    { id: 'copy', label: 'Copy', icon: 'copy' },
   ];
 
   if (isOwnMessage && message) {
     menuItems.push(
-      { id: 'edit', label: 'Edit', icon: <Feather name="edit-2" size={20} color="#333" /> },
-      { id: 'delete', label: 'Delete', icon: <Feather name="trash-2" size={20} color="#333" /> }
+      { id: 'edit', label: 'Edit', icon: 'edit-2' },
+      { id: 'delete', label: 'Delete', icon: 'trash-2' }
     );
   }
 
@@ -119,7 +124,7 @@ const MessageMenu: React.FC<MessageMenuProps> = ({
                 onClose();
               }}
             >
-              {item.icon}
+              <Feather name={item.icon as any} size={20} color="#333" />
               <Text style={styles.messageMenuText}>{item.label}</Text>
             </TouchableOpacity>
           ))}
@@ -127,18 +132,20 @@ const MessageMenu: React.FC<MessageMenuProps> = ({
       </Pressable>
     </Modal>
   );
-};
+});
+
 MessageMenu.displayName = 'MessageMenu';
 
+// 3. Message Item Component
 interface MessageItemProps {
   message: ChatMessage;
   isOwnMessage: boolean;
-  onPress: () => void;
   onLongPress: (msg: ChatMessage) => void;
 }
 
-const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: MessageItemProps) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMessage, onLongPress }) => {
   const { user } = useUser();
+  const { addReaction } = useChat();
 
   const getStatusIcon = () => {
     if (message.status === 'sending' || message.status === 'updating') {
@@ -171,14 +178,58 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
     }
   };
 
-  const formatTime = (date: Date | string) => format(new Date(date), 'HH:mm');
+  const formatTime = (date: Date | string) => {
+    try {
+      return format(new Date(date), 'HH:mm');
+    } catch {
+      return '--:--';
+    }
+  };
 
   const handleReactionPress = (emoji: string) => {
-    // addReaction or removeReaction logic here
+    addReaction(message._id.toString(), emoji);
+  };
+
+  const renderMessageContent = () => {
+    if (message.messageType === 'image' && message.fileUrl) {
+      return (
+        <Image 
+          source={{ uri: message.fileUrl }} 
+          style={styles.messageImage} 
+          resizeMode="cover" 
+        />
+      );
+    }
+    
+    if (message.messageType === 'file') {
+      return (
+        <View style={styles.fileContainer}>
+          <Feather name="file" size={24} color="#666" />
+          <View style={styles.fileInfo}>
+            <Text style={styles.fileName} numberOfLines={1}>
+              {message.fileName || 'File'}
+            </Text>
+            <Text style={styles.fileSize}>
+              {message.fileSize ? (message.fileSize / 1024).toFixed(1) : '0'} KB
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <Text style={isOwnMessage ? styles.ownMessageText : styles.otherMessageText}>
+        {message.content || ''}
+      </Text>
+    );
   };
 
   return (
-    <View style={[styles.messageContainer, isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer]}>
+    <View style={[
+      styles.messageContainer, 
+      isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer
+    ]}>
+      {/* Reply Preview */}
       {message.replyToMessage && (
         <View style={styles.replyContainer}>
           <View style={styles.replyLine} />
@@ -193,36 +244,28 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
         </View>
       )}
 
+      {/* Message Bubble */}
       <TouchableOpacity
-        style={[styles.messageBubble, isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble]}
-        onPress={onPress}
+        style={[
+          styles.messageBubble, 
+          isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble
+        ]}
         onLongPress={() => onLongPress(message)}
         activeOpacity={0.8}
+        delayLongPress={300}
       >
-        {message.messageType === 'image' && message.fileUrl ? (
-          <Image source={{ uri: message.fileUrl }} style={styles.messageImage} resizeMode="cover" />
-        ) : message.messageType === 'file' ? (
-          <View style={styles.fileContainer}>
-            <Feather name="file" size={24} color="#666" />
-            <View style={styles.fileInfo}>
-              <Text style={styles.fileName} numberOfLines={1}>
-                {message.fileName || 'File'}
-              </Text>
-              <Text style={styles.fileSize}>
-                {message.fileSize ? (message.fileSize / 1024).toFixed(1) : '0'} KB
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <Text style={isOwnMessage ? styles.ownMessageText : styles.otherMessageText}>
-            {message.content || ''}
-          </Text>
+        {renderMessageContent()}
+        
+        {message.isEdited && (
+          <Text style={styles.editedText}>(edited)</Text>
         )}
-
-        {message.isEdited && <Text style={styles.editedText}>(edited)</Text>}
       </TouchableOpacity>
 
-      <View style={[styles.messageFooter, isOwnMessage ? styles.ownMessageFooter : styles.otherMessageFooter]}>
+      {/* Message Footer */}
+      <View style={[
+        styles.messageFooter, 
+        isOwnMessage ? styles.ownMessageFooter : styles.otherMessageFooter
+      ]}>
         <Text style={styles.messageTime}>{formatTime(message.createdAt)}</Text>
         {isOwnMessage && (
           <View style={styles.statusContainer}>
@@ -234,11 +277,15 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
         )}
       </View>
 
+      {/* Reactions */}
       {message.reactions && message.reactions.length > 0 && (
-        <View style={[styles.reactionsContainer, { justifyContent: isOwnMessage ? 'flex-end' : 'flex-start'}]}>
+        <View style={[
+          styles.reactionsContainer, 
+          { justifyContent: isOwnMessage ? 'flex-end' : 'flex-start' }
+        ]}>
           {message.reactions.map((reaction, index) => (
             <TouchableOpacity
-              key={index}
+              key={`${reaction.userId}-${index}`}
               style={[
                 styles.reactionBadge,
                 reaction.userId === user?._id && styles.ownReactionBadge,
@@ -253,13 +300,105 @@ const MessageItem = memo(({ message, isOwnMessage, onPress, onLongPress }: Messa
     </View>
   );
 });
+
 MessageItem.displayName = 'MessageItem';
 
-// Main Chat Screen Component
+// 4. Typing Indicator Component
+interface TypingIndicatorProps {
+  typingUsers: Set<string>;
+  participants: any[];
+}
+
+const TypingIndicator: React.FC<TypingIndicatorProps> = React.memo(({ typingUsers, participants }) => {
+  if (typingUsers.size === 0) return null;
+
+  const typingUserNames = Array.from(typingUsers).map(userId => {
+    const user = participants?.find(p => p._id === userId);
+    return user?.name || 'Someone';
+  });
+
+  const getTypingText = () => {
+    if (typingUserNames.length === 1) {
+      return `${typingUserNames[0]} is typing...`;
+    } else if (typingUserNames.length === 2) {
+      return `${typingUserNames[0]} and ${typingUserNames[1]} are typing...`;
+    } else {
+      return `${typingUserNames[0]}, ${typingUserNames[1]} and ${typingUserNames.length - 2} others are typing...`;
+    }
+  };
+
+  return (
+    <View style={styles.typingIndicatorContainer}>
+      <View style={styles.typingIndicatorBubble}>
+        <View style={styles.typingDots}>
+          <View style={styles.typingDot} />
+          <View style={[styles.typingDot, styles.typingDotMiddle]} />
+          <View style={styles.typingDot} />
+        </View>
+        <Text style={styles.typingText}>{getTypingText()}</Text>
+      </View>
+    </View>
+  );
+});
+
+TypingIndicator.displayName = 'TypingIndicator';
+
+// 5. Input Preview Components
+interface ReplyPreviewProps {
+  replyTo: ChatMessage | null;
+  onCancel: () => void;
+}
+
+const ReplyPreview: React.FC<ReplyPreviewProps> = React.memo(({ replyTo, onCancel }) => {
+  if (!replyTo) return null;
+
+  return (
+    <View style={styles.replyPreview}>
+      <View style={styles.replyPreviewContent}>
+        <Text style={styles.replyPreviewName}>
+          Replying to {replyTo.sender?.name || 'User'}
+        </Text>
+        <Text style={styles.replyPreviewText} numberOfLines={1}>
+          {replyTo.content || ''}
+        </Text>
+      </View>
+      <TouchableOpacity onPress={onCancel}>
+        <Text style={styles.replyPreviewClose}>✕</Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+ReplyPreview.displayName = 'ReplyPreview';
+
+interface EditPreviewProps {
+  editingMessage: ChatMessage | null;
+  onCancel: () => void;
+}
+
+const EditPreview: React.FC<EditPreviewProps> = React.memo(({ editingMessage, onCancel }) => {
+  if (!editingMessage) return null;
+
+  return (
+    <View style={styles.editPreview}>
+      <Text style={styles.editPreviewText}>Editing message</Text>
+      <TouchableOpacity onPress={onCancel}>
+        <Text style={styles.editPreviewClose}>Cancel</Text>
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+EditPreview.displayName = 'EditPreview';
+
+// ============================================
+// MAIN CHAT SCREEN
+// ============================================
+
 const ChatScreen: React.FC = () => {
   const { chatId } = useLocalSearchParams<{ chatId: string }>();
-  const { showAlert } = useToast();
   const router = useRouter();
+  const { showAlert } = useToast();
   const { user } = useUser();
   
   const {
@@ -276,8 +415,14 @@ const ChatScreen: React.FC = () => {
     deleteMessage,
     setActiveChat,
     loadChatRoom,
-    loadMessagesForChat
+    loadMessages
   } = useChat();
+
+  const pathname = usePathname();
+  // Refs
+  const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // State
   const [messageText, setMessageText] = useState('');
@@ -287,25 +432,60 @@ const ChatScreen: React.FC = () => {
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
   const [showMessageMenu, setShowMessageMenu] = useState(false);
 
-  // Refs
-  const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
+  const navigationStateRef = useRef<'initializing' | 'ready' | 'loading'>('initializing');
+  const [isScreenReady, setIsScreenReady] = useState(false);
 
-  // Effects
+
+  // ============================================
+  // EFFECTS
+  // ============================================
+
+  // Initialize chat
   useEffect(() => {
+    if (!chatId || navigationStateRef.current === 'ready') {
+      return;
+    }
+
     const initializeChat = async () => {
-      if (chatId) {
-        try {
-          console.log('ChatScreen: Initializing chat...');
+      if (navigationStateRef.current === 'loading') {
+        return;
+      }
+
+      navigationStateRef.current = 'loading';
+      
+      try {
+        console.log('ChatScreen: Initializing chat...', chatId);
+        
+        // Check if we're already in this chat
+        if (activeChat?._id.toString() === chatId && messages.length > 0) {
+          console.log('Already in this chat, skipping initialization');
+          navigationStateRef.current = 'ready';
+          setIsScreenReady(true);
+          return;
+        }
+        
+        // Load chat room
+        const chatRoom = await loadChatRoom(chatId);
+        
+        if (chatRoom) {
+          // Load messages
+          await loadMessages(chatRoom._id.toString());
           
-          const chatRoom = await loadChatRoom(chatId);
+          // Mark as ready
+          navigationStateRef.current = 'ready';
+          setIsScreenReady(true);
+        }
+      } catch (error) {
+        console.error('ChatScreen: Failed to initialize chat:', error);
+          showAlert({ message: 'Failed to load chat', type: 'error' });
           
-          if (chatRoom) {
-            await loadMessagesForChat(chatRoom._id.toString());
-          }
-        } catch (error) {
-          console.error('ChatScreen: Failed to initialize chat:', error);
-          showAlert({message: "Failed to load chat", type: "error"})
+          // Check if it's a 404 error - safely access error properties
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const statusCode = (error as any)?.response?.status || (error as any)?.status;
+          
+          if (errorMessage.includes('404') || statusCode === 404) {
+            router.replace('/(tabs)/messages'); 
+        } else {
           router.back();
         }
       }
@@ -314,27 +494,23 @@ const ChatScreen: React.FC = () => {
     initializeChat();
 
     return () => {
-      setActiveChat(null);
-    };
-  }, [chatId]);
-
-  const handleTextChangeDebounced = useCallback(
-    debounce((text: string) => {
-      if (activeChat) {
-        const isTyping = text.length > 0;
-        setTyping(isTyping);
-        // Clear typing after 1 second if no further typing
-        setTimeout(() => {
-          setTyping(false);
-        }, 1000);
+      // Only clear active chat if navigating to a different chat
+      if (pathname && chatId && !pathname.includes(chatId)) {
+        setActiveChat(null);
       }
-    }, 300),
-    [activeChat, setTyping]
-  );
+      navigationStateRef.current = 'initializing';
+      setIsScreenReady(false);
+    };
+  }, [chatId, pathname]); 
 
+  // Mark messages as read
   useEffect(() => {
+    if (!user || !activeChat || messages.length === 0) return;
+
     const unreadMessages = messages.filter(
-      (msg) => !msg.readBy?.includes(user?._id ?? '') && msg.senderId !== user?._id
+      (msg) => 
+        !msg.readBy?.includes(user._id) && 
+        msg.senderId !== user._id
     );
 
     if (unreadMessages.length > 0) {
@@ -342,46 +518,61 @@ const ChatScreen: React.FC = () => {
         markAsRead(msg._id.toString());
       });
     }
-  }, [messages, user?._id, markAsRead]);
+  }, [messages, user, activeChat, markAsRead]);
 
-  
+  // ============================================
+  // HANDLERS
+  // ============================================
 
-  // Handlers
- const handleTextChange = useCallback(
-    (text: string) => {
-      setMessageText(text);
-      handleTextChangeDebounced(text);
-    },
-    [handleTextChangeDebounced]
-  );
+  const handleTextChange = useCallback((text: string) => {
+    setMessageText(text);
+    
+    // Send typing indicator
+    if (activeChat) {
+      const isTyping = text.length > 0;
+      setTyping(isTyping);
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Clear typing after 1.5 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        setTyping(false);
+      }, 1500);
+    }
+  }, [activeChat, setTyping]);
 
   const handleSend = useCallback(async () => {
-    if (!messageText.trim() && !editingMessage) return;
+    const trimmedText = messageText.trim();
+    if (!trimmedText && !editingMessage) return;
     
     try {
       if (editingMessage) {
-        await editMessage(editingMessage._id.toString(), messageText.trim());
+        // Edit existing message
+        await editMessage(editingMessage._id.toString(), trimmedText);
         setEditingMessage(null);
       } else {
-        await sendMessage(messageText.trim(), replyTo?._id.toString());
+        // Send new message
+        await sendMessage(trimmedText, replyTo?._id.toString());
         setReplyTo(null);
       }
       
+      // Reset input
       setMessageText('');
       setTyping(false);
       
-      // Scroll to bottom after sending
+      // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
       
     } catch (error) {
       console.error('Failed to send message:', error);
-      showAlert({ message: 'Failed to send message', type: "error" });
+      showAlert({ message: 'Failed to send message', type: 'error' });
     }
   }, [messageText, editingMessage, replyTo, sendMessage, editMessage, setTyping, showAlert]);
-  
-
 
   const handleMessageLongPress = useCallback((message: ChatMessage) => {
     setSelectedMessage(message);
@@ -399,138 +590,87 @@ const ChatScreen: React.FC = () => {
     inputRef.current?.focus();
   }, []);
 
-  const handleDelete = useCallback(
-    (message: ChatMessage) => {
-      Alert.alert(
-        'Delete Message',
-        'Are you sure you want to delete this message?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete for me', onPress: () => deleteMessage(message._id.toString(), false) },
-          { text: 'Delete for everyone', onPress: () => deleteMessage(message._id.toString(), true) },
-        ]
-      );
-    },
-    [deleteMessage]
-  );
+  const handleDelete = useCallback((message: ChatMessage) => {
+    Alert.alert(
+      'Delete Message',
+      'Are you sure you want to delete this message?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete for me', 
+          onPress: () => deleteMessage(message._id.toString(), false) 
+        },
+        { 
+          text: 'Delete for everyone', 
+          style: 'destructive',
+          onPress: () => deleteMessage(message._id.toString(), true) 
+        },
+      ]
+    );
+  }, [deleteMessage]);
 
   const handleCopy = useCallback((text: string) => {
-    showAlert({message: 'Message copied to clipboard', type: 'success'})
+    showAlert({ message: 'Message copied to clipboard', type: 'success' });
   }, [showAlert]);
 
-  const handleAddReaction = useCallback(
-    (emoji: string) => {
-      if (selectedMessage) {
-        addReaction(selectedMessage._id.toString(), emoji);
-      }
-    },
-    [selectedMessage, addReaction]
-  );
-  
+  const handleAddReaction = useCallback((emoji: string) => {
+    if (selectedMessage) {
+      addReaction(selectedMessage._id.toString(), emoji);
+    }
+  }, [selectedMessage, addReaction]);
 
-  // Render Functions
-  const renderTypingIndicator = () => {
-  if (typingUsers.size === 0) return null;
-  
-  // Get the names of typing users
-  const typingUserNames = Array.from(typingUsers).map(userId => {
-    const user = activeChat?.participantsData?.find(p => p._id === userId);
-    return user?.name || 'Someone';
-  });
+  const handleCancelReply = useCallback(() => {
+    setReplyTo(null);
+  }, []);
 
-  return (
-    <View style={styles.typingIndicatorContainer}>
-      <View style={styles.typingIndicatorBubble}>
-        <View style={styles.typingDots}>
-          <View style={styles.typingDot} />
-          <View style={[styles.typingDot, styles.typingDotMiddle]} />
-          <View style={styles.typingDot} />
-        </View>
-        <Text style={styles.typingText}>
-          {typingUserNames.length === 1 
-            ? `${typingUserNames[0]} is typing...`
-            : `${typingUserNames.slice(0, 2).join(', ')} ${typingUserNames.length > 2 ? `and ${typingUserNames.length - 2} more` : ''} are typing...`}
-        </Text>
-      </View>
-    </View>
-  );
-};
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessageText('');
+  }, []);
 
+  // ============================================
+  // RENDER FUNCTIONS
+  // ============================================
 
-  const renderReplyPreview = () => {
-    if (!replyTo) return null;
-
+  const renderHeader = () => {
+    const otherParticipant = activeChat?.participantsData?.find((p) => p._id !== user?._id);
+    
+    // Get accurate online status
+    const isOtherOnline = otherParticipant?.isOnline || false;
+    
     return (
-      <View style={styles.replyPreview}>
-        <View style={styles.replyPreviewContent}>
-          <Text style={styles.replyPreviewName}>Replying to {replyTo.sender?.name || 'User'}</Text>
-          <Text style={styles.replyPreviewText} numberOfLines={1}>
-            {replyTo.content || ''}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={() => setReplyTo(null)}>
-          <Text style={styles.replyPreviewClose}>✕</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderEditPreview = () => {
-    if (!editingMessage) return null;
-
-    return (
-      <View style={styles.editPreview}>
-        <Text style={styles.editPreviewText}>Editing message</Text>
-        <TouchableOpacity
-          onPress={() => {
-            setEditingMessage(null);
-            setMessageText('');
-          }}
-        >
-          <Text style={styles.editPreviewClose}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  if (loading && messages.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8089ff" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const otherParticipant = activeChat?.participantsData?.find((p) => p._id !== user?._id);
-
-  return (
-    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => {
-            setActiveChat(null);
-            router.back();
-          }}
-        >
+        <TouchableOpacity onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
           {activeChat?.isGroup ? (
             <>
-              <Text style={styles.headerTitle}>{activeChat.groupName || 'Group Chat'}</Text>
+              <Text style={styles.headerTitle}>
+                {activeChat.groupName || 'Group Chat'}
+              </Text>
               <Text style={styles.headerSubtitle}>
-                {activeChat.participantsData?.length || 0} members
+                {activeChat.participantsData?.filter(p => p.isOnline).length || 0} online • 
+                {activeChat.participantsData?.length || 0} total
               </Text>
             </>
           ) : (
             <>
-              <Text style={styles.headerTitle}>{otherParticipant?.name || 'Chat'}</Text>
+              <View style={styles.headerTitleRow}>
+                <Text style={styles.headerTitle}>
+                  {otherParticipant?.name || 'Chat'}
+                </Text>
+                {isOtherOnline && (
+                  <View style={styles.onlineIndicator} />
+                )}
+              </View>
               <Text style={styles.headerSubtitle}>
-                {otherParticipant?.isOnline ? 'Online' : 'Offline'}
-                {renderTypingIndicator()}
+                {isOtherOnline ? 'Online' : 
+                  otherParticipant?.lastActive ? 
+                  `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastActive), { addSuffix: true })}` : 
+                  'Offline'
+                }
               </Text>
             </>
           )}
@@ -540,6 +680,62 @@ const ChatScreen: React.FC = () => {
           <Feather name="more-vertical" size={24} color="#333" />
         </TouchableOpacity>
       </View>
+    );
+  };
+
+  const renderInputArea = () => (
+    <View style={styles.inputContainer}>
+      <TouchableOpacity style={styles.attachButton}>
+        <Feather name="image" size={24} color="#666" />
+      </TouchableOpacity>
+
+      <TextInput
+        ref={inputRef}
+        style={styles.textInput}
+        value={messageText}
+        onChangeText={handleTextChange}
+        placeholder="Type a message..."
+        multiline
+        maxLength={1000}
+        onFocus={() => messageText.length > 0 && setTyping(true)}
+        onBlur={() => setTyping(false)}
+      />
+
+      <TouchableOpacity
+        style={[
+          styles.sendButton,
+          (!messageText.trim() && !editingMessage) && styles.sendButtonDisabled,
+        ]}
+        onPress={handleSend}
+        disabled={!messageText.trim() && !editingMessage}
+      >
+        {sending ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Feather name="send" size={20} color="#fff" />
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ============================================
+  // RENDER
+  // ============================================
+
+  if (loading && messages.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8089ff" />
+          <Text style={styles.loadingText}>Loading chat...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {renderHeader()}
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -555,7 +751,6 @@ const ChatScreen: React.FC = () => {
             <MessageItem
               message={item}
               isOwnMessage={item.senderId === user?._id}
-              onPress={() => setSelectedMessage(item)}
               onLongPress={handleMessageLongPress}
             />
           )}
@@ -563,49 +758,22 @@ const ChatScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.messagesList}
           onContentSizeChange={() => {
-            // Auto-scroll to bottom
+            // Auto-scroll to bottom when new messages arrive
             setTimeout(() => {
               flatListRef.current?.scrollToEnd({ animated: true });
             }, 100);
           }}
-          inverted={false}  // REMOVE inverted if you have it
+          ListFooterComponent={() => (
+            <TypingIndicator 
+              typingUsers={typingUsers}
+              participants={activeChat?.participantsData || []}
+            />
+          )}
         />
 
-        {renderReplyPreview()}
-        {renderEditPreview()}
-
-        <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Feather name="image" size={24} color="#666" />
-          </TouchableOpacity>
-
-          <TextInput
-            ref={inputRef}
-            style={styles.textInput}
-            value={messageText}
-            onChangeText={handleTextChange}
-            placeholder="Type a message..."
-            multiline
-            maxLength={1000}
-            onFocus={() => messageText.length > 0 && setTyping(true)}
-            onBlur={() => setTyping(false)}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!messageText.trim() && !editingMessage) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!messageText.trim() && !editingMessage}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Feather name="send" size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
+        <ReplyPreview replyTo={replyTo} onCancel={handleCancelReply} />
+        <EditPreview editingMessage={editingMessage} onCancel={handleCancelEdit} />
+        {renderInputArea()}
       </KeyboardAvoidingView>
 
       <ReactionPicker
@@ -635,6 +803,10 @@ ChatScreen.displayName = 'ChatScreen';
 
 export default ChatScreen;
 
+// ============================================
+// STYLES
+// ============================================
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -644,6 +816,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: hp(2),
+    fontSize: hp(1.6),
+    color: '#666',
   },
   header: {
     flexDirection: 'row',
@@ -733,7 +910,7 @@ const styles = StyleSheet.create({
   },
   editedText: {
     fontSize: hp(1.2),
-    color: 'rgba(255,255,255,0.7)',
+    color: '#ccc',
     marginTop: hp(0.5),
     fontStyle: 'italic',
     alignSelf: 'flex-end',
@@ -811,16 +988,43 @@ const styles = StyleSheet.create({
   reactionEmojiText: {
     fontSize: hp(1.8),
   },
-  typingContainer: {
+  typingIndicatorContainer: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(1),
+    alignItems: 'flex-start',
+    marginBottom: hp(1),
+  },
+  typingIndicatorBubble: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingHorizontal: wp(3),
+    paddingVertical: hp(1),
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: hp(1),
-    paddingHorizontal: wp(3),
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    marginTop: hp(1),
-    alignSelf: 'flex-start',
-    marginLeft: wp(4),
+    maxWidth: wp(80),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    marginRight: wp(2),
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#999',
+    marginHorizontal: 1,
+  },
+  typingDotMiddle: {
+    opacity: 0.7,
+  },
+  typingText: {
+    fontSize: hp(1.4),
+    color: '#666',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -854,40 +1058,6 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
-  },
-  footerContainer: {
-    alignItems: 'center',
-  },
-  loadingMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: hp(2),
-    paddingHorizontal: wp(4),
-    backgroundColor: 'rgba(128, 137, 255, 0.1)',
-    borderRadius: 20,
-    marginTop: hp(1),
-  },
-  loadingMoreText: {
-    fontSize: hp(1.4),
-    color: '#8089ff',
-    marginLeft: wp(2),
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: hp(20),
-  },
-  emptyText: {
-    fontSize: hp(2),
-    color: '#666',
-    fontWeight: '600',
-    marginBottom: hp(1),
-  },
-  emptySubtext: {
-    fontSize: hp(1.6),
-    color: '#999',
   },
   replyPreview: {
     flexDirection: 'row',
@@ -934,6 +1104,17 @@ const styles = StyleSheet.create({
     fontSize: hp(1.4),
     color: '#856404',
   },
+   headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginLeft: 8,
+  },
   reactionPickerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -974,42 +1155,4 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: wp(3),
   },
-  typingIndicatorContainer: {
-    paddingHorizontal: wp(4),
-    paddingVertical: hp(1),
-    alignItems: 'flex-start',
-  },
-  typingIndicatorBubble: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingHorizontal: wp(3),
-    paddingVertical: hp(1),
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: wp(80),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  typingDots: {
-    flexDirection: 'row',
-    marginRight: wp(2),
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#999',
-    marginHorizontal: 1,
-  },
-  typingDotMiddle: {
-    animationDelay: '0.2s',
-  },
-  typingText: {
-    fontSize: hp(1.4),
-    color: '#666',
-  },
-
 });

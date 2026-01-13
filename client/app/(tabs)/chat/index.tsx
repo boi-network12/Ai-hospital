@@ -1,5 +1,5 @@
-// app/(tabs)/chat/index.ts
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// app/(tabs)/chat/index.tsx
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,76 +13,105 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useChat } from '@/context/ChatContext';
-import { ChatListItemProps } from '@/types/chat';
+import { useUser } from '@/Hooks/userHooks.d';
+import { ChatListItemProps, ChatRoom } from '@/types/chat';
 import { format } from 'date-fns';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
-
-// Icons
-import SearchIcon from '@/assets/Svgs/search.svg';
-import OnlineDot from '@/assets/Svgs/droplet.svg';
-import { useUser } from '@/Hooks/userHooks.d';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
+// ============================================
+// COMPONENTS
+// ============================================
 
+// 1. AI Chat Item Component
+interface AIChatItemProps {
+  onPress: () => void;
+}
 
-const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = [] }) => {
+const AIChatItem: React.FC<AIChatItemProps> = React.memo(({ onPress }) => {
+  return (
+    <TouchableOpacity style={styles.chatItem} onPress={onPress}>
+      <View style={styles.avatarContainer}>
+        <View style={styles.aiAvatar}>
+          <Feather name="cpu" size={24} color="#8089ff" />
+        </View>
+        <View style={styles.aiOnlineIndicator}>
+          <View style={styles.aiOnlineDot} />
+        </View>
+      </View>
+
+      <View style={styles.chatInfo}>
+        <View style={styles.chatHeader}>
+          <Text style={styles.chatName} numberOfLines={1}>
+            AI Health Assistant
+          </Text>
+          <Text style={styles.aiStatus}>Online</Text>
+        </View>
+        
+        <View style={styles.chatFooter}>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            How can I help with your health concerns today?
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+AIChatItem.displayName = 'AIChatItem';
+
+// 2. Regular Chat Item Component
+const ChatListItem: React.FC<ChatListItemProps> = React.memo(({ chat, onPress }) => {
   const { user } = useUser();
-  const otherParticipant = chat.participantsData?.find(p => p._id !== user?._id);
-  
-  
+  const otherParticipant = chat.participantsData?.find((p: any) => {
+    // Check if p is defined
+    if (!p) return false;
+    
+    // Safely access _id with optional chaining and nullish coalescing
+    const participantId = p._id?.toString() || '';
+    const userIdStr = user?._id?.toString() || '';
+    
+    return participantId !== userIdStr;
+  });
+
   const getDisplayName = () => {
     if (chat.isGroup) {
       return chat.groupName || 'Group Chat';
     }
     return otherParticipant?.name || 'Unknown User';
   };
-  
 
   const getLastMessageText = () => {
-  // Priority 1: lastMessageData (populated message object)
-  if (chat.lastMessageData && typeof chat.lastMessageData === 'object') {
-    const message = chat.lastMessageData;
-    
-    if (message.messageType === 'text' && message.content) {
-      return message.content.length > 30 
-        ? message.content.substring(0, 30) + '...' 
-        : message.content;
+    if (chat.lastMessageData && typeof chat.lastMessageData === 'object') {
+      const message = chat.lastMessageData;
+      
+      if (message.messageType === 'text' && message.content) {
+        return message.content.length > 30 
+          ? message.content.substring(0, 30) + '...' 
+          : message.content;
+      }
+      
+      switch (message.messageType) {
+        case 'image': return '📷 Image';
+        case 'file': return `📎 ${message.fileName || 'File'}`;
+        case 'audio': return '🎤 Audio message';
+        case 'video': return '🎬 Video';
+        default: return message.content || 'Message';
+      }
     }
     
-    // Handle media messages
-    switch (message.messageType) {
-      case 'image':
-        return '📷 Image';
-      case 'file':
-        return `📎 ${message.fileName || 'File'}`;
-      case 'audio':
-        return '🎤 Audio message';
-      case 'video':
-        return '🎬 Video';
-      default:
-        return message.content || 'Message';
-    }
-  }
-  
-  // Priority 2: lastMessage (could be ObjectId or string)
-  if (chat.lastMessage) {
-    // If it's an ObjectId string, show placeholder
-    if (typeof chat.lastMessage === 'string' && chat.lastMessage.length === 24) {
-      return 'Message...'; // It's an ObjectId, not actual content
-    }
-    
-    // If it's a string message (old data), use it
-    if (typeof chat.lastMessage === 'string') {
+    if (chat.lastMessage && typeof chat.lastMessage === 'string') {
+      if (chat.lastMessage.length === 24) {
+        return 'Message...';
+      }
       return chat.lastMessage.length > 30 
         ? chat.lastMessage.substring(0, 30) + '...' 
         : chat.lastMessage;
     }
-  }
-  
-  // Default
-  return 'Start a conversation...';
-};
+    
+    return 'Start a conversation...';
+  };
 
   const getUnreadCount = () => {
     return chat.unreadCount[user?._id || ''] || 0;
@@ -93,34 +122,28 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
     
     try {
       const dateObj = typeof date === 'string' ? new Date(date) : date;
-      // Check if date is valid
       if (isNaN(dateObj.getTime())) return '';
       
-      // Format for today/yesterday/recent
       const now = new Date();
       const diffMs = now.getTime() - dateObj.getTime();
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
       
       if (diffDays === 0) {
-        // Today - show time
         return format(dateObj, 'HH:mm');
       } else if (diffDays === 1) {
-        // Yesterday
         return 'Yesterday';
       } else if (diffDays < 7) {
-        // Within a week - show day name
         return format(dateObj, 'EEE');
       } else {
-        // Older than a week - show date
         return format(dateObj, 'dd/MM');
       }
-    } catch (error) {
-      console.error('Error formatting date:', error);
+    } catch {
       return '';
     }
   };
 
   const unreadCount = getUnreadCount();
+  const displayName = getDisplayName();
 
   return (
     <TouchableOpacity style={styles.chatItem} onPress={() => onPress(chat)}>
@@ -128,7 +151,7 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
         {chat.isGroup ? (
           <View style={styles.groupAvatar}>
             <Text style={styles.groupAvatarText}>
-              {getDisplayName().charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </Text>
           </View>
         ) : otherParticipant?.profile?.avatar ? (
@@ -139,15 +162,14 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
         ) : (
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>
-              {getDisplayName().charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
         
-        {/* Online indicator for one-on-one chats */}
         {!chat.isGroup && otherParticipant?.isOnline && (
           <View style={styles.onlineIndicator}>
-            <OnlineDot width={12} height={12} color="green"/>
+            <View style={styles.onlineDot} />
           </View>
         )}
       </View>
@@ -155,7 +177,7 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
           <Text style={styles.chatName} numberOfLines={1}>
-            {getDisplayName()}
+            {displayName}
           </Text>
           <Text style={styles.chatTime}>
             {formatTime(chat.updatedAt || chat.createdAt || chat.lastMessageAt)}
@@ -184,7 +206,83 @@ const ChatListItem: React.FC<ChatListItemProps>  = ({ chat, onPress, messages = 
       </View>
     </TouchableOpacity>
   );
-};
+});
+
+ChatListItem.displayName = 'ChatListItem';
+
+// 3. Search Bar Component
+interface SearchBarProps {
+  value: string;
+  onChangeText: (text: string) => void;
+}
+
+const SearchBar: React.FC<SearchBarProps> = React.memo(({ value, onChangeText }) => {
+  return (
+    <View style={styles.searchContainer}>
+      <Feather name="search" size={20} color="#999" />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search messages..."
+        value={value}
+        onChangeText={onChangeText}
+        placeholderTextColor="#999"
+        clearButtonMode="while-editing"
+      />
+    </View>
+  );
+});
+
+SearchBar.displayName = 'SearchBar';
+
+// 4. Header Component
+interface HeaderProps {
+  unreadCount: number;
+}
+
+const Header: React.FC<HeaderProps> = React.memo(({ unreadCount }) => {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>Messages</Text>
+      {unreadCount > 0 && (
+        <View style={styles.totalUnreadBadge}>
+          <Text style={styles.totalUnreadCount}>{unreadCount}</Text>
+        </View>
+      )}
+    </View>
+  );
+});
+
+Header.displayName = 'Header';
+
+// 5. Empty State Component
+const EmptyState: React.FC = React.memo(() => {
+  return (
+    <View style={styles.emptyContainer}>
+      <Feather name="message-circle" size={60} color="#ccc" />
+      <Text style={styles.emptyText}>No conversations yet</Text>
+      <Text style={styles.emptySubtext}>
+        Start a new conversation by messaging a professional
+      </Text>
+    </View>
+  );
+});
+
+EmptyState.displayName = 'EmptyState';
+
+// 6. Loading State Component
+const LoadingState: React.FC = React.memo(() => {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#8089ff" />
+    </View>
+  );
+});
+
+LoadingState.displayName = 'LoadingState';
+
+// ============================================
+// MAIN CHAT LIST SCREEN
+// ============================================
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -195,111 +293,155 @@ export default function ChatListScreen() {
     unreadCount,
     loadChats,
     setActiveChat,
+    hasMoreMessages,
+    loadMessages,
   } = useChat();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  const flatListRef = useRef<FlatList>(null);
+  const isMountedRef = useRef(true);
 
+  // Initialize
   useEffect(() => {
-    loadChats();
-  }, [loadChats]);
-
-  const baseChatList = useMemo(() => {
-    // 1. Add AI chat
-    const aiChat: any = {
-      _id: 'ai-chat',
-      isAI: true,
-      name: 'AI Health Assistant',
-      description: 'Get AI-driven diagnostic advice and recommendations.',
-      isOnline: true,
-      lastMessage: 'How can I help with your health concerns today?',
-      lastMessageAt: new Date(),
-      lastMessageData: {
-        content: 'How can I help with your health concerns today?',
-        createdAt: new Date(),
-        messageType: 'text'
-      },
-      unreadCount: { [user?._id || '']: 0 },
-      participantsData: [],
-      updatedAt: new Date(),
+    isMountedRef.current = true;
+    
+    const initialize = async () => {
+      if (isMountedRef.current) {
+        await loadChats();
+      }
     };
+    
+    initialize();
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    // 2. Sort regular chats by lastMessageAt, then updatedAt
+  // Prepare chat list with AI chat first
+  const chatList = useMemo(() => {
     const sortedChats = [...chats].sort((a, b) => {
       const dateA = a.lastMessageAt || a.updatedAt || a.createdAt || new Date(0);
       const dateB = b.lastMessageAt || b.updatedAt || b.createdAt || new Date(0);
-      
-      const timeA = new Date(dateA).getTime();
-      const timeB = new Date(dateB).getTime();
-      
-      return timeB - timeA; // Descending (newest first)
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
+    
+    return sortedChats;
+  }, [chats]);
 
-    // 3. Return AI chat first, then sorted chats
-    return [aiChat, ...sortedChats];
-  }, [chats, user?._id]);
-
-  // Filter chats based on search query
+  // Filter chats based on search
   const filteredChats = useMemo(() => {
-    if (!searchQuery.trim()) return baseChatList;
+    if (!searchQuery.trim()) return chatList;
     
     const searchLower = searchQuery.toLowerCase().trim();
     
-    return baseChatList.filter(chat => {
-      if (chat.isAI) {
-        // Search in AI chat
-        return chat.name.toLowerCase().includes(searchLower) || 
-               chat.description.toLowerCase().includes(searchLower) ||
-               'ai health assistant artificial intelligence'.includes(searchLower);
-      }
-      
-      // Search in regular chats
+    return chatList.filter(chat => {
       if (chat.isGroup) {
         return chat.groupName?.toLowerCase().includes(searchLower) ||
                chat.groupDescription?.toLowerCase().includes(searchLower);
       } else {
         const otherParticipant = chat.participantsData?.find((p: any) => {
-          // Handle both string and ObjectId comparison
           const participantId = typeof p._id === 'object' ? p._id.toString() : p._id;
           const userIdStr = user?._id?.toString();
           return participantId !== userIdStr;
         });
-        const participantMatch = otherParticipant?.name.toLowerCase().includes(searchLower);
         
+        const participantMatch = otherParticipant?.name.toLowerCase().includes(searchLower);
         const lastMessageMatch = chat.lastMessageData?.content?.toLowerCase().includes(searchLower);
         
         return participantMatch || lastMessageMatch;
       }
     });
-  }, [baseChatList, searchQuery, user?._id]);
+  }, [chatList, searchQuery, user?._id]);
 
-  const handleChatPress = (chat: any) => {
-    if (chat.isAI) {
+  // Add AI chat to the beginning if not searching
+  const displayList = useMemo(() => {
+    if (searchQuery.trim()) {
+      return filteredChats;
+    }
+    return filteredChats;
+    // If you want AI chat at the top, add it here:
+    // return [aiChat, ...filteredChats];
+  }, [filteredChats, searchQuery]);
+
+  // Handle chat press
+  const handleChatPress = useCallback((chat: ChatRoom) => {
+    if (chat._id === 'ai-chat') {
       router.push('/messages/ai');
     } else {
       setActiveChat(chat);
       router.push(`/messages/${chat._id}`);
     }
-  };
+  }, [router, setActiveChat]);
 
-  // Pull to refresh handler
+  // Pull to refresh
   const onRefresh = useCallback(async () => {
+    if (!refreshing) {
       setRefreshing(true);
       try {
         await loadChats();
       } catch (error) {
         console.error('Failed to refresh chats:', error);
       } finally {
-        setRefreshing(false);
+        if (isMountedRef.current) {
+          setRefreshing(false);
+        }
       }
-    }, [loadChats]);
+    }
+  }, [loadChats, refreshing]);
 
+  // Load more messages
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMoreMessages || refreshing) return;
+    
+    setLoadingMore(true);
+    try {
+      // Assuming you have a way to load more chats
+      // This would depend on your pagination implementation
+      // For now, we'll just reload chats
+      await loadChats();
+    } catch (error) {
+      console.error('Failed to load more chats:', error);
+    } finally {
+      if (isMountedRef.current) {
+        setLoadingMore(false);
+      }
+    }
+  }, [loadingMore, hasMoreMessages, refreshing, loadChats]);
 
+  // Render each chat item
+  const renderChatItem = useCallback(({ item }: { item: ChatRoom }) => {
+    if (item._id === 'ai-chat') {
+      return <AIChatItem onPress={() => handleChatPress(item)} />;
+    }
+    return <ChatListItem chat={item} onPress={handleChatPress} unreadCount={item.unreadCount[user?._id || ''] || 0 }/>;
+  }, [handleChatPress, user?._id]);
 
-  const renderChatItem = ({ item }: { item: any }) => {
-    if (item.isAI) {
-      return (
-        <TouchableOpacity style={styles.chatItem} onPress={() => handleChatPress(item)}>
+  // Render footer with loading indicator
+  const renderFooter = useCallback(() => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#8089ff" />
+        <Text style={styles.footerText}>Loading more...</Text>
+      </View>
+    );
+  }, [loadingMore]);
+
+  // Render AI chat as a separate section
+  const renderHeader = useCallback(() => {
+    if (searchQuery.trim()) return null;
+    
+    return (
+      <>
+        <TouchableOpacity 
+          style={styles.chatItem} 
+          onPress={() => router.push('/messages/ai')}
+        >
           <View style={styles.avatarContainer}>
             <View style={styles.aiAvatar}>
               <Feather name="cpu" size={24} color="#8089ff" />
@@ -312,78 +454,44 @@ export default function ChatListScreen() {
           <View style={styles.chatInfo}>
             <View style={styles.chatHeader}>
               <Text style={styles.chatName} numberOfLines={1}>
-                {item.name}
+                AI Health Assistant
               </Text>
-              <Text style={styles.aiStatus}>
-                Online
-              </Text>
+              <Text style={styles.aiStatus}>Online</Text>
             </View>
             
             <View style={styles.chatFooter}>
               <Text style={styles.lastMessage} numberOfLines={1}>
-                {item.lastMessage}
+                How can I help with your health concerns today?
               </Text>
             </View>
           </View>
         </TouchableOpacity>
-      );
-    }
-
-    return <ChatListItem 
-               chat={item} 
-               onPress={handleChatPress} 
-               unreadCount={item.unreadCount[user?._id || ''] || 0} 
-            />;
-  };
-
-  if (loading && chats.length === 0) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8089ff" />
+        
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Conversations</Text>
         </View>
-      </SafeAreaView>
+      </>
     );
-  }
+  }, [searchQuery, router]);
 
   if (loading && chats.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8089ff" />
-        </View>
+        <LoadingState />
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
-        {unreadCount > 0 && (
-          <View style={styles.totalUnreadBadge}>
-            <Text style={styles.totalUnreadCount}>{unreadCount}</Text>
-          </View>
-        )}
-      </View>
+      <Header unreadCount={unreadCount} />
+      
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <SearchIcon width={20} height={20} color="#999" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search messages..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor="#999"
-        />
-      </View>
-
-      {/* Chat List */}
       <FlatList
-        data={filteredChats}
-        renderItem={renderChatItem} 
+        ref={flatListRef}
+        data={displayList}
+        renderItem={renderChatItem}
         keyExtractor={(item) => item._id.toString()}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -392,30 +500,28 @@ export default function ChatListScreen() {
             onRefresh={onRefresh}
             colors={['#8089ff']}
             tintColor="#8089ff"
-            title="Pull to refresh"
-            titleColor="#8089ff"
           />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No conversations yet</Text>
-            <Text style={styles.emptySubtext}>
-              Start a new conversation by messaging a professional
-            </Text>
-          </View>
-        }
-        ListFooterComponent={
-          refreshing ? (
-            <View style={styles.refreshFooter}>
-              <ActivityIndicator size="small" color="#8089ff" />
-              <Text style={styles.refreshText}>Refreshing...</Text>
-            </View>
-          ) : null
-        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={!refreshing ? <EmptyState /> : null}
+        contentContainerStyle={[
+          styles.listContent,
+          displayList.length === 0 && styles.emptyListContent,
+        ]}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={10}
       />
     </SafeAreaView>
   );
 }
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   container: {
@@ -427,17 +533,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  refreshFooter: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: hp(2),
-  },
-  refreshText: {
-    marginLeft: wp(2),
-    fontSize: hp(1.4),
-    color: '#8089ff',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -447,35 +542,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 0.5,
     borderBottomColor: '#eee',
-  },
-  aiAvatar: {
-    width: wp(14),
-    height: wp(14),
-    borderRadius: wp(7),
-    backgroundColor: 'rgba(128, 137, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#8089ff',
-  },
-  aiOnlineIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 2,
-  },
-  aiOnlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-  },
-  aiStatus: {
-    fontSize: hp(1.2),
-    color: '#4CAF50',
-    fontWeight: '500',
   },
   headerTitle: {
     fontSize: hp(2.5),
@@ -503,7 +569,7 @@ const styles = StyleSheet.create({
     marginHorizontal: wp(4),
     marginVertical: hp(1),
     paddingHorizontal: wp(4),
-    paddingVertical: hp(0.5),
+    paddingVertical: hp(1.5),
     borderRadius: 10,
     borderWidth: 0.8,
     borderColor: '#e0e0e0',
@@ -513,6 +579,13 @@ const styles = StyleSheet.create({
     marginLeft: wp(2),
     fontSize: hp(1.7),
     color: '#333',
+    padding: 0,
+  },
+  listContent: {
+    paddingBottom: hp(2),
+  },
+  emptyListContent: {
+    flex: 1,
   },
   chatItem: {
     flexDirection: 'row',
@@ -563,7 +636,42 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 1,
+    padding: 2,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+  },
+  aiAvatar: {
+    width: wp(14),
+    height: wp(14),
+    borderRadius: wp(7),
+    backgroundColor: 'rgba(128, 137, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#8089ff',
+  },
+  aiOnlineIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 2,
+  },
+  aiOnlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+  },
+  aiStatus: {
+    fontSize: hp(1.2),
+    color: '#4CAF50',
+    fontWeight: '500',
   },
   chatInfo: {
     flex: 1,
@@ -584,6 +692,7 @@ const styles = StyleSheet.create({
   chatTime: {
     fontSize: hp(1.2),
     color: '#999',
+    marginLeft: wp(2),
   },
   chatFooter: {
     flexDirection: 'row',
@@ -607,6 +716,7 @@ const styles = StyleSheet.create({
     minWidth: wp(6),
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: wp(2),
   },
   unreadCount: {
     color: '#fff',
@@ -617,12 +727,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: hp(10),
+    paddingVertical: hp(20),
   },
   emptyText: {
     fontSize: hp(2),
     color: '#666',
     fontWeight: '500',
+    marginTop: hp(2),
     marginBottom: hp(1),
   },
   emptySubtext: {
@@ -631,20 +742,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: wp(10),
   },
-  newChatButton: {
-    position: 'absolute',
-    bottom: hp(3),
-    right: wp(4),
-    width: wp(16),
-    height: wp(16),
-    borderRadius: wp(8),
-    backgroundColor: '#8089ff',
+  footerLoader: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    paddingVertical: hp(2),
+  },
+  footerText: {
+    marginLeft: wp(2),
+    fontSize: hp(1.4),
+    color: '#8089ff',
+  },
+  sectionHeader: {
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    backgroundColor: '#f5f5f5',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  sectionTitle: {
+    fontSize: hp(1.6),
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

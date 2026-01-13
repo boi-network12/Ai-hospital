@@ -64,6 +64,7 @@ export interface MessageReaction {
 // Chat Room Types
 export interface ChatRoom {
   _id: string;
+  id: string;
   participants: string[];
   participantsData?: User[];
   isGroup: boolean;
