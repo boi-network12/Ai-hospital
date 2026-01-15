@@ -7,6 +7,13 @@ import User from "../models/UserModel";
 import Log from "../models/LogModel"
 import { sendMail } from '../utils/mailer';
 
+const getUserId = (userId: string | string[]): string => {
+  if (Array.isArray(userId)) {
+    return userId[0];
+  }
+  return userId;
+};
+
 /* ---------- Create any user ---------- */
 export const createUser = async (req: AuthRequest, res: Response) => {
   const {
@@ -48,6 +55,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 /* ---------- Update role ---------- */
 export const updateUserRole = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { role } = req.body;
   if (!role) return res.status(400).json({ message: 'role required' });
   try {
@@ -55,11 +63,11 @@ export const updateUserRole = async (req: AuthRequest, res: Response) => {
     const oldUser = await User.findById(userId);
     if (!oldUser) throw new Error('User not found');
 
-    const user = await adminService.adminUpdateUserRole(userId, role as UserRole);
+    const user = await adminService.adminUpdateUserRole(userIdStr, role as UserRole);
 
     // Send role update notification to the user
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'role_approval',
       title: 'Role Updated',
       message: `Your role has been changed from ${oldUser.role} to ${role} by an administrator.`,
@@ -82,16 +90,17 @@ export const updateUserRole = async (req: AuthRequest, res: Response) => {
 /* ---------- Toggle restrict ---------- */
 export const toggleRestrict = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { restrict } = req.body;
   if (typeof restrict !== 'boolean') return res.status(400).json({ message: 'restrict boolean required' });
 
   try {
-    const user = await adminService.adminToggleRestrict(userId, restrict);
+    const user = await adminService.adminToggleRestrict(userIdStr, restrict);
 
     // Send restriction notification
     if (restrict) {
       await notificationService.sendNotification({
-        userId: userId,
+        userId: userIdStr,
         type: 'security',
         title: 'Account Restricted',
         message: 'Your account has been restricted by an administrator. Some features may be unavailable.',
@@ -104,7 +113,7 @@ export const toggleRestrict = async (req: AuthRequest, res: Response) => {
       });
     } else {
       await notificationService.sendNotification({
-        userId: userId,
+        userId: userIdStr,
         type: 'security',
         title: 'Account Restriction Lifted',
         message: 'Your account restrictions have been lifted. All features are now available.',
@@ -125,8 +134,9 @@ export const toggleRestrict = async (req: AuthRequest, res: Response) => {
 /* ---------- Delete user ---------- */
 export const deleteUser = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   try {
-    const result = await adminService.adminDeleteUser(userId);
+    const result = await adminService.adminDeleteUser(userIdStr);
     res.json(result);
   } catch (e: any) {
     res.status(404).json({ message: e.message });
@@ -152,8 +162,9 @@ export const listUsers = async (req: AuthRequest, res: Response) => {
 /* ---------- Get any profile ---------- */
 export const getAnyProfile = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   try {
-    const user = await adminService.adminGetUserProfile(userId);
+    const user = await adminService.adminGetUserProfile(userIdStr);
     res.json(user);
   } catch (e: any) {
     res.status(404).json({ message: e.message });
@@ -173,16 +184,17 @@ export const analytics = async (_: AuthRequest, res: Response) => {
 /* ---------- Approve / Reject role request ---------- */
 export const handleRoleRequest = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { approve, adminNote } = req.body;
   if (typeof approve !== 'boolean') return res.status(400).json({ message: 'approve boolean required' });
 
   try {
-    const user = await adminService.adminHandleRoleRequest(userId, approve, adminNote);
+    const user = await adminService.adminHandleRoleRequest(userIdStr, approve, adminNote);
 
     // Send role approval/rejection notification
     if (approve) {
       await notificationService.sendNotification({
-        userId: userId,
+        userId: userIdStr,
         type: 'role_approval',
         title: 'Role Request Approved',
         message: `Congratulations! Your request to become a ${user.role} has been approved.`,
@@ -196,7 +208,7 @@ export const handleRoleRequest = async (req: AuthRequest, res: Response) => {
       });
     } else {
       await notificationService.sendNotification({
-        userId: userId,
+        userId: userIdStr,
         type: 'role_approval',
         title: 'Role Request Rejected',
         message: `Your request to become a ${user.role} was rejected. ${adminNote ? `Reason: ${adminNote}` : ''}`,
@@ -220,13 +232,14 @@ export const handleRoleRequest = async (req: AuthRequest, res: Response) => {
 /* ---------- Update healthcare certifications ---------- */
 export const updateHealthcareCertifications = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { certifications } = req.body;
 
   try {
-    const user = await adminService.adminUpdateHealthcareCertifications(userId, certifications);
+    const user = await adminService.adminUpdateHealthcareCertifications(userIdStr, certifications);
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'certification_update',
       title: 'Certifications Updated',
       message: 'Your professional certifications have been updated by an administrator.',
@@ -247,12 +260,14 @@ export const updateHealthcareCertifications = async (req: AuthRequest, res: Resp
 /* ---------- Verify certification ---------- */
 export const verifyCertification = async (req: AuthRequest, res: Response) => {
   const { userId, certificationId } = req.params;
+  const userIdStr = getUserId(userId);
+  const certificationIdStr = getUserId(certificationId);
   const { status, notes } = req.body;
 
   try {
     const user = await adminService.adminVerifyCertification(
-      userId,
-      certificationId,
+      userIdStr,
+      certificationIdStr,
       status,
       notes,
       req.user._id
@@ -261,7 +276,7 @@ export const verifyCertification = async (req: AuthRequest, res: Response) => {
     const statusMessage = status === 'verified' ? 'approved' : 'rejected';
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'certification_verification',
       title: `Certification ${statusMessage.charAt(0).toUpperCase() + statusMessage.slice(1)}`,
       message: `Your certification has been ${statusMessage}. ${notes ? `Notes: ${notes}` : ''}`,
@@ -285,10 +300,11 @@ export const verifyCertification = async (req: AuthRequest, res: Response) => {
 /* ---------- Update professional details ---------- */
 export const updateProfessionalDetails = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { specializations, availability, services, hourlyRate, bio } = req.body;
 
   try {
-    const user = await adminService.adminUpdateProfessionalDetails(userId, {
+    const user = await adminService.adminUpdateProfessionalDetails(userIdStr, {
       specializations,
       availability,
       services,
@@ -306,6 +322,7 @@ export const updateProfessionalDetails = async (req: AuthRequest, res: Response)
 
 export const updateUserProfile = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const updates = req.body;
 
   // Prevent updating these fields via this endpoint
@@ -323,14 +340,14 @@ export const updateUserProfile = async (req: AuthRequest, res: Response) => {
 
     // Apply updates deeply (supports nested objects)
     const updatedUser = await User.findByIdAndUpdate(
-      userId,
+      userIdStr,
       { $set: updates, updatedAt: new Date() },
       { new: true, runValidators: true }
     ).select('-password -sessions.token -passwordResetOtp -passwordResetOtpExpires');
 
     // Send notification about profile update
     await notificationService.sendNotification({
-      userId,
+      userId: userIdStr,
       type: 'profile_update',
       title: 'Profile Updated by Admin',
       message: 'An administrator has updated your profile. You can now log in with your credentials.',
@@ -358,14 +375,15 @@ export const updateUserProfile = async (req: AuthRequest, res: Response) => {
 /* ---------- Update tax information ---------- */
 export const updateTaxInfo = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const taxInfoData = req.body;
 
   try {
-    const user = await adminService.adminUpdateTaxInfo(userId, taxInfoData);
+    const user = await adminService.adminUpdateTaxInfo(userIdStr, taxInfoData);
 
     // Send notification
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'tax_update',
       title: 'Tax Information Updated',
       message: 'Your tax information has been updated by an administrator.',
@@ -387,13 +405,14 @@ export const updateTaxInfo = async (req: AuthRequest, res: Response) => {
 /* ---------- Upload tax document ---------- */
 export const uploadTaxDocument = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const documentData = req.body;
 
   try {
-    const user = await adminService.adminUploadTaxDocument(userId, documentData);
+    const user = await adminService.adminUploadTaxDocument(userIdStr, documentData);
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'tax_document',
       title: 'Tax Document Uploaded',
       message: `A tax document (${documentData.name}) has been uploaded to your account by an administrator.`,
@@ -416,12 +435,14 @@ export const uploadTaxDocument = async (req: AuthRequest, res: Response) => {
 /* ---------- Delete tax document ---------- */
 export const deleteTaxDocument = async (req: AuthRequest, res: Response) => {
   const { userId, docId } = req.params;
+  const docIdStr = getUserId(docId);
+  const userIdStr = getUserId(userId);
 
   try {
-    const user = await adminService.adminDeleteTaxDocument(userId, docId);
+    const user = await adminService.adminDeleteTaxDocument(userIdStr, docIdStr);
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'tax_document',
       title: 'Tax Document Removed',
       message: 'A tax document has been removed from your account by an administrator.',
@@ -443,10 +464,11 @@ export const deleteTaxDocument = async (req: AuthRequest, res: Response) => {
 /* ---------- Verify tax information ---------- */
 export const verifyTaxInfo = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { verified, status, adminNotes } = req.body;
 
   try {
-    const user = await adminService.adminVerifyTaxInfo(userId, {
+    const user = await adminService.adminVerifyTaxInfo(userIdStr, {
       verified,
       status,
       adminNotes,
@@ -462,7 +484,7 @@ export const verifyTaxInfo = async (req: AuthRequest, res: Response) => {
     };
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'tax_verification',
       title: `Tax Information ${statusMessages[status]}`,
       message: `Your tax information has been ${statusMessages[status]}. ${adminNotes ? `Notes: ${adminNotes}` : ''}`,
@@ -486,9 +508,10 @@ export const verifyTaxInfo = async (req: AuthRequest, res: Response) => {
 /* ---------- Get tax information ---------- */
 export const getTaxInfo = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
 
   try {
-    const taxInfo = await adminService.adminGetTaxInfo(userId);
+    const taxInfo = await adminService.adminGetTaxInfo(userIdStr);
     res.json(taxInfo);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
@@ -498,12 +521,13 @@ export const getTaxInfo = async (req: AuthRequest, res: Response) => {
 /* ---------- Remove tax information ---------- */
 export const removeTaxInfo = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
 
   try {
-    const result = await adminService.adminRemoveTaxInfo(userId);
+    const result = await adminService.adminRemoveTaxInfo(userIdStr);
 
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'tax_removal',
       title: 'Tax Information Removed',
       message: 'Your tax information has been removed by an administrator.',
@@ -523,6 +547,7 @@ export const removeTaxInfo = async (req: AuthRequest, res: Response) => {
 /* ---------- Send Compliance Reminder ---------- */
 export const sendComplianceReminder = async (req: AuthRequest, res: Response) => {
   const { userId } = req.params;
+  const userIdStr = getUserId(userId);
   const { reminderType, customMessage } = req.body;
 
   if (!reminderType) {
@@ -729,7 +754,7 @@ export const sendComplianceReminder = async (req: AuthRequest, res: Response) =>
 
     // In-app notification
     await notificationService.sendNotification({
-      userId: userId,
+      userId: userIdStr,
       type: 'compliance_reminder',
       title: subject,
       message: `You have a compliance reminder. ${customMessage ? 'Check your email for details.' : 'Please update your profile soon.'}`,

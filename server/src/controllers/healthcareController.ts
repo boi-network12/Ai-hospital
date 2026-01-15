@@ -18,6 +18,13 @@ interface UpdateRatingData {
     comment?: string;
 }
 
+const paramsStr = (userId: string | string[]): string => {
+  if (Array.isArray(userId)) {
+    return userId[0];
+  }
+  return userId;
+};
+
 /* ---------- Get healthcare professionals ---------- */
 export const getHealthcareProfessionals = async (req: Request, res: Response) => {
     const {
@@ -95,9 +102,10 @@ const getSearchLocationMessage = (searchLocation: string, searchScope: string, l
 /* ---------- Get professional profile ---------- */
 export const getProfessionalProfile = async (req: Request, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
 
     try {
-        const profile = await healthcareService.getProfessionalProfile(professionalId);
+        const profile = await healthcareService.getProfessionalProfile(professionalIdStr);
         res.json(profile);
     } catch (error: any) {
         res.status(404).json({ message: error.message });
@@ -107,11 +115,12 @@ export const getProfessionalProfile = async (req: Request, res: Response) => {
 /* ---------- Rate professional ---------- */
 export const rateProfessional = async (req: AuthRequest, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
     const { rating, comment, appointmentId } = req.body;
 
     console.log('Rating request received:', {
         userId: req.user._id,
-        professionalId,
+        professionalIdStr,
         rating,
         comment,
         appointmentId
@@ -119,7 +128,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
 
     try {
         // VALIDATE INPUTS
-        if (!professionalId) {
+        if (!professionalIdStr) {
             return res.status(400).json({ message: 'Professional ID is required' });
         }
 
@@ -130,7 +139,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
         // Check if user has already rated this professional
         const existingUserRating = await Rating.findOne({
             userId: new Types.ObjectId(req.user._id),
-            professionalId: new Types.ObjectId(professionalId)
+            professionalIdStr: new Types.ObjectId(professionalIdStr)
         });
 
         if (existingUserRating) {
@@ -143,7 +152,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
             await existingUserRating.save();
             
             // Update professional stats
-            await updateProfessionalStats(professionalId);
+            await updateProfessionalStats(professionalIdStr);
             
             return res.json({
                 ...existingUserRating.toObject(),
@@ -153,7 +162,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
         }
 
         // Check if professional exists first
-        const professional = await User.findById(professionalId);
+        const professional = await User.findById(professionalIdStr);
         if (!professional || professional.role === 'user') {
             return res.status(404).json({ message: 'Professional not found' });
         }
@@ -161,7 +170,7 @@ export const rateProfessional = async (req: AuthRequest, res: Response) => {
         // Use rating service to create new rating
         const result = await ratingService.addRating({
             userId: req.user._id,
-            professionalId,
+            professionalId: professionalIdStr,
             rating,
             comment,
             appointmentId
@@ -228,12 +237,13 @@ const updateProfessionalStats = async (professionalId: string) => {
 /* ---------- Tip professional ---------- */
 export const tipProfessional = async (req: AuthRequest, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
     const { amount, message, appointmentId } = req.body;
 
     try {
         const result = await tipService.sendTip({
             fromUserId: req.user._id,
-            toProfessionalId: professionalId,
+            toProfessionalId: professionalIdStr,
             amount,
             message,
             appointmentId
@@ -248,11 +258,12 @@ export const tipProfessional = async (req: AuthRequest, res: Response) => {
 /* ---------- Get professional ratings ---------- */
 export const getProfessionalRatings = async (req: Request, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
     const { page = 1, limit = 10 } = req.query;
 
     try {
         const ratings = await ratingService.getProfessionalRatings(
-            professionalId,
+            professionalIdStr,
             Number(page),
             Number(limit)
         );
@@ -301,11 +312,12 @@ export const deleteRating = async (req: AuthRequest, res: Response) => {
 
 export const getUserProfessionalRating = async (req: AuthRequest, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
     
     try {
         const userRating = await ratingService.getUserRatingForProfessional(
             req.user._id.toString(),
-            professionalId
+            professionalIdStr
         );
         
         res.json({
@@ -325,12 +337,13 @@ export const getUserProfessionalRating = async (req: AuthRequest, res: Response)
 export const updateProfessionalRating = async (req: AuthRequest, res: Response) => {
     try {
         const { professionalId } = req.params;
+        const professionalIdStr = paramsStr(professionalId);
         const { rating, comment } = req.body;
         
         // First check if user already rated
         const existingRating = await Rating.findOne({
             userId: new Types.ObjectId(req.user._id),
-            professionalId: new Types.ObjectId(professionalId)
+            professionalId: new Types.ObjectId(professionalIdStr)
         });
 
         if (!existingRating) {
@@ -345,7 +358,7 @@ export const updateProfessionalRating = async (req: AuthRequest, res: Response) 
         await existingRating.save();
         
         // Update professional stats
-        await updateProfessionalStats(professionalId);
+        await updateProfessionalStats(professionalIdStr);
         
         return res.json({
             ...existingRating.toObject(),
@@ -381,6 +394,7 @@ const cleanupExpiredAppointments = async () => {
 /** ------------------ book appointments ---------------- */
 export const bookAppointment = async (req: AuthRequest, res: Response) => {
     const { professionalId } = req.params;
+    const professionalIdStr = paramsStr(professionalId);
     const { date, duration = 60, notes, type = 'physical' } = req.body;
 
     if (type !== 'physical') {
@@ -434,7 +448,7 @@ export const bookAppointment = async (req: AuthRequest, res: Response) => {
     // Send notification + email
     try {
         await notificationService.sendNotification({
-            userId: new Types.ObjectId(professionalId),
+            userId: new Types.ObjectId(professionalIdStr),
             type: 'booking_request',
             title: 'New Physical Booking Request',
             message: `${(appointment.patientId as any).name} wants to book a physical session on ${appointmentDate.toLocaleString()}`,

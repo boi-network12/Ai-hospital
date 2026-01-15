@@ -82,6 +82,10 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found', url: req.originalUrl });
+});
+
 
 // Start server
 const PORT = process.env.PORT || 3001;

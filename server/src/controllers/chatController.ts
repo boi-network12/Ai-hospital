@@ -12,6 +12,13 @@ import {
 import { ForbiddenError, NotFoundError } from '../utils/errors';
 import { ChatRoom } from '../models/ChatModel';
 
+const paramsStr = (userId: string | string[]): string => {
+  if (Array.isArray(userId)) {
+    return userId[0];
+  }
+  return userId;
+};
+
 // Create or get chat room
 export const createChatRoom = async (req: AuthRequest, res: Response) => {
   try {
@@ -80,11 +87,12 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 export const getMessages = async (req: AuthRequest, res: Response) => {
   try {
     const { chatRoomId } = req.params;
+    const chatRoomIdStr = paramsStr(chatRoomId);
     const userId = req.user._id.toString();
     const { page = 1, limit = 50, before } = req.query;
 
     const messages = await ChatService.getMessages(
-      chatRoomId,
+      chatRoomIdStr,
       userId,
       Number(page),
       Number(limit),
@@ -110,10 +118,11 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
 export const markAsRead = async (req: AuthRequest, res: Response) => {
   try {
     const { chatRoomId } = req.params;
+    const chatRoomIdStr = paramsStr(chatRoomId)
     const { messageIds }: MarkAsReadRequest = req.body;
     const userId = req.user._id.toString();
 
-    await ChatService.markMessagesAsRead(chatRoomId, userId, messageIds);
+    await ChatService.markMessagesAsRead(chatRoomIdStr, userId, messageIds);
 
     res.status(200).json({
       success: true,
@@ -132,10 +141,11 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
 export const editMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
+    const messageIdStr = paramsStr(messageId)
     const { content }: UpdateMessageRequest = req.body;
     const userId = req.user._id.toString();
 
-    const message = await ChatService.editMessage(messageId, userId, content);
+    const message = await ChatService.editMessage(messageIdStr, userId, content);
 
     res.status(200).json({
       success: true,
@@ -155,11 +165,12 @@ export const editMessage = async (req: AuthRequest, res: Response) => {
 export const deleteMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
+    const messageIdStr = paramsStr(messageId)
     const { deleteForEveryone } = req.query;
     const userId = req.user._id.toString();
 
     await ChatService.deleteMessage(
-      messageId,
+      messageIdStr,
       userId,
       deleteForEveryone === 'true'
     );
@@ -181,10 +192,11 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
 export const addReaction = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
+    const messageIdStr = paramsStr(messageId)
     const { emoji } = req.body;
     const userId = req.user._id.toString();
 
-    const message = await ChatService.addReaction(messageId, userId, emoji);
+    const message = await ChatService.addReaction(messageIdStr, userId, emoji);
 
     res.status(200).json({
       success: true,
@@ -204,9 +216,10 @@ export const addReaction = async (req: AuthRequest, res: Response) => {
 export const removeReaction = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
+    const messageIdStr = paramsStr(messageId)
     const userId = req.user._id.toString();
 
-    const message = await ChatService.removeReaction(messageId, userId);
+    const message = await ChatService.removeReaction(messageIdStr, userId);
 
     res.status(200).json({
       success: true,

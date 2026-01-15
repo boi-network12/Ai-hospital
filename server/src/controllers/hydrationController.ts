@@ -5,6 +5,14 @@ import { HydrationService } from '../services/hydrationService';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IBodyMetrics } from '../types/hydrationTypes';
 
+const paramsStr = (userId: string | string[]): string => {
+  if (Array.isArray(userId)) {
+    return userId[0];
+  }
+  return userId;
+};
+
+
 /**
  * Log water intake
  */
@@ -226,8 +234,9 @@ export const deleteLog = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user._id;
     const { logId } = req.params;
+    const logIdStr = paramsStr(logId);
 
-    if (!Types.ObjectId.isValid(logId)) {
+    if (!Types.ObjectId.isValid(logIdStr)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid log ID'
@@ -236,7 +245,7 @@ export const deleteLog = async (req: AuthRequest, res: Response) => {
 
     const deleted = await HydrationService.deleteLog(
       new Types.ObjectId(userId),
-      new Types.ObjectId(logId)
+      new Types.ObjectId(logIdStr)
     );
 
     if (!deleted) {

@@ -3,7 +3,12 @@ import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import * as notificationService from '../services/notificationService';
 import { INotificationFilters } from '../types/notification';
+import { Types } from 'mongoose';
 
+// Helper function to convert string | string[] to string
+const ensureString = (value: string | string[]): string => {
+  return Array.isArray(value) ? value[0] : value;
+};
 
 /* ---------- Get user notifications ---------- */
 export const getMyNotifications = async (req: AuthRequest, res: Response) => {
@@ -38,9 +43,10 @@ export const getNotificationStats = async (req: AuthRequest, res: Response) => {
 /* ---------- Mark notification as read ---------- */
 export const markAsRead = async (req: AuthRequest, res: Response) => {
   const { notificationId } = req.params;
+  const notificationIdString = ensureString(notificationId);
 
   try {
-    const notification = await notificationService.markAsRead(req.user._id, notificationId);
+    const notification = await notificationService.markAsRead(req.user._id, notificationIdString);
     res.json(notification);
   } catch (error: any) {
     res.status(404).json({ message: error.message });
@@ -60,9 +66,10 @@ export const markAllAsRead = async (req: AuthRequest, res: Response) => {
 /* ---------- Dismiss notification ---------- */
 export const dismissNotification = async (req: AuthRequest, res: Response) => {
   const { notificationId } = req.params;
+  const notificationIdString = ensureString(notificationId);
 
   try {
-    const notification = await notificationService.dismissNotification(req.user._id, notificationId);
+    const notification = await notificationService.dismissNotification(req.user._id, notificationIdString);
     res.json(notification);
   } catch (error: any) {
     res.status(404).json({ message: error.message });
@@ -72,9 +79,10 @@ export const dismissNotification = async (req: AuthRequest, res: Response) => {
 /* ---------- Delete notification ---------- */
 export const deleteNotification = async (req: AuthRequest, res: Response) => {
   const { notificationId } = req.params;
+  const notificationIdString = ensureString(notificationId);
 
   try {
-    const result = await notificationService.deleteNotification(req.user._id, notificationId);
+    const result = await notificationService.deleteNotification(req.user._id, notificationIdString);
     res.json(result);
   } catch (error: any) {
     res.status(404).json({ message: error.message });

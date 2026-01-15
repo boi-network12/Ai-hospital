@@ -200,7 +200,17 @@ export const revokeDevice = async (req: AuthReq, res: Response) => {
 
 /* ---------- Public profile ---------- */
 export const getUserProfile = async (req: Request, res: Response) => {
-  const user = await userService.getUserById(req.params.id);
+  // Extract the id parameter
+  const { id } = req.params;
+  
+  // Ensure it's a string
+  const userId = Array.isArray(id) ? id[0] : id;
+  
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+  
+  const user = await userService.getUserById(userId);
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json(user);
 };

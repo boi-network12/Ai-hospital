@@ -3,6 +3,13 @@ import * as careerService from '../services/careerService';
 import * as notificationService from '../services/notificationService';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
+const paramsStr = (userId: string | string[]): string => {
+  if (Array.isArray(userId)) {
+    return userId[0];
+  }
+  return userId;
+};
+
 /* ---------- Submit career application (Public) ---------- */
 export const submitApplication = async (req: Request, res: Response) => {
   try {
@@ -41,7 +48,9 @@ export const getAllApplications = async (req: AuthRequest, res: Response) => {
 /* ---------- Get single application (Admin) ---------- */
 export const getApplication = async (req: AuthRequest, res: Response) => {
   try {
-    const application = await careerService.getApplicationById(req.params.id);
+    const { id } = req.params;
+    const idStr = paramsStr(id); 
+    const application = await careerService.getApplicationById(idStr);
     
     res.json(application);
   } catch (error: any) {
@@ -49,10 +58,12 @@ export const getApplication = async (req: AuthRequest, res: Response) => {
   }
 };
 
+
 /* ---------- Update application status (Admin) ---------- */
 export const updateStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const idStr = paramsStr(id);
     const { status, notes } = req.body;
     
     if (!status) {
@@ -60,7 +71,7 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
     }
 
     const application = await careerService.updateApplicationStatus(
-      id,
+      idStr,
       status,
       req.user._id,
       notes
@@ -88,6 +99,7 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
 export const scheduleInterview = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const idStr = paramsStr(id);
     const { interviewDate, interviewLink, notes } = req.body;
     
     if (!interviewDate || !interviewLink) {
@@ -97,7 +109,7 @@ export const scheduleInterview = async (req: AuthRequest, res: Response) => {
     }
 
     const application = await careerService.scheduleInterview(
-      id,
+      idStr,
       new Date(interviewDate),
       interviewLink,
       req.user._id,
@@ -114,6 +126,7 @@ export const scheduleInterview = async (req: AuthRequest, res: Response) => {
 export const approveAndCreateUser = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const idStr = paramsStr(id);
     const { password, notes } = req.body;
     
     if (!password) {
@@ -123,7 +136,7 @@ export const approveAndCreateUser = async (req: AuthRequest, res: Response) => {
     }
 
     const result = await careerService.approveApplicationAndCreateUser(
-      id,
+      idStr,
       req.user._id,
       password,
       notes
@@ -143,13 +156,14 @@ export const approveAndCreateUser = async (req: AuthRequest, res: Response) => {
 export const assignToAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const idStr = paramsStr(id);
     const { adminId } = req.body;
     
     if (!adminId) {
       return res.status(400).json({ message: 'Admin ID is required' });
     }
 
-    const application = await careerService.assignApplicationToAdmin(id, adminId);
+    const application = await careerService.assignApplicationToAdmin(idStr, adminId);
     
     res.json(application);
   } catch (error: any) {
