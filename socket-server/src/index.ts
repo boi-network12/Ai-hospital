@@ -87,6 +87,7 @@ app.use((req, res) => {
 });
 
 
+
 // Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
@@ -95,6 +96,7 @@ server.listen(PORT, () => {
   console.log(`✅ Health check: http://localhost:${PORT}/health`);
   console.log(`👤 Active users endpoint: http://localhost:${PORT}/active-users`);
 });
+
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
