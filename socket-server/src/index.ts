@@ -74,6 +74,15 @@ app.get('/active-users', (req, res) => {
   res.json({ success: true, data: users });
 });
 
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Socket.IO server is running',
+    service: 'ai-hospital-socket',
+    health: '/health'
+  });
+});
+
+
 // Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
