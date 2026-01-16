@@ -23,6 +23,24 @@ class ApiClient {
     }
   }
 
+  async uploadFile(token: string, formData: FormData) {
+    try {
+      const response = await axios.post(`${this.baseURL}/v1/upload/media`, formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 60000, // 60 seconds timeout for large files
+        maxContentLength: 50 * 1024 * 1024, // 50MB max
+        maxBodyLength: 50 * 1024 * 1024
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('API Error - uploadFile:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
   async getMessages(token: string, chatRoomId: string, params?: any) {
     try {
       const response = await axios.get(`${this.baseURL}/v1/chat/rooms/${chatRoomId}/messages`, {

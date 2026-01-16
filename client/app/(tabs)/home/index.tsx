@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { heightPercentageToDP as hp } from "react-native-responsive-screen"
 import { Image } from 'expo-image';
@@ -16,28 +16,73 @@ import { useNotification } from '@/Hooks/notificationHook.d';
 import { NotificationIcon } from '@/components/NotificationIcon/NotificationIcon';
 import { useHealthcare } from '@/context/HealthContext';
 import { AppointmentIconDot } from '@/components/AppointmentIcon/AppointmentIcon';
+import Skeleton, { AvatarSkeleton, MiddleDisplaySkeleton, WidgetSkeleton } from '@/components/customs/HomeSkeletonLoading';
 
 const blurhash = BLUR_HASH_PLACEHOLDER; 
-
 const _middleDisplayContent = _MiddleDisplayContent;
 
 export default function HomePage() {
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const hydration = useHydrationData();
   const { healthcare } = useHealthcare()
-  const { unreadCount } = useNotification()
+  const { unreadCount } = useNotification();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate initial loading
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Check if all data is loaded
+    if (!userLoading && user && healthcare) {
+      setIsDataLoading(false);
+    }
+  }, [userLoading, user, healthcare]);
 
    const getPendingAppointmentsCount = () => {
     if (!isProfessional) return 0;
-    
-    // You could fetch pending appointments count from your API
-    // For now, we'll return a placeholder or use actual data if available
-    return healthcare.pendingAppointmentsCount || 0; // You'll need to add this to your state
+
+    return healthcare?.pendingAppointmentsCount || 0; 
   };
 
   const pendingAppointmentsCount = getPendingAppointmentsCount();
-
   const isProfessional = user?.role === "doctor" || user?.role === "nurse" || user?.role === "hospital";
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style='dark' />
+        <ScrollView bounces showsVerticalScrollIndicator={false}>
+          {/* Header skeleton */}
+          <View style={styles.topViewHeader}>
+            <AvatarSkeleton />
+            <View style={{ flexDirection: "row", gap: hp(2) }}>
+              <Skeleton width={hp(3)} height={hp(3)} borderRadius={hp(1.5)} />
+              {isProfessional && (
+                <Skeleton width={hp(3)} height={hp(3)} borderRadius={hp(1.5)} />
+              )}
+            </View>
+          </View>
+
+          {/* Middle display skeleton */}
+          <View style={styles.middleView}>
+            <Skeleton width={hp(15)} height={hp(2)} style={{ marginBottom: hp(3) }} />
+            <MiddleDisplaySkeleton />
+          </View>
+
+          {/* Widget skeleton */}
+          <WidgetSkeleton />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
 
   return (
     <SafeAreaView style={styles.container}>

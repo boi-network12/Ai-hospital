@@ -142,6 +142,7 @@ export interface SendMessageRequest {
   fileSize?: number;
   fileType?: string;
   replyTo?: string;
+  thumbnailUrl?: string;
 }
 
 export interface UpdateMessageRequest {

@@ -16,7 +16,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
-import { useChat } from '@/context/ChatContext';
+import { useChat, useChatMedia } from '@/context/ChatContext';
 import { useUser } from '@/Hooks/userHooks.d';
 import { useToast } from '@/Hooks/useToast.d';
 import { ChatMessage } from '@/types/chat';
@@ -24,6 +24,10 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { Feather } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import MediaActionSheet from '@/components/customs/MediaActionSheet';
+import { generateThumbnailUrl } from '@/Utils/thumbnailUtils';
+import ImagePreviewModal from '@/components/customs/ImagePreviewModal';
+
 
 // ============================================
 // COMPONENTS
@@ -141,9 +145,10 @@ interface MessageItemProps {
   message: ChatMessage;
   isOwnMessage: boolean;
   onLongPress: (msg: ChatMessage) => void;
+  onPreviewMedia?: (url: string, type: 'image' | 'video') => void;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMessage, onLongPress }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMessage, onLongPress, onPreviewMedia }) => {
   const { user } = useUser();
   const { addReaction } = useChat();
 
@@ -193,17 +198,105 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMess
   const renderMessageContent = () => {
     if (message.messageType === 'image' && message.fileUrl) {
       return (
-        <Image 
-          source={{ uri: message.fileUrl }} 
-          style={styles.messageImage} 
-          resizeMode="cover" 
-        />
+        <TouchableOpacity 
+            onPress={() => {
+            if (message.fileUrl && onPreviewMedia) {
+              onPreviewMedia(message.fileUrl, 'image');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Image 
+            source={{ uri: message.fileUrl }} 
+            style={styles.messageImage} 
+            resizeMode="cover" 
+          />
+          {/* {message.content && (
+            <Text style={[styles.otherMessageText, { marginTop: hp(1) }]}>
+              {message.content}
+            </Text>
+          )} */}
+        </TouchableOpacity>
+      );
+    }
+      
+    // Video message
+    if (message.messageType === 'video') {
+      const thumbnailUrl = message.thumbnailUrl || generateThumbnailUrl(message.fileUrl, 'video');
+
+      return (
+        <TouchableOpacity 
+          style={styles.videoContainer}
+          onPress={() => {
+             if (message.fileUrl && onPreviewMedia) {
+              onPreviewMedia(message.fileUrl, 'video');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+           {thumbnailUrl ? (
+              <Image 
+                source={{ uri: thumbnailUrl }} 
+                style={styles.videoThumbnail} 
+                resizeMode="cover" 
+              />
+            ) : (
+              <View style={styles.videoPlaceholder}>
+                <Text style={styles.videoPlaceholderIcon}>🎬</Text>
+                <Text style={styles.videoPlaceholderText}>Video</Text>
+              </View>
+            )}
+          <View style={styles.videoOverlay}>
+            <Feather name="play" size={24} color="#fff" />
+          </View>
+          {/* {message.fileName && (
+            <View style={styles.videoInfo}>
+              <Text style={styles.videoFileName} numberOfLines={1}>
+                {message.fileName}
+              </Text>
+            </View>
+          )} */}
+        </TouchableOpacity>
       );
     }
     
+    // Audio message
+    if (message.messageType === 'audio') {
+      return (
+        <View style={styles.audioContainer}>
+          <TouchableOpacity style={styles.audioPlayButton}>
+            <Feather name="play" size={20} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.audioInfo}>
+            <Text style={styles.audioTitle}>Voice message</Text>
+            <Text style={styles.audioDuration}>
+              {message.fileSize ? `${Math.round(message.fileSize / 1000)}KB` : 'Audio'}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // File message
     if (message.messageType === 'file') {
       return (
-        <View style={styles.fileContainer}>
+        <TouchableOpacity 
+          style={styles.fileContainer}
+          onPress={() => {
+            Alert.alert(
+              'Download File',
+              `Would you like to download ${message.fileName || 'this file'}?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Download', onPress: () => {
+                  // Handle file download
+                  console.log('Download file:', message.fileUrl);
+                }},
+              ]
+            );
+          }}
+          activeOpacity={0.8}
+        >
           <Feather name="file" size={24} color="#666" />
           <View style={styles.fileInfo}>
             <Text style={styles.fileName} numberOfLines={1}>
@@ -213,7 +306,8 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMess
               {message.fileSize ? (message.fileSize / 1024).toFixed(1) : '0'} KB
             </Text>
           </View>
-        </View>
+          <Feather name="download" size={20} color="#8089ff" />
+        </TouchableOpacity>
       );
     }
 
@@ -400,6 +494,13 @@ const ChatScreen: React.FC = () => {
   const router = useRouter();
   const { showAlert } = useToast();
   const { user } = useUser();
+  const [showMediaSheet, setShowMediaSheet] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewType, setPreviewType] = useState<'image' | 'video'>('image');
+  
   
   const {
     activeChat,
@@ -417,6 +518,21 @@ const ChatScreen: React.FC = () => {
     loadChatRoom,
     loadMessages
   } = useChat();
+
+  const { 
+    sendMediaMessage, 
+    takePhoto, 
+    pickImage, 
+    pickVideo, 
+    pickDocument,
+    isUploading: mediaUploading,
+    uploadProgress: mediaProgress 
+  } = useChatMedia();
+
+  useEffect(() => {
+    setUploadingFile(mediaUploading);
+    setUploadProgress(mediaProgress);
+  }, [mediaUploading, mediaProgress]);
 
   const pathname = usePathname();
   // Refs
@@ -519,6 +635,13 @@ const ChatScreen: React.FC = () => {
       });
     }
   }, [messages, user, activeChat, markAsRead]);
+
+
+  const handlePreviewMedia = useCallback((url: string, type: 'image' | 'video') => {
+    setPreviewImage(url);
+    setPreviewType(type);
+    setShowImagePreview(true);
+  }, []);
 
   // ============================================
   // HANDLERS
@@ -683,10 +806,64 @@ const ChatScreen: React.FC = () => {
     );
   };
 
+  const handleTakePhoto = async () => {
+      try {
+        await takePhoto();
+        setShowMediaSheet(false);
+      } catch (error) {
+        console.error('Failed to take photo:', error);
+      }
+    };
+
+    const handlePickImage = async () => {
+      try {
+        const file = await pickImage();
+        if (file) {
+          await sendMediaMessage(file, 'image');
+          setShowMediaSheet(false);
+        }
+      } catch (error) {
+        console.error('Failed to pick image:', error);
+      }
+    };
+
+    const handlePickVideo = async () => {
+      try {
+        const file = await pickVideo();
+        if (file) {
+          await sendMediaMessage(file, 'video');
+          setShowMediaSheet(false);
+        }
+      } catch (error) {
+        console.error('Failed to pick video:', error);
+      }
+    };
+
+    const handlePickDocument = async () => {
+      try {
+        const file = await pickDocument();
+        if (file) {
+          await sendMediaMessage(file, 'file');
+          setShowMediaSheet(false);
+        }
+      } catch (error) {
+        console.error('Failed to pick document:', error);
+      }
+    };
+
   const renderInputArea = () => (
     <View style={styles.inputContainer}>
-      <TouchableOpacity style={styles.attachButton}>
-        <Feather name="image" size={24} color="#666" />
+      <TouchableOpacity style={styles.attachButton} onPress={() => setShowMediaSheet(true)} disabled={uploadingFile}>
+        {uploadingFile ? (
+          <View style={styles.uploadProgressContainer}>
+            <ActivityIndicator size="small" color="#8089ff" />
+            <Text style={styles.uploadProgressText}>
+              {uploadProgress}%
+            </Text>
+          </View>
+        ) : (
+          <Feather name="paperclip" size={24} color="#666" />
+        )}
       </TouchableOpacity>
 
       <TextInput
@@ -733,6 +910,8 @@ const ChatScreen: React.FC = () => {
     );
   }
 
+  
+
   return (
     <SafeAreaView style={styles.container}>
       {renderHeader()}
@@ -752,6 +931,7 @@ const ChatScreen: React.FC = () => {
               message={item}
               isOwnMessage={item.senderId === user?._id}
               onLongPress={handleMessageLongPress}
+              onPreviewMedia={handlePreviewMedia}
             />
           )}
           keyExtractor={(item) => item._id.toString()}
@@ -776,6 +956,16 @@ const ChatScreen: React.FC = () => {
         {renderInputArea()}
       </KeyboardAvoidingView>
 
+
+      <MediaActionSheet
+        visible={showMediaSheet}
+        onClose={() => setShowMediaSheet(false)}
+        onTakePhoto={handleTakePhoto}
+        onPickImage={handlePickImage}
+        onPickVideo={handlePickVideo}
+        onPickDocument={handlePickDocument}
+      />
+
       <ReactionPicker
         visible={showReactionPicker}
         onClose={() => setShowReactionPicker(false)}
@@ -794,6 +984,16 @@ const ChatScreen: React.FC = () => {
         onDelete={handleDelete}
         onCopy={handleCopy}
         isOwnMessage={selectedMessage?.senderId === user?._id}
+      />
+
+      <ImagePreviewModal
+        visible={showImagePreview}
+        imageUrl={previewImage || ''}
+        onClose={() => {
+          setShowImagePreview(false);
+          setPreviewImage(null);
+        }}
+        type={previewType}
       />
     </SafeAreaView>
   );
@@ -880,6 +1080,23 @@ const styles = StyleSheet.create({
     fontSize: hp(1.7),
     lineHeight: hp(2.2),
   },
+  mediaButton: {
+    padding: wp(2),
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 40,
+  },
+  
+  uploadProgressContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  uploadProgressText: {
+    fontSize: hp(1),
+    color: '#8089ff',
+    marginTop: 2,
+  },
   otherMessageText: {
     color: '#333',
     fontSize: hp(1.7),
@@ -888,7 +1105,7 @@ const styles = StyleSheet.create({
   messageImage: {
     width: wp(60),
     height: wp(60),
-    borderRadius: 12,
+    borderRadius: hp(1.5),
   },
   fileContainer: {
     flexDirection: 'row',
@@ -1155,4 +1372,101 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: wp(3),
   },
+  videoContainer: {
+  position: 'relative',
+  borderRadius: 12,
+  overflow: 'hidden',
+  backgroundColor: '#000',
+},
+
+videoThumbnail: {
+  width: wp(60),
+  height: wp(40),
+  opacity: 0.8,
+},
+
+videoPlaceholder: {
+  width: wp(60),
+  height: wp(40),
+  backgroundColor: '#333',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+
+videoOverlay: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: 'rgba(0,0,0,0.3)',
+},
+
+videoInfo: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: wp(2),
+  paddingVertical: hp(1),
+  backgroundColor: 'rgba(255,255,255,0.9)',
+},
+
+videoDuration: {
+  fontSize: hp(1.2),
+  color: '#666',
+  marginLeft: wp(1),
+},
+
+audioContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#f0f4ff',
+  borderRadius: 25,
+  padding: wp(3),
+  width: wp(60),
+},
+
+audioPlayButton: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#8089ff',
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginRight: wp(3),
+},
+
+audioInfo: {
+  flex: 1,
+},
+
+audioTitle: {
+  fontSize: hp(1.6),
+  fontWeight: '500',
+  color: '#333',
+},
+
+audioDuration: {
+  fontSize: hp(1.2),
+  color: '#666',
+  marginTop: hp(0.3),
+},
+videoPlaceholderIcon: {
+  fontSize: hp(4),
+  marginBottom: hp(1),
+},
+
+videoPlaceholderText: {
+  fontSize: hp(1.6),
+  color: '#fff',
+  fontWeight: '500',
+},
+
+videoFileName: {
+  fontSize: hp(1.4),
+  color: '#333',
+  fontWeight: '500',
+  flex: 1,
+},
 });

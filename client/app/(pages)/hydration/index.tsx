@@ -12,6 +12,7 @@ import Plus from '@/assets/Svgs/plus.svg';
 import Chart from '@/assets/Svgs/chart-area.svg';
 import Target from '@/assets/Svgs/target.svg';
 import History from '@/assets/Svgs/history.svg';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function HydrationScreen() {
   const hydration = useHydrationData();
@@ -49,8 +50,19 @@ export default function HydrationScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Hydration</Text>
-        <Text style={styles.subtitle}>Stay hydrated throughout the day</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={hp(2.8)} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Hydration</Text>
+            <Text style={styles.subtitle}>Stay hydrated throughout the day</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -176,14 +188,26 @@ const styles = StyleSheet.create({
     marginTop: hp(2),
     marginBottom: hp(3),
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    marginTop: hp(0.3),
+    marginRight: hp(1),
+    padding: hp(0),
+  },
+  headerContent: {
+    flex: 1,
+  },
   title: {
-    fontSize: hp(3),
+    fontSize: hp(2),
     fontWeight: '700',
     color: '#000',
     fontFamily: 'Roboto-Bold',
   },
   subtitle: {
-    fontSize: hp(1.8),
+    fontSize: hp(1.5),
     color: '#666',
     marginTop: hp(0.5),
     fontFamily: 'Roboto-Regular',

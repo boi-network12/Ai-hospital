@@ -54,10 +54,10 @@ export const createChatRoom = async (req: AuthRequest, res: Response) => {
 // Send message
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { chatRoomId, content, messageType, fileUrl, fileName, fileSize, fileType, replyTo }: SendMessageRequest = req.body;
+    const { chatRoomId, content, messageType, fileUrl, fileName, fileSize, fileType, replyTo, thumbnailUrl }: SendMessageRequest = req.body;
     const userId = req.user._id.toString();
 
-    const fileInfo = fileUrl ? { fileUrl, fileName, fileSize, fileType } : undefined;
+    const fileInfo = fileUrl ? { fileUrl, fileName, fileSize, fileType, thumbnailUrl } : undefined;
 
     const message = await ChatService.sendMessage(
       chatRoomId,

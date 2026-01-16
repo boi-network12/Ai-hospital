@@ -94,6 +94,7 @@ export class ChatService {
       fileName?: string;
       fileSize?: number;
       fileType?: string;
+      thumbnailUrl?: string;
     },
     replyTo?: string
   ): Promise<ChatMessage> {
@@ -114,14 +115,15 @@ export class ChatService {
     const message = await Message.create({
       chatRoomId: new Types.ObjectId(chatRoomId),
       senderId: new Types.ObjectId(senderId),
-      content,
+      content: content || fileInfo?.fileName || 'Media file',
       messageType,
       fileUrl: fileInfo?.fileUrl,
       fileName: fileInfo?.fileName,
       fileSize: fileInfo?.fileSize,
       fileType: fileInfo?.fileType,
+      thumbnailUrl: fileInfo?.thumbnailUrl,
       status: 'sent',
-      readBy: [new Types.ObjectId(senderId)], // Sender has read their own message
+      readBy: [new Types.ObjectId(senderId)],
       replyTo: replyTo ? new Types.ObjectId(replyTo) : undefined,
       isEdited: false,
       isDeleted: false,

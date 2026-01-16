@@ -26,6 +26,7 @@ export interface ChatMessage {
   fileName?: string;
   fileSize?: number;
   fileType?: string;
+  thumbnailUrl?: string;
 
    _hideTime?: boolean;
   

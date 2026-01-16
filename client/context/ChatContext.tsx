@@ -1,15 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/Hooks/authHook.d';
 import { useUser } from '@/Hooks/userHooks.d';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from "expo-document-picker";
 import { useToast } from '@/Hooks/useToast.d';
 import { apiFetch } from '@/Utils/api';
 import { socketManager } from '@/Utils/socket';
 import { ChatMessage, ChatRoom } from '@/types/chat';
 import { SOCKET_URL } from '@/config/api';
+import { useMediaUpload } from '@/Hooks/useMediaUpload';
 
 // ============================================
 // INTERFACES
 // ============================================
+
+interface MediaFile {
+  uri: string;
+  name: string;
+  type: string;
+  size: number;
+}
 
 interface ChatContextType {
   // State
@@ -29,7 +39,14 @@ interface ChatContextType {
   loadMessages: (chatRoomId: string, loadMore?: boolean) => Promise<void>;
   loadMessagesForChat: (chatRoomId: string, loadMore?: boolean) => Promise<ChatMessage[]>; 
   sendMessage: (content: string, replyTo?: string) => Promise<void>;
-  sendFileMessage: (file: any, type: 'image' | 'file' | 'audio' | 'video') => Promise<void>;
+  sendMediaMessage: (file: any, type: 'image' | 'file' | 'audio' | 'video') => Promise<void>;
+  takePhoto: () => Promise<void>;
+  isUploading: boolean;
+  uploadProgress: number;
+  pickImage: () => Promise<MediaFile | null>;
+  pickVideo: () => Promise<MediaFile | null>;
+  pickDocument: () => Promise<MediaFile | null>;
+  compressImage: (uri: string) => Promise<string>;
   setTyping: (isTyping: boolean) => void;
   markAsRead: (messageId: string) => void;
   addReaction: (messageId: string, emoji: string) => void;
@@ -89,7 +106,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { auth } = useAuth();
   const { user } = useUser();
   const { showAlert } = useToast();
-  
+  const mediaUpload = useMediaUpload();
+    
   // State
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [activeChat, setActiveChat] = useState<ChatRoom | null>(null);
@@ -163,32 +181,64 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [auth.accessToken]); 
 
+    // Replace the current useEffect initialization in ChatProvider with:
+
     useEffect(() => {
-      // Only initialize once
-      if (isInitialized || !auth.isAuth || !auth.accessToken) {
+      if (!auth.isAuth || !auth.accessToken) {
+        console.log('No auth, skipping initialization');
+        setLoading(false);
+        setIsInitialized(false);
         return;
       }
 
-      const initializeSocket = async () => {
-        console.log('🔌 Initializing socket connection...');
+      // Don't re-initialize if already done
+      if (isInitialized) {
+        console.log('Already initialized, skipping');
+        return;
+      }
+
+      console.log('🚀 Starting chat initialization...');
+      const initializeChat = async () => {
         try {
+          setLoading(true);
+          
+          // Connect socket first
+          console.log('🔌 Connecting socket...');
           await connectSocket();
+          
+          // Load chats
+          console.log('📱 Loading chats...');
           await loadChats();
-          await syncOnlineStatus();
-          await loadUnreadCount();
+          
+          // Load other data in parallel
+          console.log('🔄 Loading other data...');
+          await Promise.all([
+            syncOnlineStatus(),
+            loadUnreadCount()
+          ]);
+          
           setIsInitialized(true);
+          console.log('✅ Chat initialization complete');
+          
         } catch (error) {
-          console.error('Failed to initialize socket:', error);
+          console.error('❌ Failed to initialize chat:', error);
+          showAlert({ 
+            message: 'Failed to load chats', 
+            type: 'error' 
+          });
+        } finally {
+          setLoading(false);
         }
       };
 
-      initializeSocket();
+      initializeChat();
 
       return () => {
-        // Don't disconnect socket when unmounting - keep connection alive
-        console.log('ChatProvider unmounting - keeping socket alive');
+        console.log('🧹 Cleaning up chat provider...');
+        // Only disconnect socket if needed, or keep it alive
+        // disconnectSocket();
       };
-    }, [auth.isAuth, auth.accessToken]);
+    }, [auth.isAuth, auth.accessToken, isInitialized]); // Removed isInitialized from dependencies 
 
 
   // ============================================
@@ -510,28 +560,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
     };
 
-    // const handleOnlineStatusResponse = (data: any) => {
-    //   console.log('📊 Online status response:', data);
-      
-    //   if (data.onlineUsers && Array.isArray(data.onlineUsers)) {
-    //     setChats(prev => prev.map(chat => {
-    //       if (chat.participantsData) {
-    //         const updatedParticipants = chat.participantsData.map(participant => {
-    //           const isOnline = data.onlineUsers.includes(participant._id.toString());
-    //           return {
-    //             ...participant,
-    //             isOnline,
-    //             // Keep existing lastActive if not online
-    //             ...(isOnline && !participant.lastActive ? { lastActive: new Date().toISOString() } : {})
-    //           };
-    //         });
-            
-    //         return { ...chat, participantsData: updatedParticipants };
-    //       }
-    //       return chat;
-    //     }));
-    //   }
-    // };
 
     // Register socket listeners
     socketManager.on('connect', handleConnect);
@@ -606,6 +634,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Failed to load chats:', error);
       showAlert({ message: 'Failed to load chats', type: 'error' });
+      setChats([])
     } finally {
       setLoading(false);
     }
@@ -620,55 +649,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // const loadMessages = async (chatRoomId: string, loadMore = false): Promise<void> => {
-  //   try {
-  //     if (!loadMore) {
-  //       setLoading(true);
-  //       setMessages([]);
-  //     }
-
-  //     const params = new URLSearchParams({
-  //       limit: '50',
-  //       sort: 'desc'
-  //     });
-
-  //     if (loadMore && messages.length > 0) {
-  //       const lastMessage = messages[messages.length - 1];
-  //       params.append('before', new Date(lastMessage.createdAt).toISOString());
-  //     }
-
-  //     const response = await apiFetch<{ data: { messages: ChatMessage[], hasMore: boolean } }>(
-  //       `/chat/rooms/${chatRoomId}/messages?${params.toString()}`
-  //     );
-
-  //     // Remove duplicates and sort
-  //     const allMessages = loadMore 
-  //       ? [...messages, ...response.data.messages]
-  //       : response.data.messages;
-      
-  //     const uniqueMessages = removeDuplicates(allMessages);
-  //     const sortedMessages = sortMessages(uniqueMessages);
-
-  //     setMessages(sortedMessages);
-  //     setHasMoreMessages(response.data.hasMore);
-
-  //     // Join chat room via socket
-  //     if (!loadMore) {
-  //       await socketManager.joinChat(chatRoomId);
-  //     }
-
-  //     // Mark all as read if we're loading for the first time
-  //     if (!loadMore && user) {
-  //       // You might want to call an API to mark all messages as read
-  //     }
-
-  //   } catch (error) {
-  //     console.error('Failed to load messages:', error);
-  //     showAlert({ message: 'Failed to load messages', type: 'error' });
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   const loadMessages = async (chatRoomId: string, loadMore = false): Promise<void> => {
     try {
@@ -858,48 +838,205 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const sendFileMessage = async (file: any, type: 'image' | 'file' | 'audio' | 'video'): Promise<void> => {
+  const sendFileMessage = useCallback(async (
+    file: any,
+    type: 'image' | 'file' | 'audio' | 'video'
+  ): Promise<void> => {
     const currentActiveChat = activeChatRef.current;
-    if (!currentActiveChat) return;
+    if (!currentActiveChat || !file) return;
 
     try {
-      setSending(true);
-
-      // Upload file
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', type);
-
-      const uploadResponse = await apiFetch<{ 
-        url: string; 
-        fileName: string; 
-        fileSize: number; 
-        fileType: string;
-        thumbnailUrl?: string;
-      }>('/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      // Send message
-      await socketManager.sendMessage({
+      // Upload file first
+      const uploadResult = await mediaUpload.uploadFile(file);
+      
+      // Send via socket
+      await socketManager.sendMediaMessage({
         chatRoomId: currentActiveChat._id.toString(),
-        content: '',
-        messageType: type,
-        fileUrl: uploadResponse.url,
-        fileName: uploadResponse.fileName,
-        fileSize: uploadResponse.fileSize,
-        fileType: uploadResponse.fileType,
-        ...(uploadResponse.thumbnailUrl && { thumbnailUrl: uploadResponse.thumbnailUrl })
+        fileData: uploadResult.url,
+        fileName: uploadResult.fileName,
+        fileType: uploadResult.fileType,
+        fileSize: uploadResult.fileSize,
+        thumbnailUrl: uploadResult.thumbnailUrl
       });
 
     } catch (error: any) {
       console.error('Failed to send file:', error);
       showAlert({ message: error.message || 'Failed to send file', type: 'error' });
-    } finally {
-      setSending(false);
     }
-  };
+  }, [mediaUpload, showAlert]);
+
+
+    const handlePickImage = useCallback(async (): Promise<MediaFile | null> => {
+    try {
+      // Use the legacy imports that you already have
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Use the new File API instead of getInfoAsync
+        const fileUri = asset.uri;
+        
+        // Create File object to get size
+        const response = await fetch(fileUri);
+        const blob = await response.blob();
+        
+        const mediaFile: MediaFile = {
+          uri: fileUri,
+          name: `image_${Date.now()}.${asset.uri.split('.').pop() || 'jpg'}`,
+          type: asset.mimeType || 'image/jpeg',
+          size: blob.size,
+        };
+
+        if (mediaFile) {
+          await sendFileMessage(mediaFile, 'image');
+        }
+        return mediaFile;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showAlert({ message: 'Failed to pick image', type: 'error' });
+      return null;
+    }
+  }, [sendFileMessage, showAlert]);
+
+  const handlePickVideo = useCallback(async (): Promise<MediaFile | null> => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Use the new File API instead of getInfoAsync
+        const fileUri = asset.uri;
+        
+        // Create File object to get size
+        const response = await fetch(fileUri);
+        const blob = await response.blob();
+        
+        const mediaFile: MediaFile = {
+          uri: fileUri,
+          name: `video_${Date.now()}.${asset.uri.split('.').pop() || 'mp4'}`,
+          type: asset.mimeType || 'video/mp4',
+          size: blob.size,
+        };
+
+        if (mediaFile) {
+          await sendFileMessage(mediaFile, 'video');
+        }
+        return mediaFile;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error picking video:', error);
+      showAlert({ message: 'Failed to pick video', type: 'error' });
+      return null;
+    }
+  }, [sendFileMessage, showAlert]);
+
+  const handlePickDocument = useCallback(async (): Promise<MediaFile | null> => {
+    try {
+      
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*', // All file types
+        copyToCacheDirectory: true,
+      });
+
+      if (result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Use fetch to get the file size
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        
+        const mediaFile: MediaFile = {
+          uri: asset.uri,
+          name: asset.name || `document_${Date.now()}`,
+          type: asset.mimeType || 'application/octet-stream',
+          size: blob.size,
+        };
+
+        if (mediaFile) {
+          await sendFileMessage(mediaFile, 'file');
+        }
+        return mediaFile;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error picking document:', error);
+      showAlert({ message: 'Failed to pick document', type: 'error' });
+      return null;
+    }
+  }, [sendFileMessage, showAlert]);
+
+
+  const compressImage = useCallback(async (uri: string): Promise<string> => {
+    return await mediaUpload.compressImage(uri);
+  }, [mediaUpload]);
+
+  const takePhoto = useCallback(async (): Promise<void> => {
+    const currentActiveChat = activeChatRef.current;
+    if (!currentActiveChat) return;
+
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        showAlert({
+          message: 'Camera permission is required to take photos',
+          type: 'error'
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Use the new Filesystem API
+        const file = {
+          uri: asset.uri,
+          name: `photo_${Date.now()}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
+          size: asset.fileSize || 0, // Get size directly from asset if available
+        };
+        
+        // If fileSize is not available from asset, try alternative approach
+        if (!file.size) {
+          try {
+            // Use fetch to get file size
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            file.size = blob.size;
+          } catch (error) {
+            console.warn('Could not determine file size:', error);
+            file.size = 0;
+          }
+        }
+        
+        await sendFileMessage(file, 'image');
+      }
+    } catch (error: any) {
+      console.error('Failed to take photo:', error);
+      showAlert({ message: 'Failed to take photo', type: 'error' });
+    }
+  }, [sendFileMessage, showAlert]);
 
   const setTyping = useCallback((isTyping: boolean) => {
     const currentActiveChat = activeChatRef.current;
@@ -1017,7 +1154,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // const handleSetActiveChat = useCallback((chat: ChatRoom | null) => {
+ 
   //   setActiveChat(chat);
     
   //   if (chat) {
@@ -1151,7 +1288,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadChats,
     loadMessages,
     sendMessage,
-    sendFileMessage,
+    sendMediaMessage: sendFileMessage,
+    takePhoto,
+    isUploading: mediaUpload.isUploading,
+    uploadProgress: mediaUpload.progress,
+    pickImage: handlePickImage,
+    pickVideo: handlePickVideo,
+    pickDocument: handlePickDocument,
+    compressImage,
     loadMessagesForChat,
     loadChatRoom,
     setTyping,
@@ -1184,7 +1328,7 @@ export const useChatActions = () => {
   
   return {
     sendMessage: chat.sendMessage,
-    sendFileMessage: chat.sendFileMessage,
+    sendFileMessage: chat.sendMediaMessage,
     setTyping: chat.setTyping,
     markAsRead: chat.markAsRead,
     addReaction: chat.addReaction,
@@ -1193,6 +1337,20 @@ export const useChatActions = () => {
     deleteMessage: chat.deleteMessage,
     createChat: chat.createChat,
     setActiveChat: chat.setActiveChat,
+  };
+};
+
+export const useChatMedia = () => {
+  const chat = useChat();
+  
+  return {
+    sendMediaMessage: chat.sendMediaMessage,
+    takePhoto: chat.takePhoto,
+    pickImage: chat.pickImage,         // Add this
+    pickVideo: chat.pickVideo,         // Add this
+    pickDocument: chat.pickDocument,   // Add this
+    isUploading: chat.isUploading,
+    uploadProgress: chat.uploadProgress,
   };
 };
 

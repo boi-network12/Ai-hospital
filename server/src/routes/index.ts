@@ -10,6 +10,7 @@ import healthcareRoutes from './healthcareRoutes';
 import hydrationRoutes from './hydrationRoutes';
 import careerRoutes from './careerRoutes';
 import chatRoutes from './chatRoutes';
+import uploadRoutes from './uploadRoutes';
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use('/v1/healthcare', healthcareRoutes);
 router.use('/v1/hydration', hydrationRoutes); 
 router.use('/v1/career', careerRoutes);
 router.use('/v1/chat', chatRoutes);
+router.use('/v1/upload', uploadRoutes);
 
 export default router;

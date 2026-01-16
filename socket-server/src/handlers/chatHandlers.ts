@@ -134,6 +134,82 @@ export const setupChatHandlers = (socket: Socket, io: any) => {
       userName
     });
   });
+
+  socket.on('send_media_message', async (data: any, callback: Function) => {
+    try {
+      const { chatRoomId, fileData, fileName, fileType, fileSize, thumbnailUrl } = data;
+      const token = socket.handshake.auth.token;
+      
+      console.log(`📸 Sending media message to chat: ${chatRoomId} from user: ${userId}`);
+      
+      // Save to database with media information
+      const savedMessage = await apiClient.sendMessage(token, {
+        chatRoomId,
+        content: fileName || 'Media file',
+        messageType: fileType.includes('image') ? 'image' : 
+                    fileType.includes('video') ? 'video' : 'file',
+        fileUrl: fileData,
+        fileName,
+        fileSize,
+        fileType,
+        thumbnailUrl
+      });
+      
+      const completeMessage = {
+        ...savedMessage.data,
+        _id: savedMessage.data._id || savedMessage.data.id,
+        chatRoomId,
+        senderId: userId,
+        timestamp: new Date().toISOString(),
+        status: 'sent',
+        readBy: [userId],
+        isEdited: false,
+        isDeleted: false,
+        reactions: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Broadcast to ENTIRE chat room
+      io.to(`chat:${chatRoomId}`).emit('receive_message', completeMessage);
+      
+      // Emit chat_updated event
+      io.to(`chat:${chatRoomId}`).emit('chat_updated', {
+        chatRoomId,
+        lastMessage: completeMessage,
+        lastMessageAt: new Date().toISOString(),
+        timestamp: new Date().toISOString()
+      });
+      
+      // Send confirmation to sender
+      if (callback) {
+        callback({
+          success: true,
+          data: completeMessage,
+          message: 'Media message sent successfully'
+        });
+      }
+      
+      socket.emit('message_sent', completeMessage);
+      
+    } catch (error: any) {
+      console.error('❌ Error sending media message:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      
+      if (callback) {
+        callback({
+          success: false,
+          error: 'Failed to send media message',
+          message
+        });
+      }
+      
+      socket.emit('message_error', {
+        error: 'Failed to send media message',
+        originalData: data
+      });
+    }
+  });
   
   socket.on('mark_read', (data: any) => {
     const { chatRoomId, messageId } = data;

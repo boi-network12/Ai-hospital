@@ -82,35 +82,84 @@ const ChatListItem: React.FC<ChatListItemProps> = React.memo(({ chat, onPress })
     return otherParticipant?.name || 'Unknown User';
   };
 
+  // const getLastMessageText = () => {
+  //   if (chat.lastMessageData && typeof chat.lastMessageData === 'object') {
+  //     const message = chat.lastMessageData;
+      
+  //     if (message.messageType === 'text' && message.content) {
+  //       return message.content.length > 30 
+  //         ? message.content.substring(0, 30) + '...' 
+  //         : message.content;
+  //     }
+      
+  //     switch (message.messageType) {
+  //       case 'image': return '📷 Image';
+  //       case 'file': return `📎 ${message.fileName || 'File'}`;
+  //       case 'audio': return '🎤 Audio message';
+  //       case 'video': return '🎬 Video';
+  //       default: return message.content || 'Message';
+  //     }
+  //   }
+    
+  //   if (chat.lastMessage && typeof chat.lastMessage === 'string') {
+  //     if (chat.lastMessage.length === 24) {
+  //       return 'Message...';
+  //     }
+  //     return chat.lastMessage.length > 30 
+  //       ? chat.lastMessage.substring(0, 30) + '...' 
+  //       : chat.lastMessage;
+  //   }
+    
+  //   return 'Start a conversation...';
+  // };
+
   const getLastMessageText = () => {
+    // Default text if no message
+    if (!chat.lastMessageData && !chat.lastMessage) {
+      return 'Start a conversation...';
+    }
+
+    // Check if lastMessageData is available
     if (chat.lastMessageData && typeof chat.lastMessageData === 'object') {
       const message = chat.lastMessageData;
+      const isCurrentUser = message.senderId?.toString() === user?._id?.toString();
+      const senderPrefix = isCurrentUser ? 'You: ' : '';
       
       if (message.messageType === 'text' && message.content) {
-        return message.content.length > 30 
-          ? message.content.substring(0, 30) + '...' 
-          : message.content;
+        const content = senderPrefix + message.content;
+        return content.length > 30 
+          ? content.substring(0, 30) + '...' 
+          : content;
       }
       
-      switch (message.messageType) {
-        case 'image': return '📷 Image';
-        case 'file': return `📎 ${message.fileName || 'File'}`;
-        case 'audio': return '🎤 Audio message';
-        case 'video': return '🎬 Video';
-        default: return message.content || 'Message';
-      }
+      // Handle media messages with sender prefix
+      const mediaText = (() => {
+        switch (message.messageType) {
+          case 'image': return '📷 Image';
+          case 'file': return `📎 ${message.fileName || 'File'}`;
+          case 'audio': return '🎤 Audio message';
+          case 'video': return '🎬 Video';
+          default: return message.content || 'Message';
+        }
+      })();
+      
+      return senderPrefix + mediaText;
     }
     
+    // Fallback to lastMessage string if lastMessageData is not available
     if (chat.lastMessage && typeof chat.lastMessage === 'string') {
-      if (chat.lastMessage.length === 24) {
+      // Check if it's likely a timestamp (24 char MongoDB ID or ISO string)
+      if (chat.lastMessage.length === 24 || chat.lastMessage.includes('T')) {
         return 'Message...';
       }
+      
+      // We don't know who sent it, so just show the message
       return chat.lastMessage.length > 30 
         ? chat.lastMessage.substring(0, 30) + '...' 
         : chat.lastMessage;
     }
     
-    return 'Start a conversation...';
+    return 'Message...';
   };
 
   const getUnreadCount = () => {
@@ -294,32 +343,35 @@ export default function ChatListScreen() {
     loadChats,
     setActiveChat,
     hasMoreMessages,
-    loadMessages,
   } = useChat();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const flatListRef = useRef<FlatList>(null);
-  const isMountedRef = useRef(true);
+  const initialLoadRef = useRef(false);
 
   // Initialize
   useEffect(() => {
-    isMountedRef.current = true;
-    
-    const initialize = async () => {
-      if (isMountedRef.current) {
-        await loadChats();
-      }
-    };
-    
-    initialize();
-    
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      console.log('Initial load starting...');
+      
+      const initialize = async () => {
+        try {
+          await loadChats();
+        } catch (error) {
+          console.error('Failed to load chats:', error);
+        } finally {
+          setIsInitialLoad(false);
+        }
+      };
+      
+      initialize();
+    }
+  }, [loadChats]);
 
   // Prepare chat list with AI chat first
   const chatList = useMemo(() => {
@@ -386,9 +438,7 @@ export default function ChatListScreen() {
       } catch (error) {
         console.error('Failed to refresh chats:', error);
       } finally {
-        if (isMountedRef.current) {
-          setRefreshing(false);
-        }
+        setRefreshing(false);
       }
     }
   }, [loadChats, refreshing]);
@@ -406,9 +456,7 @@ export default function ChatListScreen() {
     } catch (error) {
       console.error('Failed to load more chats:', error);
     } finally {
-      if (isMountedRef.current) {
-        setLoadingMore(false);
-      }
+      setLoadingMore(false);
     }
   }, [loadingMore, hasMoreMessages, refreshing, loadChats]);
 
@@ -474,9 +522,10 @@ export default function ChatListScreen() {
     );
   }, [searchQuery, router]);
 
-  if (loading && chats.length === 0) {
+  if (loading && isInitialLoad) {
     return (
       <SafeAreaView style={styles.container}>
+        <Header unreadCount={unreadCount} />
         <LoadingState />
       </SafeAreaView>
     );

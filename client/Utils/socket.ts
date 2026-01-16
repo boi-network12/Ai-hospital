@@ -116,6 +116,40 @@ class SocketManager {
     }
   }
 
+  async sendMediaMessage(data: {
+    chatRoomId: string;
+    fileData: string; // base64 or URL
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    thumbnailUrl?: string;
+  }): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.connected) {
+        reject(new Error('Socket not connected'));
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Media upload timeout'));
+      }, 60000); // 60 seconds for media
+
+      console.log(`📤 Sending media message to chat: ${data.chatRoomId}`);
+      
+      this.socket?.emit('send_media_message', data, (response: any) => {
+        clearTimeout(timeout);
+        
+        if (response?.success) {
+          console.log('✅ Media message sent successfully');
+          resolve(response.data);
+        } else {
+          console.error('❌ Media message send failed:', response?.error);
+          reject(new Error(response?.error || 'Failed to send media message'));
+        }
+      });
+    });
+  }
+
   private async createSocketConnection(token: string): Promise<void> {
     this.disconnect(); // Clean up any existing connection
 
