@@ -1,0 +1,54 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "description": "Intelligent Medical AI Assistant with Gemini API",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "train": "node training/fineTuningScript.js",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "docker:build": "docker build -t medical-ai-bot .",
+    "docker:run": "docker run -p 3002:3002 --env-file .env medical-ai-bot"
+  },
+  "keywords": [
+    "medical",
+    "ai",
+    "healthcare",
+    "gemini",
+    "chatbot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "geoip-lite": "^1.4.10",
+    "helmet": "^8.1.0",
+    "i18n": "^0.15.3",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.3",
+    "moment": "^2.30.1",
+    "mongoose": "^9.1.4",
+    "socket.io": "^4.8.3",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/uuid": "^10.0.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.11",
+    "ts-node-dev": "^2.0.0"
+  }
+}

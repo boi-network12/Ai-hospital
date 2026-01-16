@@ -118,11 +118,14 @@ class SocketManager {
 
   async sendMediaMessage(data: {
     chatRoomId: string;
-    fileData: string; // base64 or URL
+    file: string; // base64 or URL
+    fileData?: string; // optional alternative
     fileName: string;
     fileType: string;
+    messageType: string;
     fileSize: number;
     thumbnailUrl?: string;
+    content?: string;
   }): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.connected) {
@@ -136,7 +139,20 @@ class SocketManager {
 
       console.log(`📤 Sending media message to chat: ${data.chatRoomId}`);
       
-      this.socket?.emit('send_media_message', data, (response: any) => {
+      // Ensure required parameters are present
+      if (!data.file) {
+        clearTimeout(timeout);
+        reject(new Error('Missing required parameter - file'));
+        return;
+      }
+      
+      // Use fileData if file is not provided
+      const fileToSend = data.file || data.fileData;
+      
+      this.socket?.emit('send_media_message', {
+        ...data,
+        file: fileToSend // Make sure file is included
+      }, (response: any) => {
         clearTimeout(timeout);
         
         if (response?.success) {

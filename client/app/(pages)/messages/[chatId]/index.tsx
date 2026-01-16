@@ -14,6 +14,8 @@ import {
   Alert,
   Modal,
   Pressable,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useChat, useChatMedia } from '@/context/ChatContext';
@@ -28,46 +30,276 @@ import MediaActionSheet from '@/components/customs/MediaActionSheet';
 import { generateThumbnailUrl } from '@/Utils/thumbnailUtils';
 import ImagePreviewModal from '@/components/customs/ImagePreviewModal';
 
+const { width } = Dimensions.get('window');
 
 // ============================================
 // COMPONENTS
 // ============================================
 
 // 1. Reaction Picker Component
-interface ReactionPickerProps {
+interface MessageActionSheetProps {
   visible: boolean;
   onClose: () => void;
-  onSelect: (emoji: string) => void;
+  message: ChatMessage | null;
+  onReply: (msg: ChatMessage) => void;
+  onEdit: (msg: ChatMessage) => void;
+  onDelete: (msg: ChatMessage) => void;
+  onCopy: (text: string) => void;
+  onAddReaction: (emoji: string) => void;
+  isOwnMessage: boolean;
+  showReactionsFirst?: boolean;
 }
 
-const ReactionPicker: React.FC<ReactionPickerProps> = React.memo(({ visible, onClose, onSelect }) => {
+const MessageActionSheet: React.FC<MessageActionSheetProps> = React.memo(({
+  visible,
+  onClose,
+  message,
+  onReply,
+  onEdit,
+  onDelete,
+  onCopy,
+  onAddReaction,
+  isOwnMessage,
+  showReactionsFirst = false,
+}) => {
+  const [showReactions, setShowReactions] = useState(showReactionsFirst);
+  const slideAnim = useRef(new Animated.Value(1)).current;
   const reactions = ['😀', '😍', '😂', '😮', '😢', '👍', '❤️', '🎉', '🔥', '👏'];
+
+  const menuItems = [
+    { id: 'reply', label: 'Reply', icon: 'corner-up-left' },
+    { id: 'copy', label: 'Copy', icon: 'copy' },
+  ];
+
+  if (isOwnMessage && message) {
+    menuItems.push(
+      { id: 'edit', label: 'Edit', icon: 'edit-2' },
+      { id: 'delete', label: 'Delete', icon: 'trash-2' }
+    );
+  }
+
+  menuItems.unshift({ id: 'reaction', label: 'Add Reaction', icon: 'smile' });
+
+  useEffect(() => {
+    if (visible) {
+      setShowReactions(showReactionsFirst);
+    }
+  }, [visible, showReactionsFirst]);
+
+  const handleMenuItemPress = (itemId: string) => {
+    if (!message) return;
+    
+    switch (itemId) {
+      case 'reply':
+        onReply(message);
+        break;
+      case 'edit':
+        onEdit(message);
+        break;
+      case 'delete':
+        onDelete(message);
+        break;
+      case 'copy':
+        onCopy(message.content || '');
+        break;
+      case 'reaction':
+        setShowReactions(true);
+        return;
+    }
+    onClose();
+  };
+
+  const handleReactionSelect = (emoji: string) => {
+    onAddReaction(emoji);
+    onClose();
+  };
+
+  const handleBackToMenu = () => {
+    Animated.spring(slideAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start(() => {
+      setShowReactions(false);
+    });
+  };
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.reactionPickerOverlay} onPress={onClose}>
-        <View style={styles.reactionPicker}>
-          {reactions.map((emoji) => (
-            <TouchableOpacity
-              key={emoji}
-              style={styles.reactionEmoji}
-              onPress={() => {
-                onSelect(emoji);
-                onClose();
-              }}
-            >
-              <Text style={styles.reactionEmojiText}>{emoji}</Text>
-            </TouchableOpacity>
-          ))}
+      <Pressable style={styles.actionSheetOverlay} onPress={onClose}>
+        <View style={styles.actionSheetContainer}>
+          <Animated.View 
+            style={[
+              styles.actionSheetContent,
+              {
+                transform: [{
+                  translateX: slideAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [showReactions ? -width : 0, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            {showReactions ? (
+              <ReactionsView 
+                onBack={handleBackToMenu}
+                reactions={reactions}
+                onReactionSelect={handleReactionSelect}
+              />
+            ) : (
+              <MenuView 
+                menuItems={menuItems}
+                onMenuItemPress={handleMenuItemPress}
+              />
+            )}
+          </Animated.View>
         </View>
       </Pressable>
     </Modal>
   );
 });
 
-ReactionPicker.displayName = 'ReactionPicker';
+MessageActionSheet.displayName = 'MessageActionSheet';
 
-// 2. Message Menu Component
+interface ReactionsViewProps {
+  onBack: () => void;
+  reactions: string[];
+  onReactionSelect: (emoji: string) => void;
+}
+
+const ReactionsView: React.FC<ReactionsViewProps> = ({ onBack, reactions, onReactionSelect }) => (
+  <View style={styles.reactionsView}>
+    <TouchableOpacity 
+      style={styles.reactionsBackButton}
+      onPress={onBack}
+    >
+      <Feather name="arrow-left" size={24} color="#666" />
+      <Text style={styles.reactionsBackText}>Back</Text>
+    </TouchableOpacity>
+    <View style={styles.reactionsGrid}>
+      {reactions.map((emoji) => (
+        <TouchableOpacity
+          key={emoji}
+          style={styles.reactionEmojiButton}
+          onPress={() => onReactionSelect(emoji)}
+        >
+          <Text style={styles.reactionEmojiLarge}>{emoji}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  </View>
+);
+
+interface MenuViewProps {
+  menuItems: { id: string; label: string; icon: string }[];
+  onMenuItemPress: (itemId: string) => void;
+}
+
+const MenuView: React.FC<MenuViewProps> = ({ menuItems, onMenuItemPress }) => (
+  <View style={styles.menuView}>
+    <View style={styles.menuItemsContainer}>
+      {menuItems.map((item) => (
+        <TouchableOpacity
+          key={item.id}
+          style={styles.menuItem}
+          onPress={() => onMenuItemPress(item.id)}
+        >
+          <View style={styles.menuItemIcon}>
+            <Feather 
+              name={item.icon as any} 
+              size={24} 
+              color={item.id === 'reaction' ? '#FF9500' : '#333'} 
+            />
+          </View>
+          <Text style={[
+            styles.menuItemText,
+            item.id === 'reaction' && styles.reactionMenuItemText
+          ]}>
+            {item.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  </View>
+);
+
+// 2. Quick Reaction Bar Component
+interface QuickReactionBarProps {
+  visible: boolean;
+  position: { x: number; y: number };
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}
+
+const QuickReactionBar: React.FC<QuickReactionBarProps> = React.memo(({ 
+  visible, 
+  position, 
+  onSelect, 
+  onClose 
+}) => {
+  const quickReactions = ['😀', '😂', '😍', '😮', '👍', '❤️'];
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }).start();
+    } else {
+      slideAnim.setValue(0);
+    }
+  }, [visible, slideAnim]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        <Animated.View 
+          style={[
+            styles.quickReactionBar,
+            {
+              top: position.y - 60,
+              left: position.x - 100,
+              opacity: slideAnim,
+              transform: [{
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0]
+                })
+              }]
+            }
+          ]}
+        >
+          <View style={styles.quickReactionsContainer}>
+            {quickReactions.map((emoji) => (
+              <TouchableOpacity
+                key={emoji}
+                style={styles.quickReactionButton}
+                onPress={() => {
+                  onSelect(emoji);
+                  onClose();
+                }}
+              >
+                <Text style={styles.quickReactionEmoji}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.quickReactionArrow} />
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+});
+
+QuickReactionBar.displayName = 'QuickReactionBar';
+
+// 3. Message Menu Component
 interface MessageMenuProps {
   visible: boolean;
   onClose: () => void;
@@ -140,17 +372,293 @@ const MessageMenu: React.FC<MessageMenuProps> = React.memo(({
 
 MessageMenu.displayName = 'MessageMenu';
 
-// 3. Message Item Component
+// 4. Message Item Component
 interface MessageItemProps {
   message: ChatMessage;
   isOwnMessage: boolean;
-  onLongPress: (msg: ChatMessage) => void;
+  onLongPress: (msg: ChatMessage, position?: { x: number; y: number }) => void;
+  onQuickReaction?: (msg: ChatMessage, emoji: string) => void;
   onPreviewMedia?: (url: string, type: 'image' | 'video') => void;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMessage, onLongPress, onPreviewMedia }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ 
+  message, 
+  isOwnMessage, 
+  onLongPress, 
+  onQuickReaction,
+  onPreviewMedia 
+}) => {
   const { user } = useUser();
   const { addReaction } = useChat();
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
+  const touchStartTime = useRef<number>(0);
+  const touchStartPosition = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handlePressIn = (event: any) => {
+    touchStartTime.current = Date.now();
+    const { locationX, locationY } = event.nativeEvent;
+    touchStartPosition.current = { x: locationX, y: locationY };
+    
+    pressTimer.current = setTimeout(() => {
+      onLongPress(message, {
+        x: event.nativeEvent.pageX,
+        y: event.nativeEvent.pageY,
+      });
+    }, 500);
+  };
+
+  const handlePressOut = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+    
+    const pressDuration = Date.now() - touchStartTime.current;
+    if (pressDuration < 200 && onQuickReaction) {
+      // Quick tap handling if needed
+    }
+  };
+
+  const handleReactionPress = (emoji: string) => {
+    addReaction(message._id.toString(), emoji);
+  };
+
+  return (
+    <View style={[
+      styles.messageContainer, 
+      isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer
+    ]}>
+      {message.replyToMessage && (
+        <ReplyPreviewComponent replyTo={message.replyToMessage} />
+      )}
+
+      <MessageBubble
+        message={message}
+        isOwnMessage={isOwnMessage}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onLongPress={() => {
+          if (pressTimer.current) {
+            clearTimeout(pressTimer.current);
+          }
+          onLongPress(message);
+        }}
+        onPreviewMedia={onPreviewMedia}
+      />
+
+      <MessageFooter 
+        message={message} 
+        isOwnMessage={isOwnMessage} 
+        user={user}
+      />
+
+      {message.reactions && message.reactions.length > 0 && (
+        <ReactionsList 
+          reactions={message.reactions}
+          userId={user?._id}
+          onReactionPress={handleReactionPress}
+          isOwnMessage={isOwnMessage}
+        />
+      )}
+    </View>
+  );
+});
+
+MessageItem.displayName = 'MessageItem';
+
+// Message Bubble Subcomponent
+interface MessageBubbleProps {
+  message: ChatMessage;
+  isOwnMessage: boolean;
+  onPressIn: (event: any) => void;
+  onPressOut: () => void;
+  onLongPress: () => void;
+  onPreviewMedia?: (url: string, type: 'image' | 'video') => void;
+}
+
+const MessageBubble: React.FC<MessageBubbleProps> = ({ 
+  message, 
+  isOwnMessage, 
+  onPressIn, 
+  onPressOut, 
+  onLongPress,
+  onPreviewMedia 
+}) => {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.messageBubble, 
+        isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble
+      ]}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      onLongPress={onLongPress}
+      activeOpacity={0.8}
+      delayLongPress={300}
+    >
+      <MessageContent 
+        message={message} 
+        isOwnMessage={isOwnMessage} 
+        onPreviewMedia={onPreviewMedia}
+      />
+      
+      {message.isEdited && (
+        <Text style={styles.editedText}>(edited)</Text>
+      )}
+    </TouchableOpacity>
+  );
+};
+
+// Message Content Subcomponent
+interface MessageContentProps {
+  message: ChatMessage;
+  isOwnMessage: boolean;
+  onPreviewMedia?: (url: string, type: 'image' | 'video') => void;
+}
+
+const MessageContent: React.FC<MessageContentProps> = ({ message, isOwnMessage, onPreviewMedia }) => {
+  if (message.messageType === 'image' && message.fileUrl) {
+    return (
+      <TouchableOpacity 
+        onPress={() => {
+          if (message.fileUrl && onPreviewMedia) {
+            onPreviewMedia(message.fileUrl, 'image');
+          }
+        }}
+        activeOpacity={0.8}
+      >
+        <Image 
+          source={{ uri: message.fileUrl }} 
+          style={styles.messageImage} 
+          resizeMode="cover" 
+        />
+      </TouchableOpacity>
+    );
+  }
+    
+  if (message.messageType === 'video') {
+    const thumbnailUrl = message.thumbnailUrl || generateThumbnailUrl(message.fileUrl, 'video');
+    return (
+      <TouchableOpacity 
+        style={styles.videoContainer}
+        onPress={() => {
+          if (message.fileUrl && onPreviewMedia) {
+            onPreviewMedia(message.fileUrl, 'video');
+          }
+        }}
+        activeOpacity={0.8}
+      >
+        {thumbnailUrl ? (
+          <Image 
+            source={{ uri: thumbnailUrl }} 
+            style={styles.videoThumbnail} 
+            resizeMode="cover" 
+          />
+        ) : (
+          <View style={styles.videoPlaceholder}>
+            <Text style={styles.videoPlaceholderIcon}>🎬</Text>
+            <Text style={styles.videoPlaceholderText}>Video</Text>
+          </View>
+        )}
+        <View style={styles.videoOverlay}>
+          <Feather name="play" size={24} color="#fff" />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+  
+  if (message.messageType === 'audio') {
+    return (
+      <View style={styles.audioContainer}>
+        <TouchableOpacity style={styles.audioPlayButton}>
+          <Feather name="play" size={20} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.audioInfo}>
+          <Text style={styles.audioTitle}>Voice message</Text>
+          <Text style={styles.audioDuration}>
+            {message.fileSize ? `${Math.round(message.fileSize / 1000)}KB` : 'Audio'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (message.messageType === 'file') {
+    return (
+      <TouchableOpacity 
+        style={styles.fileContainer}
+        onPress={() => {
+          Alert.alert(
+            'Download File',
+            `Would you like to download ${message.fileName || 'this file'}?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Download', 
+                onPress: () => {
+                  console.log('Download file:', message.fileUrl);
+                }
+              },
+            ]
+          );
+        }}
+        activeOpacity={0.8}
+      >
+        <Feather name="file" size={24} color="#666" />
+        <View style={styles.fileInfo}>
+          <Text style={styles.fileName} numberOfLines={1}>
+            {message.fileName || 'File'}
+          </Text>
+          <Text style={styles.fileSize}>
+            {message.fileSize ? (message.fileSize / 1024).toFixed(1) : '0'} KB
+          </Text>
+        </View>
+        <Feather name="download" size={20} color="#8089ff" />
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <Text style={isOwnMessage ? styles.ownMessageText : styles.otherMessageText}>
+      {message.content || ''}
+    </Text>
+  );
+};
+
+// Reply Preview Subcomponent
+interface ReplyPreviewComponentProps {
+  replyTo: ChatMessage;
+}
+
+const ReplyPreviewComponent: React.FC<ReplyPreviewComponentProps> = ({ replyTo }) => (
+  <View style={styles.replyContainer}>
+    <View style={styles.replyLine} />
+    <View style={styles.replyContent}>
+      <Text style={styles.replyName}>
+        {replyTo.sender?.name || 'Unknown'}
+      </Text>
+      <Text style={styles.replyText} numberOfLines={1}>
+        {replyTo.content || ''}
+      </Text>
+    </View>
+  </View>
+);
+
+// Message Footer Subcomponent
+interface MessageFooterProps {
+  message: ChatMessage;
+  isOwnMessage: boolean;
+  user: any;
+}
+
+const MessageFooter: React.FC<MessageFooterProps> = ({ message, isOwnMessage, user }) => {
+  const formatTime = (date: Date | string) => {
+    try {
+      return format(new Date(date), 'HH:mm');
+    } catch {
+      return '--:--';
+    }
+  };
 
   const getStatusIcon = () => {
     if (message.status === 'sending' || message.status === 'updating') {
@@ -183,221 +691,58 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ message, isOwnMess
     }
   };
 
-  const formatTime = (date: Date | string) => {
-    try {
-      return format(new Date(date), 'HH:mm');
-    } catch {
-      return '--:--';
-    }
-  };
-
-  const handleReactionPress = (emoji: string) => {
-    addReaction(message._id.toString(), emoji);
-  };
-
-  const renderMessageContent = () => {
-    if (message.messageType === 'image' && message.fileUrl) {
-      return (
-        <TouchableOpacity 
-            onPress={() => {
-            if (message.fileUrl && onPreviewMedia) {
-              onPreviewMedia(message.fileUrl, 'image');
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <Image 
-            source={{ uri: message.fileUrl }} 
-            style={styles.messageImage} 
-            resizeMode="cover" 
-          />
-          {/* {message.content && (
-            <Text style={[styles.otherMessageText, { marginTop: hp(1) }]}>
-              {message.content}
-            </Text>
-          )} */}
-        </TouchableOpacity>
-      );
-    }
-      
-    // Video message
-    if (message.messageType === 'video') {
-      const thumbnailUrl = message.thumbnailUrl || generateThumbnailUrl(message.fileUrl, 'video');
-
-      return (
-        <TouchableOpacity 
-          style={styles.videoContainer}
-          onPress={() => {
-             if (message.fileUrl && onPreviewMedia) {
-              onPreviewMedia(message.fileUrl, 'video');
-            }
-          }}
-          activeOpacity={0.8}
-        >
-           {thumbnailUrl ? (
-              <Image 
-                source={{ uri: thumbnailUrl }} 
-                style={styles.videoThumbnail} 
-                resizeMode="cover" 
-              />
-            ) : (
-              <View style={styles.videoPlaceholder}>
-                <Text style={styles.videoPlaceholderIcon}>🎬</Text>
-                <Text style={styles.videoPlaceholderText}>Video</Text>
-              </View>
-            )}
-          <View style={styles.videoOverlay}>
-            <Feather name="play" size={24} color="#fff" />
-          </View>
-          {/* {message.fileName && (
-            <View style={styles.videoInfo}>
-              <Text style={styles.videoFileName} numberOfLines={1}>
-                {message.fileName}
-              </Text>
-            </View>
-          )} */}
-        </TouchableOpacity>
-      );
-    }
-    
-    // Audio message
-    if (message.messageType === 'audio') {
-      return (
-        <View style={styles.audioContainer}>
-          <TouchableOpacity style={styles.audioPlayButton}>
-            <Feather name="play" size={20} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.audioInfo}>
-            <Text style={styles.audioTitle}>Voice message</Text>
-            <Text style={styles.audioDuration}>
-              {message.fileSize ? `${Math.round(message.fileSize / 1000)}KB` : 'Audio'}
-            </Text>
-          </View>
-        </View>
-      );
-    }
-
-    // File message
-    if (message.messageType === 'file') {
-      return (
-        <TouchableOpacity 
-          style={styles.fileContainer}
-          onPress={() => {
-            Alert.alert(
-              'Download File',
-              `Would you like to download ${message.fileName || 'this file'}?`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Download', onPress: () => {
-                  // Handle file download
-                  console.log('Download file:', message.fileUrl);
-                }},
-              ]
-            );
-          }}
-          activeOpacity={0.8}
-        >
-          <Feather name="file" size={24} color="#666" />
-          <View style={styles.fileInfo}>
-            <Text style={styles.fileName} numberOfLines={1}>
-              {message.fileName || 'File'}
-            </Text>
-            <Text style={styles.fileSize}>
-              {message.fileSize ? (message.fileSize / 1024).toFixed(1) : '0'} KB
-            </Text>
-          </View>
-          <Feather name="download" size={20} color="#8089ff" />
-        </TouchableOpacity>
-      );
-    }
-
-    return (
-      <Text style={isOwnMessage ? styles.ownMessageText : styles.otherMessageText}>
-        {message.content || ''}
-      </Text>
-    );
-  };
-
   return (
     <View style={[
-      styles.messageContainer, 
-      isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer
+      styles.messageFooter, 
+      isOwnMessage ? styles.ownMessageFooter : styles.otherMessageFooter
     ]}>
-      {/* Reply Preview */}
-      {message.replyToMessage && (
-        <View style={styles.replyContainer}>
-          <View style={styles.replyLine} />
-          <View style={styles.replyContent}>
-            <Text style={styles.replyName}>
-              {message.replyToMessage.sender?.name || 'Unknown'}
-            </Text>
-            <Text style={styles.replyText} numberOfLines={1}>
-              {message.replyToMessage.content || ''}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Message Bubble */}
-      <TouchableOpacity
-        style={[
-          styles.messageBubble, 
-          isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble
-        ]}
-        onLongPress={() => onLongPress(message)}
-        activeOpacity={0.8}
-        delayLongPress={300}
-      >
-        {renderMessageContent()}
-        
-        {message.isEdited && (
-          <Text style={styles.editedText}>(edited)</Text>
-        )}
-      </TouchableOpacity>
-
-      {/* Message Footer */}
-      <View style={[
-        styles.messageFooter, 
-        isOwnMessage ? styles.ownMessageFooter : styles.otherMessageFooter
-      ]}>
-        <Text style={styles.messageTime}>{formatTime(message.createdAt)}</Text>
-        {isOwnMessage && (
-          <View style={styles.statusContainer}>
-            {getStatusIcon()}
-            {message.readBy && message.readBy.length > 1 && (
-              <Text style={styles.readCount}>{message.readBy.length - 1}</Text>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Reactions */}
-      {message.reactions && message.reactions.length > 0 && (
-        <View style={[
-          styles.reactionsContainer, 
-          { justifyContent: isOwnMessage ? 'flex-end' : 'flex-start' }
-        ]}>
-          {message.reactions.map((reaction, index) => (
-            <TouchableOpacity
-              key={`${reaction.userId}-${index}`}
-              style={[
-                styles.reactionBadge,
-                reaction.userId === user?._id && styles.ownReactionBadge,
-              ]}
-              onPress={() => handleReactionPress(reaction.emoji)}
-            >
-              <Text style={styles.reactionEmojiText}>{reaction.emoji}</Text>
-            </TouchableOpacity>
-          ))}
+      <Text style={styles.messageTime}>{formatTime(message.createdAt)}</Text>
+      {isOwnMessage && (
+        <View style={styles.statusContainer}>
+          {getStatusIcon()}
+          {message.readBy && message.readBy.length > 1 && (
+            <Text style={styles.readCount}>{message.readBy.length - 1}</Text>
+          )}
         </View>
       )}
     </View>
   );
-});
+};
 
-MessageItem.displayName = 'MessageItem';
+// Reactions List Subcomponent
+interface ReactionsListProps {
+  reactions: Array<{userId: string; emoji: string}>;
+  userId?: string;
+  onReactionPress: (emoji: string) => void;
+  isOwnMessage: boolean;
+}
 
-// 4. Typing Indicator Component
+const ReactionsList: React.FC<ReactionsListProps> = ({ 
+  reactions, 
+  userId, 
+  onReactionPress,
+  isOwnMessage 
+}) => (
+  <View style={[
+    styles.reactionsContainer, 
+    { justifyContent: isOwnMessage ? 'flex-end' : 'flex-start' }
+  ]}>
+    {reactions.map((reaction, index) => (
+      <TouchableOpacity
+        key={`${reaction.userId}-${index}`}
+        style={[
+          styles.reactionBadge,
+          reaction.userId === userId && styles.ownReactionBadge,
+        ]}
+        onPress={() => onReactionPress(reaction.emoji)}
+      >
+        <Text style={styles.reactionEmojiText}>{reaction.emoji}</Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+);
+
+// 5. Typing Indicator Component
 interface TypingIndicatorProps {
   typingUsers: Set<string>;
   participants: any[];
@@ -437,7 +782,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = React.memo(({ typingUser
 
 TypingIndicator.displayName = 'TypingIndicator';
 
-// 5. Input Preview Components
+// 6. Input Preview Components
 interface ReplyPreviewProps {
   replyTo: ChatMessage | null;
   onCancel: () => void;
@@ -494,14 +839,33 @@ const ChatScreen: React.FC = () => {
   const router = useRouter();
   const { showAlert } = useToast();
   const { user } = useUser();
+  const pathname = usePathname();
+
+  // State
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [uploadingFile, setUploadingFile] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewType, setPreviewType] = useState<'image' | 'video'>('image');
-  
-  
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showQuickReactionBar, setShowQuickReactionBar] = useState(false);
+  const [quickReactionPosition, setQuickReactionPosition] = useState({ x: 0, y: 0 });
+  const [longPressMode, setLongPressMode] = useState<'menu' | 'reactions'>('menu');
+  const [messageText, setMessageText] = useState('');
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
+  const [showMessageMenu, setShowMessageMenu] = useState(false);
+  const [isScreenReady, setIsScreenReady] = useState(false);
+
+  // Refs
+  const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const navigationStateRef = useRef<'initializing' | 'ready' | 'loading'>('initializing');
+
+  // Context hooks
   const {
     activeChat,
     messages,
@@ -529,34 +893,12 @@ const ChatScreen: React.FC = () => {
     uploadProgress: mediaProgress 
   } = useChatMedia();
 
+  // Effects
   useEffect(() => {
     setUploadingFile(mediaUploading);
     setUploadProgress(mediaProgress);
   }, [mediaUploading, mediaProgress]);
 
-  const pathname = usePathname();
-  // Refs
-  const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // State
-  const [messageText, setMessageText] = useState('');
-  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
-  const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
-  const [showMessageMenu, setShowMessageMenu] = useState(false);
-
-  const navigationStateRef = useRef<'initializing' | 'ready' | 'loading'>('initializing');
-  const [isScreenReady, setIsScreenReady] = useState(false);
-
-
-  // ============================================
-  // EFFECTS
-  // ============================================
-
-  // Initialize chat
   useEffect(() => {
     if (!chatId || navigationStateRef.current === 'ready') {
       return;
@@ -572,7 +914,6 @@ const ChatScreen: React.FC = () => {
       try {
         console.log('ChatScreen: Initializing chat...', chatId);
         
-        // Check if we're already in this chat
         if (activeChat?._id.toString() === chatId && messages.length > 0) {
           console.log('Already in this chat, skipping initialization');
           navigationStateRef.current = 'ready';
@@ -580,27 +921,22 @@ const ChatScreen: React.FC = () => {
           return;
         }
         
-        // Load chat room
         const chatRoom = await loadChatRoom(chatId);
         
         if (chatRoom) {
-          // Load messages
           await loadMessages(chatRoom._id.toString());
-          
-          // Mark as ready
           navigationStateRef.current = 'ready';
           setIsScreenReady(true);
         }
       } catch (error) {
         console.error('ChatScreen: Failed to initialize chat:', error);
-          showAlert({ message: 'Failed to load chat', type: 'error' });
-          
-          // Check if it's a 404 error - safely access error properties
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const statusCode = (error as any)?.response?.status || (error as any)?.status;
-          
-          if (errorMessage.includes('404') || statusCode === 404) {
-            router.replace('/(tabs)/messages'); 
+        showAlert({ message: 'Failed to load chat', type: 'error' });
+        
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const statusCode = (error as any)?.response?.status || (error as any)?.status;
+        
+        if (errorMessage.includes('404') || statusCode === 404) {
+          router.replace('/(tabs)/messages'); 
         } else {
           router.back();
         }
@@ -610,7 +946,6 @@ const ChatScreen: React.FC = () => {
     initializeChat();
 
     return () => {
-      // Only clear active chat if navigating to a different chat
       if (pathname && chatId && !pathname.includes(chatId)) {
         setActiveChat(null);
       }
@@ -619,7 +954,6 @@ const ChatScreen: React.FC = () => {
     };
   }, [chatId, pathname]); 
 
-  // Mark messages as read
   useEffect(() => {
     if (!user || !activeChat || messages.length === 0) return;
 
@@ -636,31 +970,24 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, user, activeChat, markAsRead]);
 
-
+  // Handlers
   const handlePreviewMedia = useCallback((url: string, type: 'image' | 'video') => {
     setPreviewImage(url);
     setPreviewType(type);
     setShowImagePreview(true);
   }, []);
 
-  // ============================================
-  // HANDLERS
-  // ============================================
-
   const handleTextChange = useCallback((text: string) => {
     setMessageText(text);
     
-    // Send typing indicator
     if (activeChat) {
       const isTyping = text.length > 0;
       setTyping(isTyping);
       
-      // Clear previous timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
       
-      // Clear typing after 1.5 seconds of inactivity
       typingTimeoutRef.current = setTimeout(() => {
         setTyping(false);
       }, 1500);
@@ -673,20 +1000,16 @@ const ChatScreen: React.FC = () => {
     
     try {
       if (editingMessage) {
-        // Edit existing message
         await editMessage(editingMessage._id.toString(), trimmedText);
         setEditingMessage(null);
       } else {
-        // Send new message
         await sendMessage(trimmedText, replyTo?._id.toString());
         setReplyTo(null);
       }
       
-      // Reset input
       setMessageText('');
       setTyping(false);
       
-      // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -697,10 +1020,28 @@ const ChatScreen: React.FC = () => {
     }
   }, [messageText, editingMessage, replyTo, sendMessage, editMessage, setTyping, showAlert]);
 
-  const handleMessageLongPress = useCallback((message: ChatMessage) => {
+  const handleMessageLongPress = useCallback((message: ChatMessage, position?: { x: number; y: number }) => {
     setSelectedMessage(message);
-    setShowMessageMenu(true);
+    
+    if (position) {
+      setQuickReactionPosition(position);
+      setLongPressMode('reactions');
+      setShowQuickReactionBar(true);
+    } else {
+      setLongPressMode('menu');
+      setShowActionSheet(true);
+    }
   }, []);
+
+  const handleQuickReaction = useCallback((message: ChatMessage, emoji: string) => {
+    addReaction(message._id.toString(), emoji);
+  }, [addReaction]);
+
+  const handleAddReaction = useCallback((emoji: string) => {
+    if (selectedMessage) {
+      addReaction(selectedMessage._id.toString(), emoji);
+    }
+  }, [selectedMessage, addReaction]);
 
   const handleReply = useCallback((message: ChatMessage) => {
     setReplyTo(message);
@@ -736,12 +1077,6 @@ const ChatScreen: React.FC = () => {
     showAlert({ message: 'Message copied to clipboard', type: 'success' });
   }, [showAlert]);
 
-  const handleAddReaction = useCallback((emoji: string) => {
-    if (selectedMessage) {
-      addReaction(selectedMessage._id.toString(), emoji);
-    }
-  }, [selectedMessage, addReaction]);
-
   const handleCancelReply = useCallback(() => {
     setReplyTo(null);
   }, []);
@@ -751,14 +1086,59 @@ const ChatScreen: React.FC = () => {
     setMessageText('');
   }, []);
 
-  // ============================================
-  // RENDER FUNCTIONS
-  // ============================================
+  // Media handlers
+  const handleTakePhoto = async () => {
+    try {
+      await takePhoto();
+      setShowMediaSheet(false);
+    } catch (error) {
+      console.error('Failed to take photo:', error);
+    }
+  };
 
+  const handlePickImage = async () => {
+      try {
+        await pickImage(); // No need to assign to variable anymore
+        setShowMediaSheet(false);
+      } catch (error) {
+        console.error('Failed to pick image:', error);
+        showAlert({ 
+          message: 'Failed to pick image', 
+          type: 'error' 
+        });
+      }
+    };
+
+    const handlePickVideo = async () => {
+      try {
+        await pickVideo(); // No need to assign to variable anymore
+        setShowMediaSheet(false);
+      } catch (error) {
+        console.error('Failed to pick video:', error);
+        showAlert({ 
+          message: 'Failed to pick video', 
+          type: 'error' 
+        });
+      }
+    };
+
+
+  const handlePickDocument = async () => {
+    try {
+      await pickDocument(); // No need to assign to variable anymore
+      setShowMediaSheet(false);
+    } catch (error) {
+      console.error('Failed to pick document:', error);
+      showAlert({ 
+        message: 'Failed to pick document', 
+        type: 'error' 
+      });
+    }
+  };
+
+  // Render functions
   const renderHeader = () => {
     const otherParticipant = activeChat?.participantsData?.find((p) => p._id !== user?._id);
-    
-    // Get accurate online status
     const isOtherOnline = otherParticipant?.isOnline || false;
     
     return (
@@ -784,9 +1164,7 @@ const ChatScreen: React.FC = () => {
                 <Text style={styles.headerTitle}>
                   {otherParticipant?.name || 'Chat'}
                 </Text>
-                {isOtherOnline && (
-                  <View style={styles.onlineIndicator} />
-                )}
+                {isOtherOnline && <View style={styles.onlineIndicator} />}
               </View>
               <Text style={styles.headerSubtitle}>
                 {isOtherOnline ? 'Online' : 
@@ -806,54 +1184,13 @@ const ChatScreen: React.FC = () => {
     );
   };
 
-  const handleTakePhoto = async () => {
-      try {
-        await takePhoto();
-        setShowMediaSheet(false);
-      } catch (error) {
-        console.error('Failed to take photo:', error);
-      }
-    };
-
-    const handlePickImage = async () => {
-      try {
-        const file = await pickImage();
-        if (file) {
-          await sendMediaMessage(file, 'image');
-          setShowMediaSheet(false);
-        }
-      } catch (error) {
-        console.error('Failed to pick image:', error);
-      }
-    };
-
-    const handlePickVideo = async () => {
-      try {
-        const file = await pickVideo();
-        if (file) {
-          await sendMediaMessage(file, 'video');
-          setShowMediaSheet(false);
-        }
-      } catch (error) {
-        console.error('Failed to pick video:', error);
-      }
-    };
-
-    const handlePickDocument = async () => {
-      try {
-        const file = await pickDocument();
-        if (file) {
-          await sendMediaMessage(file, 'file');
-          setShowMediaSheet(false);
-        }
-      } catch (error) {
-        console.error('Failed to pick document:', error);
-      }
-    };
-
   const renderInputArea = () => (
     <View style={styles.inputContainer}>
-      <TouchableOpacity style={styles.attachButton} onPress={() => setShowMediaSheet(true)} disabled={uploadingFile}>
+      <TouchableOpacity 
+        style={styles.attachButton} 
+        onPress={() => setShowMediaSheet(true)} 
+        disabled={uploadingFile}
+      >
         {uploadingFile ? (
           <View style={styles.uploadProgressContainer}>
             <ActivityIndicator size="small" color="#8089ff" />
@@ -895,10 +1232,7 @@ const ChatScreen: React.FC = () => {
     </View>
   );
 
-  // ============================================
-  // RENDER
-  // ============================================
-
+  // Loading state
   if (loading && messages.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
@@ -909,8 +1243,6 @@ const ChatScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-
-  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -931,6 +1263,7 @@ const ChatScreen: React.FC = () => {
               message={item}
               isOwnMessage={item.senderId === user?._id}
               onLongPress={handleMessageLongPress}
+              onQuickReaction={handleQuickReaction}
               onPreviewMedia={handlePreviewMedia}
             />
           )}
@@ -938,7 +1271,6 @@ const ChatScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.messagesList}
           onContentSizeChange={() => {
-            // Auto-scroll to bottom when new messages arrive
             setTimeout(() => {
               flatListRef.current?.scrollToEnd({ animated: true });
             }, 100);
@@ -956,20 +1288,42 @@ const ChatScreen: React.FC = () => {
         {renderInputArea()}
       </KeyboardAvoidingView>
 
+      {showMediaSheet && (
+        <MediaActionSheet
+          visible={showMediaSheet}
+          onClose={() => setShowMediaSheet(false)}
+          onTakePhoto={handleTakePhoto}
+          onPickImage={handlePickImage}
+          onPickVideo={handlePickVideo}
+          onPickDocument={handlePickDocument}
+        />
+      )}
 
-      <MediaActionSheet
-        visible={showMediaSheet}
-        onClose={() => setShowMediaSheet(false)}
-        onTakePhoto={handleTakePhoto}
-        onPickImage={handlePickImage}
-        onPickVideo={handlePickVideo}
-        onPickDocument={handlePickDocument}
+      <MessageActionSheet
+        visible={showActionSheet}
+        onClose={() => {
+          setShowActionSheet(false);
+          setSelectedMessage(null);
+        }}
+        message={selectedMessage}
+        onReply={handleReply}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onCopy={handleCopy}
+        onAddReaction={handleAddReaction}
+        isOwnMessage={selectedMessage?.senderId === user?._id}
+        showReactionsFirst={longPressMode === 'reactions'}
       />
 
-      <ReactionPicker
-        visible={showReactionPicker}
-        onClose={() => setShowReactionPicker(false)}
-        onSelect={handleAddReaction}
+      <QuickReactionBar
+        visible={showQuickReactionBar}
+        position={quickReactionPosition}
+        onSelect={(emoji: string) => {
+          if (selectedMessage) {
+            handleQuickReaction(selectedMessage, emoji);
+          }
+        }}
+        onClose={() => setShowQuickReactionBar(false)}
       />
 
       <MessageMenu
@@ -1008,6 +1362,7 @@ export default ChatScreen;
 // ============================================
 
 const styles = StyleSheet.create({
+  // Container & Loading
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -1022,6 +1377,8 @@ const styles = StyleSheet.create({
     fontSize: hp(1.6),
     color: '#666',
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1040,11 +1397,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerSubtitle: {
     fontSize: hp(1.4),
     color: '#666',
     marginTop: hp(0.3),
   },
+  onlineIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+    marginLeft: 8,
+  },
+
+  // Keyboard & Messages List
   keyboardView: {
     flex: 1,
   },
@@ -1052,6 +1422,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(4),
     paddingBottom: hp(2),
   },
+
+  // Message Container
   messageContainer: {
     marginVertical: hp(0.5),
   },
@@ -1061,6 +1433,8 @@ const styles = StyleSheet.create({
   otherMessageContainer: {
     alignItems: 'flex-start',
   },
+
+  // Message Bubble
   messageBubble: {
     maxWidth: '80%',
     paddingHorizontal: wp(4),
@@ -1075,38 +1449,103 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomLeftRadius: 4,
   },
+
+  // Message Content
   ownMessageText: {
     color: '#fff',
     fontSize: hp(1.7),
     lineHeight: hp(2.2),
-  },
-  mediaButton: {
-    padding: wp(2),
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 40,
-  },
-  
-  uploadProgressContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  uploadProgressText: {
-    fontSize: hp(1),
-    color: '#8089ff',
-    marginTop: 2,
   },
   otherMessageText: {
     color: '#333',
     fontSize: hp(1.7),
     lineHeight: hp(2.2),
   },
+  editedText: {
+    fontSize: hp(1.2),
+    color: '#ccc',
+    marginTop: hp(0.5),
+    fontStyle: 'italic',
+    alignSelf: 'flex-end',
+  },
+
+  // Message Media
   messageImage: {
     width: wp(60),
     height: wp(60),
     borderRadius: hp(1.5),
   },
+  videoContainer: {
+    position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  videoThumbnail: {
+    width: wp(60),
+    height: wp(40),
+    opacity: 0.8,
+  },
+  videoPlaceholder: {
+    width: wp(60),
+    height: wp(40),
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlaceholderIcon: {
+    fontSize: hp(4),
+    marginBottom: hp(1),
+  },
+  videoPlaceholderText: {
+    fontSize: hp(1.6),
+    color: '#fff',
+    fontWeight: '500',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+
+  // Audio Message
+  audioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f4ff',
+    borderRadius: 25,
+    padding: wp(3),
+    width: wp(60),
+  },
+  audioPlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#8089ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: wp(3),
+  },
+  audioInfo: {
+    flex: 1,
+  },
+  audioTitle: {
+    fontSize: hp(1.6),
+    fontWeight: '500',
+    color: '#333',
+  },
+  audioDuration: {
+    fontSize: hp(1.2),
+    color: '#666',
+    marginTop: hp(0.3),
+  },
+
+  // File Message
   fileContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1125,13 +1564,8 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: hp(0.3),
   },
-  editedText: {
-    fontSize: hp(1.2),
-    color: '#ccc',
-    marginTop: hp(0.5),
-    fontStyle: 'italic',
-    alignSelf: 'flex-end',
-  },
+
+  // Message Footer
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1157,6 +1591,8 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginLeft: wp(0.5),
   },
+
+  // Reply Preview
   replyContainer: {
     flexDirection: 'row',
     marginBottom: hp(1),
@@ -1181,6 +1617,8 @@ const styles = StyleSheet.create({
     fontSize: hp(1.4),
     color: '#666',
   },
+
+  // Reactions
   reactionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1205,6 +1643,8 @@ const styles = StyleSheet.create({
   reactionEmojiText: {
     fontSize: hp(1.8),
   },
+
+  // Typing Indicator
   typingIndicatorContainer: {
     paddingHorizontal: wp(4),
     paddingVertical: hp(1),
@@ -1243,6 +1683,8 @@ const styles = StyleSheet.create({
     fontSize: hp(1.4),
     color: '#666',
   },
+
+  // Input Area
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1276,6 +1718,17 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#ccc',
   },
+  uploadProgressContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadProgressText: {
+    fontSize: hp(1),
+    color: '#8089ff',
+    marginTop: 2,
+  },
+
+  // Reply Preview
   replyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1302,6 +1755,8 @@ const styles = StyleSheet.create({
     color: '#999',
     padding: wp(2),
   },
+
+  // Edit Preview
   editPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1321,35 +1776,93 @@ const styles = StyleSheet.create({
     fontSize: hp(1.4),
     color: '#856404',
   },
-   headerTitleRow: {
+
+  // Action Sheet
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetContainer: {
+    backgroundColor: 'transparent',
+    maxHeight: hp(80),
+  },
+  actionSheetContent: {
+    flexDirection: 'row',
+    width: width * 2,
+  },
+
+  // Reactions View
+  reactionsView: {
+    width: width,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: hp(2),
+    paddingBottom: hp(4),
+  },
+  reactionsBackButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  onlineIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-    marginLeft: 8,
+  reactionsBackText: {
+    fontSize: hp(1.8),
+    color: '#666',
+    marginLeft: wp(2),
   },
-  reactionPickerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reactionPicker: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: wp(4),
+  reactionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    width: wp(75),
     justifyContent: 'center',
+    padding: wp(4),
   },
-  reactionEmoji: {
-    padding: wp(3),
+  reactionEmojiButton: {
+    width: wp(15),
+    height: wp(15),
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: wp(1.5),
   },
+  reactionEmojiLarge: {
+    fontSize: wp(8),
+  },
+
+  // Menu View
+  menuView: {
+    width: width,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: hp(2),
+  },
+  menuItemsContainer: {
+    paddingVertical: hp(1),
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2.5),
+  },
+  menuItemIcon: {
+    width: 40,
+    alignItems: 'center',
+  },
+  menuItemText: {
+    fontSize: hp(1.8),
+    color: '#333',
+    marginLeft: wp(3),
+    flex: 1,
+  },
+  reactionMenuItemText: {
+    color: '#FF9500',
+  },
+
+  // Message Menu
   messageMenuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -1372,101 +1885,45 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: wp(3),
   },
-  videoContainer: {
-  position: 'relative',
-  borderRadius: 12,
-  overflow: 'hidden',
-  backgroundColor: '#000',
-},
 
-videoThumbnail: {
-  width: wp(60),
-  height: wp(40),
-  opacity: 0.8,
-},
-
-videoPlaceholder: {
-  width: wp(60),
-  height: wp(40),
-  backgroundColor: '#333',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-
-videoOverlay: {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  justifyContent: 'center',
-  alignItems: 'center',
-  backgroundColor: 'rgba(0,0,0,0.3)',
-},
-
-videoInfo: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingHorizontal: wp(2),
-  paddingVertical: hp(1),
-  backgroundColor: 'rgba(255,255,255,0.9)',
-},
-
-videoDuration: {
-  fontSize: hp(1.2),
-  color: '#666',
-  marginLeft: wp(1),
-},
-
-audioContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: '#f0f4ff',
-  borderRadius: 25,
-  padding: wp(3),
-  width: wp(60),
-},
-
-audioPlayButton: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#8089ff',
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginRight: wp(3),
-},
-
-audioInfo: {
-  flex: 1,
-},
-
-audioTitle: {
-  fontSize: hp(1.6),
-  fontWeight: '500',
-  color: '#333',
-},
-
-audioDuration: {
-  fontSize: hp(1.2),
-  color: '#666',
-  marginTop: hp(0.3),
-},
-videoPlaceholderIcon: {
-  fontSize: hp(4),
-  marginBottom: hp(1),
-},
-
-videoPlaceholderText: {
-  fontSize: hp(1.6),
-  color: '#fff',
-  fontWeight: '500',
-},
-
-videoFileName: {
-  fontSize: hp(1.4),
-  color: '#333',
-  fontWeight: '500',
-  flex: 1,
-},
+  // Quick Reaction Bar
+  quickReactionBar: {
+    position: 'absolute',
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(1),
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  quickReactionsContainer: {
+    flexDirection: 'row',
+  },
+  quickReactionButton: {
+    paddingHorizontal: wp(2),
+    paddingVertical: hp(0.5),
+  },
+  quickReactionEmoji: {
+    fontSize: wp(6),
+  },
+  quickReactionArrow: {
+    position: 'absolute',
+    bottom: -10,
+    left: '50%',
+    marginLeft: -10,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderTopWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#fff',
+  },
 });

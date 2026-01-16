@@ -54,7 +54,7 @@ export default function HomePage() {
   const pendingAppointmentsCount = getPendingAppointmentsCount();
   const isProfessional = user?.role === "doctor" || user?.role === "nurse" || user?.role === "hospital";
 
-  if (isLoading) {
+  if (isDataLoading && isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style='dark' />

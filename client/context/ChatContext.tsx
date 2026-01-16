@@ -43,9 +43,9 @@ interface ChatContextType {
   takePhoto: () => Promise<void>;
   isUploading: boolean;
   uploadProgress: number;
-  pickImage: () => Promise<MediaFile | null>;
-  pickVideo: () => Promise<MediaFile | null>;
-  pickDocument: () => Promise<MediaFile | null>;
+  pickImage: () => Promise<void>;
+  pickVideo: () => Promise<void>;
+  pickDocument: () => Promise<void>;
   compressImage: (uri: string) => Promise<string>;
   setTyping: (isTyping: boolean) => void;
   markAsRead: (messageId: string) => void;
@@ -839,146 +839,207 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const sendFileMessage = useCallback(async (
-    file: any,
-    type: 'image' | 'file' | 'audio' | 'video'
-  ): Promise<void> => {
-    const currentActiveChat = activeChatRef.current;
-    if (!currentActiveChat || !file) return;
+  file: any,
+  type: 'image' | 'file' | 'audio' | 'video'
+): Promise<void> => {
+  const currentActiveChat = activeChatRef.current;
+  const currentUser = userRef.current;
+  
+  if (!currentActiveChat || !file || !currentUser) {
+    showAlert({ message: 'Cannot send file: Chat not found', type: 'error' });
+    return;
+  }
 
-    try {
-      // Upload file first
-      const uploadResult = await mediaUpload.uploadFile(file);
+  try {
+    // Create optimistic message
+    const tempId = `temp-file-${Date.now()}-${Math.random()}`;
+    const tempMessage: ChatMessage = {
+      _id: tempId as any,
+      chatRoomId: currentActiveChat._id,
+      senderId: currentUser._id,
+      sender: {
+        _id: currentUser._id,
+        name: currentUser.name,
+        email: currentUser.email,
+        profile: {
+          avatar: currentUser.profile?.avatar,
+        },
+        isOnline: currentUser.isOnline,
+        lastActive: currentUser.lastActive,
+      },
+      content: `Sending ${type}...`,
+      messageType: type,
+      status: 'sending',
+      fileUrl: file.uri,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      readBy: [],
+      isEdited: false,
+      isDeleted: false,
+      reactions: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    // Add optimistic message
+    setMessages(prev => sortMessages([...prev, tempMessage]));
+    
+    // Upload file first
+    const uploadResult = await mediaUpload.uploadFile(file);
+    
+    // Send via socket with all required parameters
+    // Add fileData field (use the same value as file)
+    await socketManager.sendMediaMessage({
+      chatRoomId: currentActiveChat._id.toString(),
+      file: uploadResult.url,
+      fileData: uploadResult.url, // Add this line - use the same value as file
+      fileName: uploadResult.fileName || file.name,
+      fileType: uploadResult.fileType || file.type,
+      fileSize: uploadResult.fileSize || file.size,
+      messageType: type,
+      content: type === 'image' ? '📷 Image' : 
+               type === 'video' ? '🎬 Video' : 
+               type === 'audio' ? '🎵 Audio' : '📄 File',
+      ...(uploadResult.thumbnailUrl && { thumbnailUrl: uploadResult.thumbnailUrl })
+    });
+
+  } catch (error: any) {
+    console.error('Failed to send file:', error);
+    showAlert({ 
+      message: error.message || `Failed to send ${type}`, 
+      type: 'error' 
+    });
+    
+    // Mark as failed
+    setMessages(prev => prev.map(msg => 
+      msg._id.toString().startsWith('temp-file-') 
+        ? { ...msg, status: 'failed' }
+        : msg
+    ));
+  }
+}, [mediaUpload, showAlert]);
+
+
+    const handlePickImage = useCallback(async (): Promise<void> => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
       
-      // Send via socket
-      await socketManager.sendMediaMessage({
-        chatRoomId: currentActiveChat._id.toString(),
-        fileData: uploadResult.url,
-        fileName: uploadResult.fileName,
-        fileType: uploadResult.fileType,
-        fileSize: uploadResult.fileSize,
-        thumbnailUrl: uploadResult.thumbnailUrl
-      });
-
-    } catch (error: any) {
-      console.error('Failed to send file:', error);
-      showAlert({ message: error.message || 'Failed to send file', type: 'error' });
-    }
-  }, [mediaUpload, showAlert]);
-
-
-    const handlePickImage = useCallback(async (): Promise<MediaFile | null> => {
-    try {
-      // Use the legacy imports that you already have
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        
-        // Use the new File API instead of getInfoAsync
-        const fileUri = asset.uri;
-        
-        // Create File object to get size
-        const response = await fetch(fileUri);
-        const blob = await response.blob();
-        
-        const mediaFile: MediaFile = {
-          uri: fileUri,
-          name: `image_${Date.now()}.${asset.uri.split('.').pop() || 'jpg'}`,
-          type: asset.mimeType || 'image/jpeg',
-          size: blob.size,
-        };
-
-        if (mediaFile) {
-          await sendFileMessage(mediaFile, 'image');
-        }
-        return mediaFile;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error picking image:', error);
-      showAlert({ message: 'Failed to pick image', type: 'error' });
-      return null;
-    }
-  }, [sendFileMessage, showAlert]);
-
-  const handlePickVideo = useCallback(async (): Promise<MediaFile | null> => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        
-        // Use the new File API instead of getInfoAsync
-        const fileUri = asset.uri;
-        
-        // Create File object to get size
-        const response = await fetch(fileUri);
-        const blob = await response.blob();
-        
-        const mediaFile: MediaFile = {
-          uri: fileUri,
-          name: `video_${Date.now()}.${asset.uri.split('.').pop() || 'mp4'}`,
-          type: asset.mimeType || 'video/mp4',
-          size: blob.size,
-        };
-
-        if (mediaFile) {
-          await sendFileMessage(mediaFile, 'video');
-        }
-        return mediaFile;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error picking video:', error);
-      showAlert({ message: 'Failed to pick video', type: 'error' });
-      return null;
-    }
-  }, [sendFileMessage, showAlert]);
-
-  const handlePickDocument = useCallback(async (): Promise<MediaFile | null> => {
-    try {
+      // Prepare the file object
+      const file: any = {
+        uri: asset.uri,
+        name: `image_${Date.now()}.jpg`,
+        type: asset.mimeType || 'image/jpeg', // Add fallback
+        size: asset.fileSize || 0,
+      };
       
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*', // All file types
-        copyToCacheDirectory: true,
-      });
-
-      if (result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        
-        // Use fetch to get the file size
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        
-        const mediaFile: MediaFile = {
-          uri: asset.uri,
-          name: asset.name || `document_${Date.now()}`,
-          type: asset.mimeType || 'application/octet-stream',
-          size: blob.size,
-        };
-
-        if (mediaFile) {
-          await sendFileMessage(mediaFile, 'file');
+      // Get file size if not available
+      if (!file.size || file.size === 0) {
+        try {
+          const response = await fetch(file.uri);
+          const blob = await response.blob();
+          file.size = blob.size;
+        } catch (error) {
+          console.warn('Could not determine file size:', error);
+          file.size = 0;
         }
-        return mediaFile;
       }
-      return null;
-    } catch (error) {
-      console.error('Error picking document:', error);
-      showAlert({ message: 'Failed to pick document', type: 'error' });
-      return null;
+
+      // Send the file - ensure it's properly structured
+      await sendFileMessage(file, 'image');
     }
-  }, [sendFileMessage, showAlert]);
+  } catch (error) {
+    console.error('Error picking image:', error);
+    showAlert({ message: 'Failed to pick image', type: 'error' });
+  }
+}, [sendFileMessage, showAlert]);
+
+const handlePickVideo = useCallback(async (): Promise<void> => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+      videoMaxDuration: 60, // 60 seconds max
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      
+      // Prepare the file object
+      const file: any = {
+        uri: asset.uri,
+        name: `video_${Date.now()}.mp4`,
+        type: asset.mimeType || 'video/mp4', // Add fallback
+        size: asset.fileSize || 0,
+      };
+      
+      // Get file size if not available
+      if (!file.size || file.size === 0) {
+        try {
+          const response = await fetch(file.uri);
+          const blob = await response.blob();
+          file.size = blob.size;
+        } catch (error) {
+          console.warn('Could not determine video size:', error);
+          file.size = 0;
+        }
+      }
+
+      await sendFileMessage(file, 'video');
+    }
+  } catch (error) {
+    console.error('Error picking video:', error);
+    showAlert({ message: 'Failed to pick video', type: 'error' });
+  }
+}, [sendFileMessage, showAlert]);
+
+const handlePickDocument = useCallback(async (): Promise<void> => {
+  try {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+    });
+
+    if (result.assets && result.assets[0]) {
+      const asset = result.assets[0];
+      
+      // Prepare the file object
+      const file: any = {
+        uri: asset.uri,
+        name: asset.name || `document_${Date.now()}`,
+        type: asset.mimeType || 'application/octet-stream',
+        size: asset.size || 0,
+      };
+      
+      // Get file size if not available
+      if (!file.size || file.size === 0) {
+        try {
+          const response = await fetch(file.uri);
+          const blob = await response.blob();
+          file.size = blob.size;
+        } catch (error) {
+          console.warn('Could not determine document size:', error);
+          file.size = 0;
+        }
+      }
+
+      await sendFileMessage(file, 'file');
+    }
+  } catch (error) {
+    console.error('Error picking document:', error);
+    showAlert({ message: 'Failed to pick document', type: 'error' });
+  }
+}, [sendFileMessage, showAlert]);
 
 
   const compressImage = useCallback(async (uri: string): Promise<string> => {
@@ -1346,9 +1407,16 @@ export const useChatMedia = () => {
   return {
     sendMediaMessage: chat.sendMediaMessage,
     takePhoto: chat.takePhoto,
-    pickImage: chat.pickImage,         // Add this
-    pickVideo: chat.pickVideo,         // Add this
-    pickDocument: chat.pickDocument,   // Add this
+    pickImage: () => {
+      // Cast to Promise<void> since we're not returning MediaFile anymore
+      return chat.pickImage() as Promise<void>;
+    },
+    pickVideo: () => {
+      return chat.pickVideo() as Promise<void>;
+    },
+    pickDocument: () => {
+      return chat.pickDocument() as Promise<void>;
+    },
     isUploading: chat.isUploading,
     uploadProgress: chat.uploadProgress,
   };

@@ -1,4 +1,4 @@
-// app/(messages)/ai-chat.tsx
+// app/(pages)/messages/ai/index.tsx
 import React, { useState, useRef } from 'react';
 import {
   View,
