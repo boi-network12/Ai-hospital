@@ -11,6 +11,7 @@ import { handleConnection, handleDisconnect } from './handlers/socketHandlers';
 import { setupChatHandlers } from './handlers/chatHandlers';
 import { setupPresenceHandlers } from './handlers/presenceHandlers';
 import { SocketUser } from './models/types';
+import { HealthRouter } from './health';
 
 const app = express();
 const server = http.createServer(app);
@@ -21,15 +22,6 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'socket-server',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Initialize Socket.IO
 const io = new Server(server, {
@@ -50,6 +42,46 @@ const io = new Server(server, {
 // Store active users by userId
 const activeUsers = new Map<string, SocketUser>();
 
+// Initialize health router
+const healthRouter = new HealthRouter(io, activeUsers);
+
+// Health check routes
+app.use('/health', healthRouter.getRoutes());
+
+// Active users endpoint (keep existing)
+app.get('/active-users', (req, res) => {
+  const users = Array.from(activeUsers.values()).map(user => ({
+    ...user,
+    isOnline: true
+  }));
+  res.json({ success: true, data: users });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Socket.IO server is running',
+    service: 'ai-hospital-socket',
+    endpoints: {
+      health: '/health/health',
+      live: '/health/live',
+      ready: '/health/ready',
+      metrics: '/health/metrics',
+      activeUsers: '/active-users',
+      ws: `ws://localhost:${process.env.PORT || 3001}`
+    }
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found', 
+    url: req.originalUrl,
+    availableEndpoints: ['/', '/health', '/active-users']
+  });
+});
+
 // Authentication middleware
 io.use(socketAuth);
 
@@ -65,38 +97,18 @@ io.on('connection', (socket) => {
   });
 });
 
-// Get active users endpoint
-app.get('/active-users', (req, res) => {
-  const users = Array.from(activeUsers.values()).map(user => ({
-    ...user,
-    isOnline: true
-  }));
-  res.json({ success: true, data: users });
-});
-
-app.get('/', (req, res) => {
-  res.status(200).json({
-    message: 'Socket.IO server is running',
-    service: 'ai-hospital-socket',
-    health: '/health'
-  });
-});
-
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found', url: req.originalUrl });
-});
-
-
-
 // Start server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
   console.log(`🌐 WebSocket URL: ws://localhost:${PORT}`);
-  console.log(`✅ Health check: http://localhost:${PORT}/health`);
-  console.log(`👤 Active users endpoint: http://localhost:${PORT}/active-users`);
+  console.log(`📊 Health endpoints:`);
+  console.log(`   ✅ Liveness: http://localhost:${PORT}/health/live`);
+  console.log(`   ✅ Readiness: http://localhost:${PORT}/health/ready`);
+  console.log(`   📈 Full health: http://localhost:${PORT}/health/health`);
+  console.log(`   📊 Metrics: http://localhost:${PORT}/health/metrics`);
+  console.log(`   👤 Active users: http://localhost:${PORT}/active-users`);
 });
-
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
