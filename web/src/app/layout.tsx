@@ -83,7 +83,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Neuromed – Your AI Health Companion",
     description: "AI-powered health assistant for personalized medical insights and doctor connections.",
-    images: ["https://neuromed.sbs/twitter-image.png"],
+    images: ["https://neuromed.sbs/og-image.png"],
     creator: "@Neuromed_AI",
     site: "@Neuromed_AI",
   },

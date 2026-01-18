@@ -1,8 +1,6 @@
+import { API_URL as BACKEND_URI } from '@/config/baseApi';
 import { deleteCookie, getCookie, setCookie } from '@/helper/cookie';
 
-const BACKEND_URI = 'https://neuromed-ai-backend.vercel.app';
-// https://neuromed-ai-backend.vercel.app
-// http://10.52.10.4:8080
 
 /* -------------------------------------------------
    Request options – body can be anything that fetch
