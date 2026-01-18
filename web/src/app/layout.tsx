@@ -104,6 +104,8 @@ export default function RootLayout({
       <head>
         {/* Google Site Verification Meta Tag */}
         <meta name="google-site-verification" content="fTvTegIC7uHSFO-JKx9ljEUPXdwHfD70aBlUd4CbJfk" />
+        <meta name="twitter:image" content="https://neuromed.sbs/og-image.png" />
+        <meta name="twitter:image:alt" content="Neuromed AI Health Assistant" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${ptSansNarrow.variable} antialiased h-full`}
