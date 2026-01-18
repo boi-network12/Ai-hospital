@@ -14,6 +14,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@types/redis": "^4.0.10",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
@@ -24,7 +25,8 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^7.5.1",
+    "express-validator": "^7.3.1",
     "fs": "^0.0.1-security",
     "handlebars": "^4.7.8",
     "helmet": "^8.1.0",

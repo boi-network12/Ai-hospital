@@ -11,6 +11,7 @@ import hydrationRoutes from './hydrationRoutes';
 import careerRoutes from './careerRoutes';
 import chatRoutes from './chatRoutes';
 import uploadRoutes from './uploadRoutes';
+import aiRoutes from "./aiRoutes";
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/v1/hydration', hydrationRoutes);
 router.use('/v1/career', careerRoutes);
 router.use('/v1/chat', chatRoutes);
 router.use('/v1/upload', uploadRoutes);
+router.use('/v1/ai', aiRoutes);
 
 export default router;

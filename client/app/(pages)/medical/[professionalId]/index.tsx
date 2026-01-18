@@ -944,9 +944,9 @@ export default function MedicalProfessionalProfile() {
     const handleSendMessage = async () => {
       try {
           // Connect to socket if not already connected
-          if (!socketManager.isSocketConnected) {
-              await socketManager.connect();
-          }
+          // if (!socketManager.isSocketConnected) {
+          //     await socketManager.connect();
+          // }
           
           // Get or create chat room with the professional
           const chatRoom = await createOrGetChatRoom(professionalId as string);

@@ -10,6 +10,7 @@ import errorHandler from './src/middlewares/errorHandler';
 import apiRouter from './src/routes';
 import { cleanupInvalidRatings } from './src/utils/ratingCleanup';
 import { dateReminderMiddleware } from './src/middlewares/dateReminderMiddleware';
+import { aiRateLimiter } from './src/middlewares/aiMiddleware';
 
 const app = express();
 
@@ -26,6 +27,10 @@ app.use(cookieParser());
 
 // Date reminder middleware
 app.use(dateReminderMiddleware);
+
+// AI rate limiter middleware
+app.use('/api/v1/ai', aiRateLimiter);
+
 
 // Routes
 app.use('/api', apiRouter);

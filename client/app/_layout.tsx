@@ -15,6 +15,7 @@ import { HealthcareProvider } from '@/context/HealthContext';
 import { ProfessionalProvider } from '@/context/ProfessionalContext';
 import { HydrationProvider } from '@/context/HydrationContext';
 import { ChatProvider } from '@/context/ChatContext';
+import { AIProvider } from '@/context/AIContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -70,9 +71,11 @@ export default function RootLayout() {
               <HealthcareProvider>
                 <ProfessionalProvider>
                   <ChatProvider>
-                    <HydrationProvider>
-                      <RootLayoutContent />
-                    </HydrationProvider>
+                    <AIProvider>
+                      <HydrationProvider>
+                        <RootLayoutContent />
+                      </HydrationProvider>
+                    </AIProvider>
                   </ChatProvider>
                 </ProfessionalProvider>
               </HealthcareProvider>
